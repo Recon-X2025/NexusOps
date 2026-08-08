@@ -4417,3 +4417,80 @@ importer in that file is **`importInvoices`** (per-row skip + `skipped[]`). This
 employee importer was scoped as "a direct copy of a proven tolerant pattern" partly on the strength of that
 claim — the tolerance must come from the **client** `CsvImportModal` (which splits valid/error rows) or be
 modelled on `importInvoices`, not `importVendors`.
+
+---
+
+## PAN ciphertext in the edit dialog — a DESTRUCTIVE defect (2026-08-08)
+
+### The defect (destructive, not cosmetic)
+`hr.employees.list` returned the **raw `v2:` envelope** in the `pan` field, which pre-filled the
+edit dialog's PAN input. `panColumnsTolerant` then encrypted **whatever it was given** — so an admin
+who opened the dialog and clicked **Save wrote the ciphertext back through the encrypter**, producing
+a **double-encrypted** value. Decrypting it once yields the envelope string, not the PAN; **the
+original is unrecoverable from that row.** This was **live on production** from the PAN-encryption
+deploy (`5710dc2`) until this fix, and it was found from a **user screenshot of the live site — not
+by any test.**
+
+### THE CHAIN — the standing lesson, not just an incident note
+Read this as a rule, not a war story:
+1. The **employee-importer scoping pass** found employee PAN stored in **plaintext**.
+2. Fixing plaintext (`5710dc2`) encrypted PAN on write — but the directory **read path still returned
+   the raw ciphertext**, which the edit form displayed.
+3. That ciphertext-in-the-form was **one Save away from destroying data.**
+
+**An encryption change has a READ side that must be checked as deliberately as the write side.** The
+build prompt for the encryption fix asked only about writes; the read paths (which query returns the
+column, does it decrypt, does any form re-post it) were not audited, and that gap shipped a
+destructive bug. **Standing rule for any future encrypt/mask/hash change: enumerate every read path
+and every form that round-trips the column, in the same pass as the write.**
+
+### The fix — four layers, guard un-bypassable
+1. **The guard, inside `panColumnsTolerant`** (`apps/api/src/lib/pan.ts`): if the incoming value is
+   already a `v2:` envelope, return `{}` (no change) — **never re-encrypt**. It lives in the helper,
+   not at the call sites, so **no caller can bypass it** and the whole class of bug is impossible.
+2. **`hr.employees.list` / `get` no longer ship the ciphertext** — `pan: null`, keeping only
+   `panMaskedDisplay`. The client can't re-post what it never receives.
+3. **The edit dialog is write-only** — it shows the masked current value, keeps the input empty, and
+   sends a PAN only when the admin types a new one (empty = no change).
+4. **PAN format validation** on `create` + `update` (server Zod `employeePanField` + a client check)
+   rejects a `v2:` string, a mask, or any malformed value at the edge.
+
+### MASKED, WRITE-ONLY — the chosen display and why
+The dialog shows `panMaskedDisplay` (`XXXXXX999Z`) read-only; the admin can overwrite but never reads
+the full PAN back. Reason: this is personal data under DPDP, the masked column exists for exactly
+this, and **returning a decrypted PAN to the browser would re-expose the plaintext that
+encryption-at-rest just protected.**
+
+### The read-only production check (ships here; runs post-deploy)
+`apps/api/src/scripts/pan-prod-check.ts` (+ tsup entry → `dist/scripts/pan-prod-check.mjs`) and the
+manual `workflow_dispatch` workflow `.github/workflows/pan-prod-check.yml` classify every employee
+PAN in production as plaintext / correctly-encrypted / **double-encrypted** / undecryptable. READ
+ONLY (a single SELECT + in-memory decrypt), prints **counts + row identifiers only, never a PAN**,
+reaches the host the same way the Deploy-to-Vultr job does, and runs **inside the api container** so
+the prod DB / `APP_SECRET` never leave the box. Proven locally against a throwaway copy seeded with
+all four classes (it correctly reported 1 double-encrypted + 1 undecryptable, no PAN printed).
+
+### ⚠️ OPEN — production PAN state is UNKNOWN until the check runs
+Production **may contain double-encrypted rows** (any employee whose edit dialog was opened + Saved
+after `5710dc2`). The check can only run **once this commit is deployed** (it executes inside the
+deployed image). **Until it reports, the state of production employee PANs is unknown.** Recovery for
+any affected row is **re-entry of the PAN from source — there is no computational recovery.**
+
+### Two out-of-scope DPDP findings (recorded, NOT fixed)
+- **Director / shareholder / vendor forms render the FULL plaintext PAN unmasked** on read (secretarial
+  table cells, vendor edit form). Same *class* as the employee display weakness, but **lower urgency:
+  those paths decrypt correctly, so they are NOT destructive** (they re-post plaintext, which encrypts
+  fine). Candidates for masked-display later.
+- **The vendor PAN input has no format validation**, while the org wizard does. Candidate for the
+  shared `employeePanField` schema.
+
+### Note on the tolerant fallback
+`panColumnsTolerant`'s malformed→encrypted-raw fallback is now a **genuine last resort** (for the
+batch importer, which has no per-row edge validation), not a routine path — single-record create/update
+reject malformed at the edge.
+
+### ⚠️ INFRASTRUCTURE — production has NO automatic backups (recorded, not done)
+Vultr **auto-backups are NOT enabled** on the production instance. The entire restore path is **manual
+snapshots taken by hand before each commit**. Seven pilot customers' payroll data on one instance with
+**no automatic backup** is a real go-live risk. It is a **settings checkbox**, not a build — enable
+Vultr automatic backups on the production instance before go-live.

@@ -57,6 +57,22 @@ import { emitDomainEvent } from "../services/workflow-events";
 const employeePublicColumns = getTableColumns(employees);
 
 /**
+ * PAN input for a single employee record. Format AAAAA9999A (5 letters, 4 digits, 1 letter),
+ * case-insensitive at the edge (stored uppercased). An empty string means "no PAN provided" and
+ * leaves the column untouched; a MALFORMED value is REJECTED here on the server so it cannot be
+ * bypassed by a direct API call. This is stricter than the bulk importer's tolerance on purpose —
+ * one admin typing one record can be told to fix it immediately. `panColumnsTolerant`'s
+ * malformed-fallback stays a genuine last resort (for the batch path), not a routine one.
+ */
+const employeePanField = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/.test(v), {
+    message: "PAN must be in the format AAAAA9999A (5 letters, 4 digits, 1 letter).",
+  })
+  .optional();
+
+/**
  * Resolve the authenticated user's own employee record plus their *effective*
  * shift for self-service attendance (G8). Precedence: the employee's assigned
  * shift → the org's default shift (`shiftSchedules.isDefault`) → the built-in
@@ -205,6 +221,12 @@ export const hrRouter = router({
           const { emp, userName, userEmail } = row;
           return {
             ...emp,
+            // Never ship the raw ENCRYPTED PAN to the client. The masked display
+            // (`panMaskedDisplay`, e.g. "XXXXXX999Z") is the safe value for the UI; sending the
+            // `v2:` envelope let the edit form show ciphertext and re-encrypt it on Save
+            // (double-encryption). The PAN is decrypted only where it is genuinely needed
+            // (payslip / Form-16), never in the directory.
+            pan: null,
             name: userName,
             email: userEmail,
             employeeNumber: emp.employeeId,
@@ -248,7 +270,11 @@ export const hrRouter = router({
           .from(employees)
           .where(and(eq(employees.managerId, input.id), eq(employees.orgId, org!.id)));
 
-        return { employee, reportees };
+        // Strip the raw encrypted PAN from the wire (keep `panMaskedDisplay`); see the list query.
+        return {
+          employee: { ...employee, pan: null },
+          reportees: reportees.map((r: typeof employee) => ({ ...r, pan: null })),
+        };
       }),
 
     create: permissionProcedure("hr", "assign")
@@ -276,7 +302,7 @@ export const hrRouter = router({
           // Tax election: locked 12 months, defaults to new (CA ruling).
           taxRegime: z.enum(["old", "new"]).optional(),
           // Statutory identity.
-          pan: z.string().optional(),
+          pan: employeePanField,
           uan: z.string().optional(),
           esiIpNumber: z.string().optional(),
           bankAccountNumber: z.string().optional(),
@@ -422,7 +448,7 @@ export const hrRouter = router({
         city: z.string().optional(),
         isMetroCity: z.boolean().optional(),
         taxRegime: z.enum(["old", "new"]).optional(),
-        pan: z.string().optional(),
+        pan: employeePanField,
         uan: z.string().optional(),
         esiIpNumber: z.string().optional(),
         bankAccountNumber: z.string().optional(),

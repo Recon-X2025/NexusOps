@@ -30,15 +30,21 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **LIVE / `origin/main` = `5710dc2`** (employee PAN encrypted at rest via a shared
-  `panColumnsTolerant` helper on create/update/importVendors; null-salary-structure employees flagged
-  on the run instead of silently dropped; **no migration**). **Confirmed LIVE** — CI run
-  **`31188691203`** finished with all five jobs green **including `Deploy to Vultr: success`** (see the
-  exit-point line). Verify with `git rev-parse HEAD`.
-- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
-  unpushed** (rule 6 — no docs-only deploy); it rides origin with the next code change, so local
-  `main` may read **one commit ahead** of `origin/main` (live code is `5710dc2` on both).
-- **`d979038` (C6 payslip mandatory statutory fields)** was live via CI `31162786896`; **superseded by `5710dc2`**.
+- **HEAD is the PAN-ciphertext-fix + prod-check commit** (this commit — fixes a DESTRUCTIVE bug:
+  the edit dialog displayed the stored PAN ciphertext and re-encrypted it on Save (double-encryption).
+  Envelope guard in `panColumnsTolerant`, list/get stop shipping ciphertext, write-only masked dialog,
+  PAN format validation, and a read-only prod audit script + `workflow_dispatch`; **no migration**).
+  Its deploy **rides CI on this `main` push**; **advance the exit-point once its `Deploy to Vultr` JOB
+  is green.** This push also carries `4e7bb3a` (the `5710dc2` exit-point bookkeeping doc commit).
+- **`5710dc2` (PAN encrypted at rest + null-structure warning) is LIVE** — CI run **`31188691203`**,
+  all five jobs green **including `Deploy to Vultr: success`**. Last VALIDATED deploy before this commit.
+- **⚠️ OPEN — production employee-PAN state is UNKNOWN.** Prod may contain double-encrypted rows
+  (any employee whose edit dialog was Saved after `5710dc2`). The prod-check ships in THIS commit and
+  can only run **after this deploys** (Actions → "PAN Encryption Check (prod, read-only)" →
+  Run workflow). Recovery for any affected row is re-entry from source — no computational recovery.
+- **⚠️ INFRASTRUCTURE — Vultr auto-backups are NOT enabled** on prod; restore is manual snapshots by
+  hand before each commit. A go-live risk (7 pilots, one instance, no auto-backup) — a settings
+  checkbox, not a build. See `reports/fix-plan.md` → "PAN ciphertext… (2026-08-08)".
 - **`e886a9c` (C2-STRUCT half-yearly PT)** was live via CI `31147028089`; **superseded by `d979038`**.
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
@@ -145,7 +151,21 @@ Grouped by area; each item has full detail in `reports/fix-plan.md`.
   - POS needs **no** structural work (state is already a 2-digit code); **Table 11
     advances are out of scope for the pilot.**
 
-### Security / payroll — PAN-at-rest + null-structure drop (this commit, no migration)
+### Security — PAN ciphertext in edit dialog, a DESTRUCTIVE bug (this commit, no migration)
+- **The edit dialog showed the stored PAN ciphertext** (`hr.employees.list` returned the raw `v2:`
+  envelope), and **Save re-encrypted it → double-encryption → original PAN unrecoverable.** Live on
+  prod from `5710dc2` until now; found from a **user screenshot**, not a test. **THE CHAIN (the
+  lesson):** importer scoping → found plaintext PAN → fixing it created the ciphertext-in-form bug →
+  one Save from data loss. **An encryption change's READ paths must be audited as deliberately as the
+  writes.** Fixed in four layers: envelope guard **inside** `panColumnsTolerant` (un-bypassable),
+  list/get return `pan: null` + masked display, write-only masked dialog, PAN format validation
+  (server + client). Chose **masked write-only** (DPDP; never return a decrypted PAN to the browser).
+  Ships a **read-only prod audit** (`pan-prod-check.ts` + `workflow_dispatch`) to find double-encrypted
+  rows post-deploy. Out-of-scope-but-recorded: director/shareholder/vendor forms show FULL plaintext
+  PAN (non-destructive, they decrypt correctly); vendor PAN input lacks format validation. Full detail
+  in `reports/fix-plan.md` → "PAN ciphertext… (2026-08-08)".
+
+### Security / payroll — PAN-at-rest + null-structure drop (`5710dc2`, no migration)
 - **Employee PAN was stored PLAINTEXT** by `hr.employees.create`/`update` (never stamping the
   match-hash/mask), while vendors + org encrypted theirs — the most sensitive PAN in the system,
   in the clear (DPDP exposure). **Census: 9/9 employee PANs plaintext on dev; prod is the same

@@ -84,6 +84,12 @@ export async function panColumnsTolerant(
   raw: string | null | undefined,
 ): Promise<PanColumns | { pan: string } | Record<string, never>> {
   if (raw == null || raw.trim() === "") return {};
+  // NEVER re-encrypt an already-encrypted value. If the incoming `raw` is itself a `v2:`
+  // envelope (e.g. a form that displayed the stored ciphertext and posted it back unchanged),
+  // treat it as "no change" and leave the stored columns alone — encrypting it again would
+  // DOUBLE-encrypt and make the original PAN unrecoverable. This guard lives here, not at the
+  // call sites, so the whole class of bug is impossible regardless of caller.
+  if (isEnvelope(raw.trim())) return {};
   try {
     return await panColumns(raw);
   } catch {

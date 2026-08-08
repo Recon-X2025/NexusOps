@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 // avoids a router circular-init (mirrors the other router-caller tests, e.g. approval-concurrency).
 import { makeContext, seedTestOrg, seedUser, testDb, cleanupOrg } from "./helpers";
 import { hrRouter } from "../routers/hr";
-import { decryptPan } from "../lib/pan";
+import { decryptPan, panColumnsTolerant } from "../lib/pan";
 import { employees, eq } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 
@@ -74,20 +74,65 @@ describe("employee PAN encryption at rest", () => {
     expect(row.panMaskedDisplay).toContain("321R"); // last 4 shown, first 6 masked
   });
 
-  it("a malformed PAN degrades to encrypted-raw (no throw, no plaintext, no hash)", async () => {
-    const emp = await caller.employees.create({
-      userName: "Cy Malformed",
-      userEmail: `cy-${nanoid(6)}@qa.coheronconnect.io`,
-      state: "Karnataka",
-      pan: "NOTAPAN", // fails PAN validation
-    });
-    const row = await storedRow(emp.id);
+  it("a malformed PAN is REJECTED by create (single-record edge validates, unlike the importer)", async () => {
+    await expect(
+      caller.employees.create({
+        userName: "Cy Malformed",
+        userEmail: `cy-${nanoid(6)}@qa.coheronconnect.io`,
+        state: "Karnataka",
+        pan: "NOTAPAN", // fails the PAN format rule
+      }),
+    ).rejects.toThrow(/PAN must be in the format/i);
+  });
 
-    expect(row.pan).toMatch(/^v2:/); // encrypted, not thrown, not plaintext
-    expect(row.pan).not.toContain("NOTAPAN");
-    expect(row.panMaskedHash).toBeNull(); // no hash/mask derived for an invalid PAN
-    expect(row.panMaskedDisplay).toBeNull();
-    expect(await decryptPan(row.pan)).toBe("NOTAPAN"); // raw recovered
+  it("a malformed PAN is REJECTED by update", async () => {
+    const emp = await caller.employees.create({
+      userName: "Del Ok",
+      userEmail: `del-${nanoid(6)}@qa.coheronconnect.io`,
+      state: "Karnataka",
+      pan: "ABCDE1234F",
+    });
+    await expect(caller.employees.update({ id: emp.id, pan: "12345678901" })).rejects.toThrow(
+      /PAN must be in the format/i,
+    );
+  });
+
+  it("saving the edit dialog unchanged does NOT alter the stored PAN (double-encryption closed)", async () => {
+    const emp = await caller.employees.create({
+      userName: "Eve Stable",
+      userEmail: `eve-${nanoid(6)}@qa.coheronconnect.io`,
+      state: "Karnataka",
+      pan: "ABCDE1234F",
+    });
+    const before = (await storedRow(emp.id)).pan;
+
+    // The edit dialog now sends the PAN only when the admin types a new one; an unchanged save
+    // omits it. Assert an update WITHOUT pan leaves the stored ciphertext byte-for-byte identical.
+    await caller.employees.update({ id: emp.id, title: "Analyst" });
+    const after = (await storedRow(emp.id)).pan;
+
+    expect(after).toBe(before); // not re-encrypted
+    expect(await decryptPan(after)).toBe("ABCDE1234F"); // still recovers the original PAN
+  });
+
+  it("panColumnsTolerant leaves an already-encrypted envelope untouched (never re-encrypts)", async () => {
+    const envelope = (await panColumnsTolerant("ABCDE1234F")).pan!; // a real v2: envelope
+    expect(envelope).toMatch(/^v2:/);
+    const result = await panColumnsTolerant(envelope);
+    expect(result).toEqual({}); // no columns written — the guard treats it as "no change"
+  });
+
+  it("the directory (list) never ships the raw envelope — only the masked display", async () => {
+    const emp = await caller.employees.create({
+      userName: "Fay Masked",
+      userEmail: `fay-${nanoid(6)}@qa.coheronconnect.io`,
+      state: "Karnataka",
+      pan: "ABCDE1234F",
+    });
+    const list = await caller.employees.list({});
+    const row = list.find((r) => r.id === emp.id)!;
+    expect(row.pan).toBeNull(); // ciphertext stripped
+    expect(row.panMaskedDisplay).toContain("234F"); // the safe display value is present
   });
 
   it("a legacy plaintext PAN still reads correctly through decryptPan (existing-data regression)", async () => {

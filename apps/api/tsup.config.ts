@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig([
   {
-    entry: ["src/index.ts", "src/seed.ts", "src/migrate.ts"],
+    entry: ["src/index.ts", "src/seed.ts", "src/migrate.ts", "src/scripts/pan-prod-check.ts"],
     format: ["esm"],
     dts: false,
     clean: false,

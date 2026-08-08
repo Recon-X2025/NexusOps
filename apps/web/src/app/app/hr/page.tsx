@@ -11,6 +11,15 @@ import { EsignPanel } from "@/components/esign/EsignPanel";
 import { LeaveAccrualsTab } from "@/components/hr/LeaveAccrualsTab";
 import { GratuityTab } from "@/components/hr/GratuityTab";
 
+/** Client-side PAN check (mirrors the server Zod rule). Empty = "no PAN" (ok); otherwise it must
+ *  be AAAAA9999A. Returns an error string, or null when acceptable. The server re-validates. */
+function panInputError(pan: string): string | null {
+  const v = pan.trim().toUpperCase();
+  return v === "" || /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v)
+    ? null
+    : "PAN must be in the format AAAAA9999A (5 letters, 4 digits, 1 letter).";
+}
+
 const HR_TABS = [
   { key: "directory",  label: "Employee Directory",   module: "hr"         as const, action: "read"  as const },
   { key: "cases",       label: "HR Cases",            module: "hr"         as const, action: "read"  as const },
@@ -1127,9 +1136,10 @@ export default function HRPage() {
                 <div className="w-1/2">
                   <label className="text-[11px] text-muted-foreground">PAN</label>
                   <input
-                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background uppercase"
                     value={addEmpForm.pan}
-                    onChange={(e) => setAddEmpForm((f) => ({ ...f, pan: e.target.value }))}
+                    placeholder="AAAAA9999A"
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, pan: e.target.value.toUpperCase() }))}
                   />
                 </div>
                 <div className="w-1/2">
@@ -1293,7 +1303,9 @@ export default function HRPage() {
                   !addEmpForm.state.trim() ||
                   createEmployee.isPending
                 }
-                onClick={() =>
+                onClick={() => {
+                  const panErr = panInputError(addEmpForm.pan);
+                  if (panErr) { toast.error(panErr); return; }
                   createEmployee.mutate({
                     userId: addEmpForm.userId || undefined,
                     userName: addEmpForm.userName || undefined,
@@ -1309,7 +1321,7 @@ export default function HRPage() {
                     city: addEmpForm.city || undefined,
                     isMetroCity: addEmpForm.isMetroCity,
                     taxRegime: addEmpForm.taxRegime,
-                    pan: addEmpForm.pan || undefined,
+                    pan: addEmpForm.pan.trim() || undefined,
                     uan: addEmpForm.uan || undefined,
                     esiIpNumber: addEmpForm.esiIpNumber || undefined,
                     bankAccountNumber: addEmpForm.bankAccountNumber || undefined,
@@ -1330,8 +1342,8 @@ export default function HRPage() {
                     rentPaidAnnual: addEmpForm.rentPaidAnnual
                       ? Number(addEmpForm.rentPaidAnnual)
                       : undefined,
-                  })
-                }
+                  });
+                }}
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
               >
                 {createEmployee.isPending ? "Saving…" : "Create record"}
@@ -1493,11 +1505,14 @@ export default function HRPage() {
               </div>
               <div className="flex gap-2">
                 <div className="w-1/2">
-                  <label className="text-[11px] text-muted-foreground">PAN</label>
+                  <label className="text-[11px] text-muted-foreground">
+                    PAN{editingEmployee?.panMaskedDisplay ? ` (current: ${editingEmployee.panMaskedDisplay})` : ""}
+                  </label>
                   <input
-                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background uppercase"
                     value={editEmpForm.pan}
-                    onChange={(e) => setEditEmpForm((f) => ({ ...f, pan: e.target.value }))}
+                    placeholder={editingEmployee?.panMaskedDisplay ? "Enter a new PAN to change" : "AAAAA9999A"}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, pan: e.target.value.toUpperCase() }))}
                   />
                 </div>
                 <div className="w-1/2">
@@ -1657,7 +1672,9 @@ export default function HRPage() {
               <button
                 type="button"
                 disabled={updateEmployee.isPending}
-                onClick={() =>
+                onClick={() => {
+                  const panErr = panInputError(editEmpForm.pan);
+                  if (panErr) { toast.error(panErr); return; }
                   updateEmployee.mutate({
                     id: editingEmployee.id as string,
                     department: editEmpForm.department || undefined,
@@ -1670,7 +1687,8 @@ export default function HRPage() {
                     city: editEmpForm.city || undefined,
                     isMetroCity: editEmpForm.isMetroCity,
                     taxRegime: editEmpForm.taxRegime,
-                    pan: editEmpForm.pan || undefined,
+                    // Write-only: only send a PAN when the admin typed a new one (empty = no change).
+                    pan: editEmpForm.pan.trim() || undefined,
                     uan: editEmpForm.uan || undefined,
                     esiIpNumber: editEmpForm.esiIpNumber || undefined,
                     bankAccountNumber: editEmpForm.bankAccountNumber || undefined,
@@ -1691,8 +1709,8 @@ export default function HRPage() {
                     rentPaidAnnual: editEmpForm.rentPaidAnnual
                       ? Number(editEmpForm.rentPaidAnnual)
                       : undefined,
-                  })
-                }
+                  });
+                }}
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
               >
                 {updateEmployee.isPending ? "Saving…" : "Save"}
@@ -1854,7 +1872,11 @@ export default function HRPage() {
                                   city: String(emp.city ?? ""),
                                   isMetroCity: Boolean(emp.isMetroCity),
                                   taxRegime: (emp.taxRegime === "old" ? "old" : "new") as "old" | "new",
-                                  pan: String(emp.pan ?? ""),
+                                  // PAN is WRITE-ONLY: never pre-fill it. The stored value is the
+                                  // encrypted envelope (and the API no longer sends it anyway); the
+                                  // dialog shows the masked display and only writes a new PAN when
+                                  // the admin types one. Pre-filling would re-post + double-encrypt.
+                                  pan: "",
                                   uan: String(emp.uan ?? ""),
                                   esiIpNumber: String(emp.esiIpNumber ?? ""),
                                   bankAccountNumber: String(emp.bankAccountNumber ?? ""),

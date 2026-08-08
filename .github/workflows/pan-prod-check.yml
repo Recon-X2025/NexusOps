@@ -1,0 +1,68 @@
+# READ-ONLY employee-PAN encryption audit against PRODUCTION.
+#
+# Manually triggered only (workflow_dispatch) — NEVER runs on push. It reaches the Vultr host
+# the SAME way the CI "Deploy to Vultr" job does (VULTR_HOST + VULTR_SSH_PRIVATE_KEY, ssh-agent),
+# then runs `dist/scripts/pan-prod-check.mjs` INSIDE the already-running `api` container via
+# `docker compose exec` (the pattern scripts/vultr-remote-deploy.sh uses for the seed). The
+# production DATABASE_URL / APP_SECRET / KMS_PROVIDER stay in the container's own environment
+# (.env.production on the host) — they are NOT injected into this runner and are never printed.
+#
+# The script is READ ONLY (a single SELECT + in-memory decryption) and prints only counts +
+# row identifiers, never a PAN value. See apps/api/src/scripts/pan-prod-check.ts.
+name: PAN Encryption Check (prod, read-only)
+
+on:
+  workflow_dispatch: {}
+
+# Serialise with deploys so it never overlaps an in-flight release on the same host.
+concurrency:
+  group: vultr-prod
+  cancel-in-progress: false
+
+jobs:
+  pan-check:
+    name: Employee PAN encryption audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check deploy secrets present
+        id: gate
+        env:
+          VULTR_HOST: ${{ secrets.VULTR_HOST }}
+          VULTR_SSH_PRIVATE_KEY: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$VULTR_HOST" && -n "$VULTR_SSH_PRIVATE_KEY" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::VULTR_HOST / VULTR_SSH_PRIVATE_KEY not set — cannot reach production."
+            exit 1
+          fi
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+
+      - name: Trust host key
+        env:
+          VULTR_HOST: ${{ secrets.VULTR_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VULTR_HOST" >> ~/.ssh/known_hosts
+
+      - name: Run READ-ONLY PAN audit inside the api container
+        env:
+          VULTR_HOST: ${{ secrets.VULTR_HOST }}
+          VULTR_USER: ${{ secrets.VULTR_USER }}
+        run: |
+          SERVER="${VULTR_USER:-root}@${VULTR_HOST}"
+          echo "Running the read-only PAN audit on $VULTR_HOST (inside the api container)…"
+          ssh -o BatchMode=yes "$SERVER" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/coheronconnect
+          docker compose --env-file .env.production \
+            -f docker-compose.vultr-test.yml \
+            -f docker-compose.vultr.images.yml \
+            exec -T api node dist/scripts/pan-prod-check.mjs
+          REMOTE
