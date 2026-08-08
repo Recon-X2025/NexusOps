@@ -182,6 +182,52 @@ export async function getNextYearScopedSeq(
 }
 
 /**
+ * Atomically allocate the next EMPLOYEE sequence for an org, returning the formatted
+ * `EMP-NNNN` identifier. This replaces the old `count(*) + 1` allocation, which was
+ * neither delete-proof nor concurrency-safe: after any employee delete the count drops
+ * and the next allocation collides with a surviving `EMP-NNNN` (they share the unique
+ * `employees_org_employee_id_idx`), and two simultaneous creates could both read the same
+ * count. Deletes and re-imports of a bad batch happen routinely during onboarding, so this
+ * matters for the bulk importer AND the single-record create — both call this, so they
+ * cannot drift apart into a shared-number collision.
+ *
+ * Mechanism mirrors `getNextYearScopedSeq`: a one-time seed (WHERE NOT EXISTS) sets the
+ * counter to the max `EMP-` sequence already stored for the org — so a cutover org that was
+ * numbered by the old count() path continues without a gap or a collision — then every call
+ * is the same single-statement atomic `+1`. The counter only ever moves FORWARD, so a
+ * deleted number is never handed out again.
+ *
+ * The seed regex `^EMP-0*([0-9]+)` captures the digit run after the `EMP-` prefix (stripping
+ * pad zeros); a non-numeric legacy id (e.g. a test's `EMP-a1b2`) yields NULL and is ignored
+ * by MAX rather than erroring.
+ */
+export async function getNextEmployeeNumber(db: DbOrTx, orgId: string): Promise<string> {
+  // Step 1 (one-time per org): seed the counter to the highest EMP number already stored.
+  await db.execute(sql`
+    INSERT INTO org_counters (org_id, entity, current_value)
+    SELECT
+      ${orgId},
+      'EMP',
+      COALESCE(
+        (
+          SELECT MAX(CAST(SUBSTRING(employee_id FROM '^EMP-0*([0-9]+)') AS BIGINT))
+          FROM employees
+          WHERE org_id = ${orgId} AND employee_id LIKE 'EMP-%'
+        ),
+        0
+      )
+    WHERE NOT EXISTS (
+      SELECT 1 FROM org_counters WHERE org_id = ${orgId} AND entity = 'EMP'
+    )
+    ON CONFLICT (org_id, entity) DO NOTHING
+  `);
+
+  // Step 2 (every call): atomic +1 on the now-present counter row.
+  const seq = await getNextSeq(db, orgId, "EMP");
+  return `EMP-${String(seq).padStart(4, "0")}`;
+}
+
+/**
  * Startup sync — ensures every org_counters row is at least as large as the
  * highest number already stored in the source table.
  *

@@ -10,17 +10,20 @@ import {
     invoices,
     invoiceLineItems,
     gstinRegistry,
+    employees,
+    users,
+    salaryStructures,
     eq,
     and,
     desc,
     type DbOrTx,
 } from "@coheronconnect/db";
-import { getNextNumber, syncOrgCounters } from "../lib/auto-number";
+import { getNextNumber, getNextEmployeeNumber, syncOrgCounters } from "../lib/auto-number";
 import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/gst-engine";
 import { computeInvoiceFromLines } from "../lib/invoice-lines";
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
-import { panColumnsTolerant } from "../lib/pan";
+import { panColumnsTolerant, employeePanField } from "../lib/pan";
 import { currentFY } from "./accounting";
 
 const MatterIngestSchema = z.object({
@@ -122,6 +125,101 @@ const InvoiceIngestSchema = z.object({
     invoiceDate: z.string().optional(),
     dueDate: z.string().optional(),
 });
+
+/**
+ * ONE bulk-import employee row.
+ *
+ * DELIBERATELY TOLERANT at the tRPC boundary — every field is an optional string. tRPC validates
+ * the whole `z.array` before the mutation body runs, so a strict per-field schema (like
+ * `importVendors`) would reject the ENTIRE batch on one bad row. The onboarding brief is the
+ * opposite: skip the bad row, name it, import the rest. So the boundary accepts anything and the
+ * mutation validates each row itself (email format + uniqueness, PAN format via `employeePanField`,
+ * structure-name resolution, state presence, enum + date checks), collecting failures into
+ * `skipped[]` — the `importInvoices` shape, not `importVendors`'. Values arrive as raw CSV strings.
+ */
+const EmployeeIngestRowSchema = z
+    .object({
+        // Identity — name + email are required (a user row is created per employee; users.userId is
+        // NOT NULL, users.email is unique per org). Validated in the body, not here, so a bad row skips.
+        name: z.string().optional(),
+        email: z.string().optional(),
+        // Pay — resolved by NAME to a salary-structure family; never auto-created (a structure invented
+        // at import time would set everyone's basic %, the figure under CA review for the 50% wage floor).
+        structureName: z.string().optional(),
+        // Org placement.
+        department: z.string().optional(),
+        title: z.string().optional(),
+        jobGrade: z.string().optional(),
+        employmentType: z.string().optional(),
+        location: z.string().optional(),
+        // Statutory location — state drives PT slab selection (required in the body).
+        state: z.string().optional(),
+        city: z.string().optional(),
+        isMetroCity: z.string().optional(),
+        taxRegime: z.string().optional(),
+        startDate: z.string().optional(),
+        // Statutory identity.
+        pan: z.string().optional(),
+        uan: z.string().optional(),
+        esiIpNumber: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        bankIfsc: z.string().optional(),
+        bankName: z.string().optional(),
+        bankAccountName: z.string().optional(),
+        gender: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        // NOTE: the C1 declaration-intake figures (previousEmployerIncome / previousEmployerTds /
+        // rentPaidAnnual) are DELIBERATELY NOT importable. Each declared figure must carry a
+        // provenance status (provisional / proven / lapsed, with the Feb→Mar catch-up spread) so
+        // the relief can be withdrawn and tax recovered if never proven. A CSV cell is a bare
+        // number with no status — importing it would create rows that look declared but are not
+        // classifiable, which C1 would then inherit unable to tell apart. They belong to C1's
+        // intake, not here.
+    })
+    .passthrough();
+
+const EMPLOYMENT_TYPES = ["full_time", "part_time", "contractor", "intern"] as const;
+const GENDERS = ["male", "female", "other"] as const;
+const TAX_REGIMES = ["old", "new"] as const;
+
+/** Thrown by a per-row validator to skip THAT row with a reason (never aborts the batch). */
+class EmployeeRowError extends Error {}
+
+const cleanStr = (v?: string): string | undefined => {
+    const t = (v ?? "").trim();
+    return t === "" ? undefined : t;
+};
+/** Required, non-empty; throws a named row error otherwise. */
+function required(v: string | undefined, message: string): string {
+    const t = cleanStr(v);
+    if (t === undefined) throw new EmployeeRowError(message);
+    return t;
+}
+/** Optional enum (case-insensitive); undefined when blank; throws on an out-of-set value. */
+function optionalEnum<T extends readonly string[]>(v: string | undefined, allowed: T, label: string): T[number] | undefined {
+    const t = cleanStr(v)?.toLowerCase();
+    if (t === undefined) return undefined;
+    if (!(allowed as readonly string[]).includes(t)) {
+        throw new EmployeeRowError(`invalid ${label} "${t}" — must be one of: ${allowed.join(", ")}`);
+    }
+    return t as T[number];
+}
+/** Optional date: undefined when blank; throws on an unparseable value. */
+function optionalDate(v: string | undefined, label: string): Date | undefined {
+    const t = cleanStr(v);
+    if (t === undefined) return undefined;
+    const d = new Date(t);
+    if (Number.isNaN(d.getTime())) throw new EmployeeRowError(`${label} is not a valid date (got "${t}")`);
+    return d;
+}
+/** Optional boolean from a CSV token (true/false/yes/no/1/0). */
+function optionalBool(v: string | undefined, label: string): boolean | undefined {
+    const t = cleanStr(v)?.toLowerCase();
+    if (t === undefined) return undefined;
+    if (["true", "1", "yes", "y"].includes(t)) return true;
+    if (["false", "0", "no", "n"].includes(t)) return false;
+    throw new EmployeeRowError(`invalid ${label} "${t}" — use true or false`);
+}
 
 /**
  * The org's own place-of-supply state (primary/first active GSTIN registration),
@@ -427,5 +525,206 @@ export const ingestRouter = router({
             }
 
             return { imported: results.length, ids: results, skipped };
+        }),
+
+    /**
+     * Bulk import employees (onboarding). Built to onboard 30–80 employees per pilot without
+     * hand-keying each one, so the whole design is skip-the-bad-row-and-report, never
+     * abort-the-batch:
+     *
+     *  • TOLERANT boundary — the row schema is all-optional-strings, so no row is rejected before
+     *    the body runs. Each row is validated HERE (email format + uniqueness, PAN format via the
+     *    shared `employeePanField`, salary-structure name resolution, state presence, enums,
+     *    numeric/date parsing); a failure becomes a named `skipped[]` entry, the rest import.
+     *  • DRY RUN BY DEFAULT — `dryRun` defaults to true; a caller must pass `dryRun: false` to
+     *    write. The safe mode is the one you get by accident: a dry run validates everything and
+     *    reports what WOULD happen (`wouldImport`) but writes nothing.
+     *  • PAN encrypted at rest (`panColumnsTolerant`), never plaintext. A malformed PAN is caught
+     *    by `employeePanField` above and skips the row, so the tolerant fallback's encrypted-raw
+     *    branch is never reached here.
+     *  • Salary structure is resolved by NAME to a family id; not found OR ambiguous ⇒ the row is a
+     *    skip, NEVER a created employee with no structure (that employee would silently never be
+     *    paid). Structures are never auto-created from CSV columns.
+     *  • Each user + employee pair is inserted in ONE transaction, so a mid-row failure can never
+     *    leave an orphan user (users.userId on employees is NOT NULL/unique).
+     *  • EMP-NNNN via `getNextEmployeeNumber` (atomic, delete-proof, monotonic) — shared with
+     *    `hr.employees.create`, so the two paths cannot hand out the same number after a delete.
+     *  • Automation hooks are DELIBERATELY SUPPRESSED: unlike `hr.employees.create`, this path does
+     *    NOT call `runEntityBusinessRules` / `emitDomainEvent`. Firing hundreds of fire-and-forget
+     *    rule evaluations during a bulk onboarding is load with no benefit; rules re-evaluate on the
+     *    employee's first real change.
+     */
+    importEmployees: permissionProcedure("hr", "assign")
+        .input(z.object({
+            dryRun: z.boolean().default(true),
+            rows: z.array(EmployeeIngestRowSchema).min(1),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { db, org } = ctx;
+            const orgId = org!.id;
+            const ids: string[] = [];
+            const skipped: Array<{ row: number; identifier: string; reason: string }> = [];
+            let wouldImport = 0;
+
+            // Salary-structure NAME → set of distinct family ids (case-insensitive), resolved once
+            // for the whole batch. 0 matches ⇒ "not found"; >1 distinct family ⇒ "ambiguous". A
+            // structure carries multiple effective-dated VERSIONS that all share one family id and
+            // one name, so collapsing to the family-id set is what makes a genuinely ambiguous name
+            // (two different families) distinguishable from a normal multi-version structure.
+            const structRows = await db
+                .select({ familyId: salaryStructures.familyId, name: salaryStructures.structureName })
+                .from(salaryStructures)
+                .where(and(eq(salaryStructures.orgId, orgId), eq(salaryStructures.isArchived, false)));
+            const familiesByName = new Map<string, Set<string>>();
+            for (const s of structRows) {
+                const key = s.name.trim().toLowerCase();
+                let set = familiesByName.get(key);
+                if (!set) { set = new Set(); familiesByName.set(key, set); }
+                set.add(s.familyId);
+            }
+
+            // Existing org emails (lowercased). users has a unique (org_id, email) index; pre-checking
+            // turns a collision into a named skip instead of a batch-aborting constraint error.
+            const existing = await db.select({ email: users.email }).from(users).where(eq(users.orgId, orgId));
+            const takenEmails = new Set(existing.map((u) => u.email.trim().toLowerCase()));
+            const seenEmails = new Set<string>(); // reserved within THIS batch
+
+            let rowNum = 0;
+            for (const raw of input.rows) {
+                rowNum++;
+                const email = cleanStr(raw.email);
+                const name = cleanStr(raw.name);
+                const identifier = email ?? name ?? `row ${rowNum}`;
+                try {
+                    // ── Required identity ──
+                    const empName = required(raw.name, "name is required");
+                    const empEmail = required(raw.email, "email is required");
+                    if (!z.string().email().safeParse(empEmail).success) {
+                        throw new EmployeeRowError(`invalid email "${empEmail}"`);
+                    }
+                    const emailKey = empEmail.toLowerCase();
+                    if (takenEmails.has(emailKey)) {
+                        throw new EmployeeRowError(`email "${empEmail}" already belongs to a user in this org`);
+                    }
+                    if (seenEmails.has(emailKey)) {
+                        throw new EmployeeRowError(`email "${empEmail}" is duplicated earlier in this file`);
+                    }
+
+                    // ── Salary structure — resolve by name; never auto-create ──
+                    const structureName = required(
+                        raw.structureName,
+                        "structureName is required (resolved to a salary-structure family)",
+                    );
+                    const families = familiesByName.get(structureName.toLowerCase());
+                    if (!families || families.size === 0) {
+                        throw new EmployeeRowError(`salary structure "${structureName}" not found`);
+                    }
+                    if (families.size > 1) {
+                        throw new EmployeeRowError(
+                            `salary structure "${structureName}" is ambiguous — ${families.size} families share that name; rename or merge them first`,
+                        );
+                    }
+                    const salaryStructureId = [...families][0]!;
+
+                    // ── Statutory state (drives PT slab; no safe silent default) ──
+                    const state = required(raw.state, "state is required (drives professional-tax slab)");
+
+                    // ── PAN (optional; when present must match AAAAA9999A — the SAME schema as create) ──
+                    const panParse = employeePanField.safeParse(raw.pan);
+                    if (!panParse.success) {
+                        throw new EmployeeRowError(panParse.error.issues[0]?.message ?? "invalid PAN");
+                    }
+                    const pan = cleanStr(raw.pan);
+
+                    // ── Enums / booleans / dates ──
+                    const employmentType = optionalEnum(raw.employmentType, EMPLOYMENT_TYPES, "employmentType");
+                    const gender = optionalEnum(raw.gender, GENDERS, "gender");
+                    const taxRegime = optionalEnum(raw.taxRegime, TAX_REGIMES, "taxRegime");
+                    const isMetroCity = optionalBool(raw.isMetroCity, "isMetroCity");
+                    const startDate = optionalDate(raw.startDate, "startDate");
+                    const dateOfBirth = optionalDate(raw.dateOfBirth, "dateOfBirth");
+
+                    // Row is fully valid — reserve its email against the rest of the batch.
+                    seenEmails.add(emailKey);
+
+                    if (input.dryRun) {
+                        wouldImport++;
+                        continue;
+                    }
+
+                    // DPDP: PAN stored ENCRYPTED (KMS envelope) + match-hash + masked display. Computed
+                    // BEFORE the transaction and inside its own guard: `panColumnsTolerant` degrades a
+                    // MALFORMED PAN to encrypted-raw, but if ENCRYPTION ITSELF fails (KMS/APP_SECRET
+                    // outage) its fallback re-calls encrypt and re-throws — a plain Error, not an
+                    // EmployeeRowError. Left unguarded that would escape the per-row catch below and
+                    // abort the WHOLE batch, which is exactly what the tolerant boundary forbids. So we
+                    // convert an encryption failure into a NAMED per-row skip: the rest of the batch —
+                    // including rows with no PAN, which never encrypt — still imports. (Format was
+                    // already validated above, so the malformed-degrade path is unreachable here.)
+                    let panCols: Awaited<ReturnType<typeof panColumnsTolerant>>;
+                    try {
+                        panCols = await panColumnsTolerant(pan);
+                    } catch (encErr) {
+                        throw new EmployeeRowError(
+                            `could not encrypt PAN — ${encErr instanceof Error ? encErr.message : "encryption failed"}`,
+                        );
+                    }
+
+                    // Insert the user + employee in ONE transaction so a mid-row failure can never
+                    // orphan a user row. EMP-NNNN is allocated INSIDE the tx (rolls back with it).
+                    const employee = await db.transaction(async (tx) => {
+                        const [u] = await tx
+                            .insert(users)
+                            .values({ orgId, name: empName, email: empEmail, role: "member" })
+                            .returning();
+                        const employeeId = await getNextEmployeeNumber(tx, orgId);
+                        const [row] = await tx
+                            .insert(employees)
+                            .values({
+                                orgId,
+                                userId: u!.id,
+                                employeeId,
+                                salaryStructureId,
+                                department: cleanStr(raw.department),
+                                title: cleanStr(raw.title),
+                                jobGrade: cleanStr(raw.jobGrade),
+                                employmentType,
+                                location: cleanStr(raw.location),
+                                state,
+                                city: cleanStr(raw.city),
+                                isMetroCity,
+                                taxRegime,
+                                startDate,
+                                dateOfBirth,
+                                gender,
+                                ...panCols,
+                                uan: cleanStr(raw.uan),
+                                esiIpNumber: cleanStr(raw.esiIpNumber),
+                                bankAccountNumber: cleanStr(raw.bankAccountNumber),
+                                bankIfsc: cleanStr(raw.bankIfsc),
+                                bankName: cleanStr(raw.bankName),
+                                bankAccountName: cleanStr(raw.bankAccountName),
+                                status: "active",
+                            })
+                            .returning();
+                        return row!;
+                    });
+                    ids.push(employee.id);
+                } catch (e) {
+                    if (e instanceof EmployeeRowError) {
+                        skipped.push({ row: rowNum, identifier, reason: e.message });
+                        continue;
+                    }
+                    throw e; // an unexpected error is a real fault — let it surface
+                }
+            }
+
+            return {
+                imported: ids.length,
+                ids,
+                skipped,
+                dryRun: input.dryRun,
+                wouldImport: input.dryRun ? wouldImport : ids.length,
+            };
         }),
 });

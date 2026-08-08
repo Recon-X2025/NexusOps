@@ -4,7 +4,8 @@ import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
 import { evaluateExpenseClaim } from "../lib/expense-policy";
 import { extractReceipt } from "../services/ai-receipt-ocr";
-import { decryptPan, panColumnsTolerant } from "../lib/pan";
+import { decryptPan, panColumnsTolerant, employeePanField } from "../lib/pan";
+import { getNextEmployeeNumber } from "../lib/auto-number";
 import {
   employees,
   organizations,
@@ -55,22 +56,6 @@ import { emitDomainEvent } from "../services/workflow-events";
  * migration 0037 for DPDP minimisation), so this mirrors the table.
  */
 const employeePublicColumns = getTableColumns(employees);
-
-/**
- * PAN input for a single employee record. Format AAAAA9999A (5 letters, 4 digits, 1 letter),
- * case-insensitive at the edge (stored uppercased). An empty string means "no PAN provided" and
- * leaves the column untouched; a MALFORMED value is REJECTED here on the server so it cannot be
- * bypassed by a direct API call. This is stricter than the bulk importer's tolerance on purpose —
- * one admin typing one record can be told to fix it immediately. `panColumnsTolerant`'s
- * malformed-fallback stays a genuine last resort (for the batch path), not a routine one.
- */
-const employeePanField = z
-  .string()
-  .trim()
-  .refine((v) => v === "" || /^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/.test(v), {
-    message: "PAN must be in the format AAAAA9999A (5 letters, 4 digits, 1 letter).",
-  })
-  .optional();
 
 /**
  * Resolve the authenticated user's own employee record plus their *effective*
@@ -365,13 +350,11 @@ export const hrRouter = router({
           }
         }
 
-        const [countResult] = await db
-          .select({ count: count() })
-          .from(employees)
-          .where(eq(employees.orgId, org!.id));
-
-        const seq = (countResult?.count ?? 0) + 1;
-        const employeeId = `EMP-${String(seq).padStart(4, "0")}`;
+        // Atomic, delete-proof allocation (shared with the bulk importer). The old
+        // count(*)+1 collided with a surviving EMP-NNNN after any delete and raced under
+        // concurrency; getNextEmployeeNumber seeds once from the max existing number then
+        // hands out monotonically increasing ids.
+        const employeeId = await getNextEmployeeNumber(db, org!.id);
 
         // DPDP: the employee PAN (an individual's personal data) is stored ENCRYPTED (KMS
         // envelope) with a peppered match-hash + masked display — never plaintext. A malformed
@@ -1122,13 +1105,9 @@ export const hrRouter = router({
           userId = newUser!.id;
         }
 
-        // 2. Generate employee number and create employee record
-        const [countResult] = await db
-          .select({ count: count() })
-          .from(employees)
-          .where(eq(employees.orgId, org!.id));
-        const seq = (countResult?.count ?? 0) + 1;
-        const employeeId = `EMP-${String(seq).padStart(4, "0")}`;
+        // 2. Generate employee number (atomic, delete-proof — shared allocator) and create
+        //    the employee record.
+        const employeeId = await getNextEmployeeNumber(db, org!.id);
 
         const [employee] = await db
           .insert(employees)

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X, CheckCircle } from "lucide-react";
+import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X, CheckCircle, Upload } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { INDIAN_STATES } from "@/lib/india-states";
 import { filterEmployeeDirectory } from "@/lib/employee-directory-access";
@@ -10,6 +10,41 @@ import { toast } from "sonner";
 import { EsignPanel } from "@/components/esign/EsignPanel";
 import { LeaveAccrualsTab } from "@/components/hr/LeaveAccrualsTab";
 import { GratuityTab } from "@/components/hr/GratuityTab";
+import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
+
+/**
+ * Employee bulk-import columns. Keys match the `ingest.importEmployees` row fields exactly, so the
+ * CSV maps straight through. Required: identity (name/email), pay (structureName, resolved by name
+ * to a salary-structure family — never auto-created), and state (drives the PT slab). Everything
+ * else is optional. The server re-validates every row and skips-and-reports bad ones; these enum
+ * hints and required flags are a client convenience only.
+ */
+const EMPLOYEE_IMPORT_FIELDS: ImportField[] = [
+  { key: "name", label: "Name", required: true },
+  { key: "email", label: "Email", required: true },
+  { key: "structureName", label: "Salary Structure", required: true },
+  { key: "state", label: "State", required: true },
+  { key: "department", label: "Department" },
+  { key: "title", label: "Title" },
+  { key: "jobGrade", label: "Job Grade" },
+  { key: "employmentType", label: "Employment Type", enumValues: ["full_time", "part_time", "contractor", "intern"] },
+  { key: "location", label: "Location" },
+  { key: "city", label: "City" },
+  { key: "isMetroCity", label: "Metro City (true/false)" },
+  { key: "taxRegime", label: "Tax Regime", enumValues: ["old", "new"] },
+  { key: "startDate", label: "Start Date (YYYY-MM-DD)" },
+  { key: "pan", label: "PAN" },
+  { key: "uan", label: "UAN" },
+  { key: "esiIpNumber", label: "ESI IP Number" },
+  { key: "bankAccountNumber", label: "Bank Account Number" },
+  { key: "bankIfsc", label: "Bank IFSC" },
+  { key: "bankName", label: "Bank Name" },
+  { key: "bankAccountName", label: "Bank Account Name" },
+  { key: "gender", label: "Gender", enumValues: ["male", "female", "other"] },
+  { key: "dateOfBirth", label: "Date of Birth (YYYY-MM-DD)" },
+  // C1 declaration figures (prior-employer income/TDS, rent) are intentionally NOT imported —
+  // they need a provenance status a CSV cell can't carry. They stay HR-keyed via the edit dialog.
+];
 
 /** Client-side PAN check (mirrors the server Zod rule). Empty = "no PAN" (ok); otherwise it must
  *  be AAAAA9999A. Returns an error string, or null when acceptable. The server re-validates. */
@@ -195,6 +230,9 @@ export default function HRPage() {
     },
     onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not update employee"),
   });
+
+  const [showImportEmployees, setShowImportEmployees] = useState(false);
+  const importEmployees = trpc.ingest.importEmployees.useMutation();
 
   // Leave management
   const { data: leaveData, refetch: refetchLeave } = trpc.hr.leave.list.useQuery({}, mergeTrpcQueryOpts("hr.leave.list", { refetchOnWindowFocus: false }));
@@ -937,6 +975,53 @@ export default function HRPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showImportEmployees && canManageEmployees && (
+        <CsvImportModal
+          title="Import Employees"
+          fields={EMPLOYEE_IMPORT_FIELDS}
+          hint="Salary Structure is matched by name; unknown or ambiguous names are skipped and reported. PAN is stored encrypted."
+          onClose={() => setShowImportEmployees(false)}
+          onImport={async (rows) => {
+            // The user reviewed the rows in the preview/confirm steps, so this is the deliberate
+            // write: pass dryRun:false explicitly (the server defaults to a safe dry run).
+            const res = await importEmployees.mutateAsync({
+              dryRun: false,
+              rows: rows.map((r) => ({
+                name: r.name,
+                email: r.email,
+                structureName: r.structureName,
+                state: r.state,
+                department: r.department || undefined,
+                title: r.title || undefined,
+                jobGrade: r.jobGrade || undefined,
+                employmentType: r.employmentType || undefined,
+                location: r.location || undefined,
+                city: r.city || undefined,
+                isMetroCity: r.isMetroCity || undefined,
+                taxRegime: r.taxRegime || undefined,
+                startDate: r.startDate || undefined,
+                pan: r.pan || undefined,
+                uan: r.uan || undefined,
+                esiIpNumber: r.esiIpNumber || undefined,
+                bankAccountNumber: r.bankAccountNumber || undefined,
+                bankIfsc: r.bankIfsc || undefined,
+                bankName: r.bankName || undefined,
+                bankAccountName: r.bankAccountName || undefined,
+                gender: r.gender || undefined,
+                dateOfBirth: r.dateOfBirth || undefined,
+              })),
+            });
+            utils.hr.employees.list.invalidate();
+            // Surface the server's per-row skips (structure-not-found, duplicate email, etc.) that
+            // the client-side validation could not know about.
+            res.skipped.slice(0, 6).forEach((s) =>
+              toast.error(`Row ${s.row} (${s.identifier}): ${s.reason}`),
+            );
+            return { imported: res.imported, skipped: res.skipped.length };
+          }}
+        />
       )}
 
       {showAddEmployee && can("hr", "write") && (
@@ -1771,13 +1856,22 @@ export default function HRPage() {
                 {visibleEmployees.length} {canManageEmployees ? "Employees" : "My record"}
               </span>
               {canManageEmployees && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddEmployee(true)}
-                  className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] rounded hover:opacity-90"
-                >
-                  <Plus className="w-3 h-3" /> Add employee
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowImportEmployees(true)}
+                    className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-accent"
+                  >
+                    <Upload className="w-3 h-3" /> Import CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddEmployee(true)}
+                    className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] rounded hover:opacity-90"
+                  >
+                    <Plus className="w-3 h-3" /> Add employee
+                  </button>
+                </div>
               )}
             </div>
             {visibleEmployees.length === 0 ? (

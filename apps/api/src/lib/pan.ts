@@ -18,9 +18,27 @@
  * keep reading with no backfill). The `panMaskedHash` match key is derived from the *plaintext*
  * before encryption, so it stays deterministic and unaffected by the non-deterministic ciphertext.
  */
+import { z } from "zod";
 import { validatePAN, maskPAN } from "@coheronconnect/payroll-math";
 import { peppatedHash } from "./pii-hash";
 import { encryptSecretEnvelope, decryptSecretEnvelope, isEnvelope } from "../services/encryption";
+
+/**
+ * Zod field for a single user-entered PAN. Format AAAAA9999A (5 letters, 4 digits, 1 letter),
+ * case-insensitive at the edge (stored uppercased). An empty string means "no PAN provided" and
+ * leaves the column untouched; a MALFORMED value is REJECTED so it cannot be bypassed by a direct
+ * API call. This is the single source of truth for the PAN format — `hr.employees.create`/`update`
+ * and the bulk employee importer all validate against THIS schema (no second regex). The importer's
+ * tolerance is skip-the-row, applied by `.safeParse`-ing each row against this field, NOT by relaxing
+ * the format: `panColumnsTolerant`'s malformed→encrypted-raw fallback stays a genuine last resort.
+ */
+export const employeePanField = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/.test(v), {
+    message: "PAN must be in the format AAAAA9999A (5 letters, 4 digits, 1 letter).",
+  })
+  .optional();
 
 export interface DerivedPan {
   /** Peppered HMAC-SHA256 (hex) of the normalised PAN. A match key, never the raw value. */
