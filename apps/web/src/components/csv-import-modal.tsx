@@ -32,9 +32,17 @@ interface CsvImportModalProps {
   fields: ImportField[];
   /**
    * Performs the write for a batch of validated rows. Should resolve to the
-   * number imported (or throw). Receives plain {key: value} string maps.
+   * number imported (or throw). Receives plain {key: value} string maps, plus a
+   * `meta.presentColumns` list of the field keys whose column was actually present
+   * in the uploaded file's header. Callers that must distinguish a MISSING column
+   * from a column where every cell is blank (e.g. a required statutory field) need
+   * this — blank cells are dropped from the row objects, so `rows` alone cannot tell
+   * them apart. Callers that don't care can ignore the second argument.
    */
-  onImport: (rows: ImportedRow[]) => Promise<{ imported: number; skipped?: number }>;
+  onImport: (
+    rows: ImportedRow[],
+    meta: { presentColumns: string[] },
+  ) => Promise<{ imported: number; skipped?: number }>;
   onClose: () => void;
   /** Optional note rendered under the expected columns. */
   hint?: string;
@@ -117,6 +125,10 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
     skipped: 0,
   });
   const [isDragging, setIsDragging] = useState(false);
+  // Field keys whose column was present in the uploaded header — passed to onImport so the
+  // server can distinguish a missing column from an all-blank one (blank cells are dropped
+  // from the row objects during validation).
+  const [presentColumns, setPresentColumns] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const requiredKeys = fields.filter((f) => f.required).map((f) => f.key);
@@ -140,6 +152,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
           toast.error(`CSV is missing required column(s): ${missing.join(", ")}`);
           return;
         }
+        setPresentColumns(fields.filter((f) => headers.includes(normKey(f.key))).map((f) => f.key));
         setRows(validate(headers, rawRows, fields));
         setStep(2);
       };
@@ -175,13 +188,13 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
   const handleImport = useCallback(async () => {
     setStep(4);
     try {
-      const res = await onImport(validRows.map((r) => r.values));
+      const res = await onImport(validRows.map((r) => r.values), { presentColumns });
       setResults({ success: res.imported, skipped: res.skipped ?? 0 });
     } catch (err: any) {
       setResults({ success: 0, skipped: 0, error: err?.message ?? "Import failed" });
     }
     setStep(5);
-  }, [validRows, onImport]);
+  }, [validRows, onImport, presentColumns]);
 
   const stepLabels = ["Upload CSV", "Preview & Validate", "Confirm Import", "Importing…", "Done"];
 

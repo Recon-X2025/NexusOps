@@ -14,7 +14,9 @@
  *   • a structure-name that is not found, or is ambiguous across two families, is skipped and named
  *     and NO employee is created for it;
  *   • a dry run (the default) writes nothing;
- *   • EMP-NNNN allocation is correct across a batch AND after a prior delete (the count(*)+1 bug).
+ *   • EMP-NNNN allocation is correct across a batch AND after a prior delete (the count(*)+1 bug);
+ *   • the taxRegime COLUMN is mandatory: a file missing it is refused whole (statutory election must
+ *     not silently default to NEW), while a blank cell in a present column is a named row skip.
  */
 
 // PAN encryption derives its KEK from APP_SECRET — set a test-only value before anything encrypts
@@ -24,14 +26,30 @@ process.env["APP_SECRET"] = process.env["APP_SECRET"] ?? "test-app-secret-for-pa
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { makeContext, seedTestOrg, seedUser, testDb, cleanupOrg } from "./helpers";
 import { ingestRouter } from "../routers/ingest";
+import { hrRouter } from "../routers/hr";
 import { decryptPan } from "../lib/pan";
 import * as encryptionService from "../services/encryption";
 import { employees, users, salaryStructures, eq, and, count } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 
+/** The column keys a full employee CSV carries — taxRegime INCLUDED (the header is present). */
+const ALL_COLUMNS = [
+  "name", "email", "structureName", "state", "department", "title", "jobGrade",
+  "employmentType", "location", "city", "isMetroCity", "taxRegime", "startDate",
+  "pan", "uan", "esiIpNumber", "bankAccountNumber", "bankIfsc", "bankName",
+  "bankAccountName", "gender", "dateOfBirth",
+];
+
 describe("ingest.importEmployees — bulk employee import", () => {
   let orgId: string;
+  let adminId: string;
   let caller: ReturnType<typeof ingestRouter.createCaller>;
+
+  /** Call the importer with the full present-columns list (taxRegime present) unless overridden. */
+  function imp(args: { dryRun?: boolean; rows: Array<Record<string, string>>; columns?: string[] }) {
+    const { columns = ALL_COLUMNS, ...rest } = args;
+    return caller.importEmployees({ columns, ...rest });
+  }
 
   /** Seed a salary structure; returns its familyId (= its own id via the 0065 trigger). */
   async function seedStructure(name: string): Promise<string> {
@@ -48,13 +66,14 @@ describe("ingest.importEmployees — bulk employee import", () => {
     return row!.familyId;
   }
 
-  /** A minimally-valid row; override any field. Email is unique per call. */
+  /** A minimally-valid row; override any field. Email is unique per call. taxRegime present + valid. */
   function goodRow(over: Record<string, string> = {}): Record<string, string> {
     return {
       name: "Asha Rao",
       email: `emp-${nanoid(8)}@qa.coheronconnect.io`,
       structureName: "Engineering",
       state: "Karnataka",
+      taxRegime: "new",
       ...over,
     };
   }
@@ -66,7 +85,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
 
   beforeEach(async () => {
     ({ orgId } = await seedTestOrg());
-    const { userId: adminId } = await seedUser(orgId, { role: "admin", matrixRole: "admin" });
+    ({ userId: adminId } = await seedUser(orgId, { role: "admin", matrixRole: "admin" }));
     caller = ingestRouter.createCaller(makeContext(adminId, orgId));
     await seedStructure("Engineering");
   });
@@ -77,13 +96,10 @@ describe("ingest.importEmployees — bulk employee import", () => {
 
   it("imports a good row: employee + user created, EMP-NNNN allocated, PAN encrypted + masked", async () => {
     const email = `asha-${nanoid(6)}@qa.coheronconnect.io`;
-    const res = await caller.importEmployees({
-      dryRun: false,
-      rows: [goodRow({ email, pan: "ABCDE1234F" })],
-    });
+    const res = await imp({ dryRun: false, rows: [goodRow({ email, pan: "ABCDE1234F" })] });
 
     expect(res.imported).toBe(1);
-    expect(res.skipped).toHaveLength(1 - 1); // no skips
+    expect(res.skipped).toHaveLength(0);
     expect(res.ids).toHaveLength(1);
 
     const [emp] = await testDb().select().from(employees).where(eq(employees.id, res.ids[0]!));
@@ -108,7 +124,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
   it("skips a malformed-PAN row and names it, while the rest of the batch still imports", async () => {
     // The bad row is FIRST — proving the batch continues past it (importVendors would reject all).
     const goodEmail = `good-${nanoid(6)}@qa.coheronconnect.io`;
-    const res = await caller.importEmployees({
+    const res = await imp({
       dryRun: false,
       rows: [
         goodRow({ email: `bad-${nanoid(6)}@qa.coheronconnect.io`, pan: "NOTAPAN" }),
@@ -130,7 +146,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
   it("skips a row with no email and names it", async () => {
     const rows = [goodRow()];
     delete rows[0]!.email;
-    const res = await caller.importEmployees({ dryRun: false, rows });
+    const res = await imp({ dryRun: false, rows });
 
     expect(res.imported).toBe(0);
     expect(res.skipped).toHaveLength(1);
@@ -139,10 +155,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
   });
 
   it("skips a row whose salary-structure name is not found — and creates NO employee for it", async () => {
-    const res = await caller.importEmployees({
-      dryRun: false,
-      rows: [goodRow({ structureName: "Marketing" })], // never seeded
-    });
+    const res = await imp({ dryRun: false, rows: [goodRow({ structureName: "Marketing" })] }); // never seeded
 
     expect(res.imported).toBe(0);
     expect(res.skipped).toHaveLength(1);
@@ -154,10 +167,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
     // Two DISTINCT families sharing one name — the genuinely ambiguous case.
     await seedStructure("Sales");
     await seedStructure("Sales");
-    const res = await caller.importEmployees({
-      dryRun: false,
-      rows: [goodRow({ structureName: "Sales" })],
-    });
+    const res = await imp({ dryRun: false, rows: [goodRow({ structureName: "Sales" })] });
 
     expect(res.imported).toBe(0);
     expect(res.skipped).toHaveLength(1);
@@ -168,9 +178,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
   it("dry run (the default) writes nothing", async () => {
     const before = await empCount();
     // No dryRun flag at all — the server must default to the safe mode.
-    const res = await caller.importEmployees({
-      rows: [goodRow(), goodRow(), goodRow()],
-    });
+    const res = await imp({ rows: [goodRow(), goodRow(), goodRow()] });
 
     expect(res.dryRun).toBe(true);
     expect(res.imported).toBe(0);
@@ -179,10 +187,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
   });
 
   it("reports a valid row's structure resolution in a dry run without writing", async () => {
-    const res = await caller.importEmployees({
-      dryRun: true,
-      rows: [goodRow({ structureName: "Marketing" }), goodRow()],
-    });
+    const res = await imp({ dryRun: true, rows: [goodRow({ structureName: "Marketing" }), goodRow()] });
     expect(res.imported).toBe(0);
     expect(res.wouldImport).toBe(1); // only the resolvable one would import
     expect(res.skipped).toHaveLength(1);
@@ -192,10 +197,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
 
   it("skips a within-batch duplicate email and names it", async () => {
     const dupe = `dupe-${nanoid(6)}@qa.coheronconnect.io`;
-    const res = await caller.importEmployees({
-      dryRun: false,
-      rows: [goodRow({ email: dupe }), goodRow({ email: dupe })],
-    });
+    const res = await imp({ dryRun: false, rows: [goodRow({ email: dupe }), goodRow({ email: dupe })] });
     expect(res.imported).toBe(1);
     expect(res.skipped).toHaveLength(1);
     expect(res.skipped[0]!.reason).toMatch(/duplicated/i);
@@ -203,10 +205,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
 
   it("allocates EMP-NNNN correctly across a batch AND after a prior delete (no count()+1 collision)", async () => {
     // Batch of 3 on a fresh org → EMP-0001..0003.
-    const first = await caller.importEmployees({
-      dryRun: false,
-      rows: [goodRow(), goodRow(), goodRow()],
-    });
+    const first = await imp({ dryRun: false, rows: [goodRow(), goodRow(), goodRow()] });
     expect(first.imported).toBe(3);
     const rows1 = await testDb().select().from(employees).where(eq(employees.orgId, orgId));
     const codes1 = rows1.map((r) => r.employeeId).sort();
@@ -219,7 +218,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
 
     // Import one more. A count(*)+1 allocator would produce EMP-0003 and collide; the atomic,
     // monotonic allocator produces EMP-0004.
-    const second = await caller.importEmployees({ dryRun: false, rows: [goodRow()] });
+    const second = await imp({ dryRun: false, rows: [goodRow()] });
     expect(second.imported).toBe(1);
     const [added] = await testDb().select().from(employees).where(eq(employees.id, second.ids[0]!));
     expect(added!.employeeId).toBe("EMP-0004");
@@ -232,7 +231,7 @@ describe("ingest.importEmployees — bulk employee import", () => {
     vi.spyOn(encryptionService, "encryptSecretEnvelope").mockRejectedValue(new Error("kms unavailable"));
 
     const okEmail = `nopanned-${nanoid(6)}@qa.coheronconnect.io`;
-    const res = await caller.importEmployees({
+    const res = await imp({
       dryRun: false,
       rows: [
         goodRow({ email: `haspan-${nanoid(6)}@qa.coheronconnect.io`, pan: "ABCDE1234F" }), // will fail to encrypt
@@ -250,5 +249,79 @@ describe("ingest.importEmployees — bulk employee import", () => {
     const [u] = await testDb().select().from(users).where(eq(users.id, emp!.userId));
     expect(u!.email).toBe(okEmail);
     expect(await empCount()).toBe(1);
+  });
+
+  // ── taxRegime column mandate ────────────────────────────────────────────────
+  it("REFUSES the whole file when the taxRegime column is absent — nothing is written", async () => {
+    const before = await empCount();
+    const columnsWithoutRegime = ALL_COLUMNS.filter((c) => c !== "taxRegime");
+    // Two otherwise-perfect rows: they must NOT import, because the column is missing at the file
+    // level (a bulk import must not silently elect the tax regime for the whole workforce).
+    await expect(
+      caller.importEmployees({ dryRun: false, columns: columnsWithoutRegime, rows: [goodRow(), goodRow()] }),
+    ).rejects.toThrow(/taxRegime/i);
+    expect(await empCount()).toBe(before); // 0 — no rows processed
+  });
+
+  it("the file-refusal message names the column and states both old and new are accepted", async () => {
+    const columnsWithoutRegime = ALL_COLUMNS.filter((c) => c !== "taxRegime");
+    await expect(
+      caller.importEmployees({ dryRun: false, columns: columnsWithoutRegime, rows: [goodRow()] }),
+    ).rejects.toThrow(/taxRegime.*old.*new|old.*new.*taxRegime/is);
+  });
+
+  it("a BLANK taxRegime cell in a present column is a named row skip (distinct from an invalid value); the rest import", async () => {
+    const blank = goodRow();
+    delete blank.taxRegime; // column present (in `columns`) but this cell is empty
+    const res = await imp({ dryRun: false, rows: [blank, goodRow({ taxRegime: "old" })] });
+
+    expect(res.imported).toBe(1);
+    expect(res.skipped).toHaveLength(1);
+    expect(res.skipped[0]!.row).toBe(1);
+    expect(res.skipped[0]!.reason).toMatch(/blank/i);
+    expect(res.skipped[0]!.reason).not.toMatch(/invalid/i); // distinguished from a bad value
+    expect(await empCount()).toBe(1);
+  });
+
+  it("an UNRECOGNISED taxRegime value is a named row skip (unchanged behaviour)", async () => {
+    const res = await imp({
+      dryRun: false,
+      rows: [goodRow({ taxRegime: "hybrid" }), goodRow({ taxRegime: "new" })],
+    });
+    expect(res.imported).toBe(1);
+    expect(res.skipped).toHaveLength(1);
+    expect(res.skipped[0]!.row).toBe(1);
+    expect(res.skipped[0]!.reason).toMatch(/invalid taxRegime/i);
+    expect(await empCount()).toBe(1);
+  });
+
+  it("valid taxRegime values import and round-trip onto the employee (both old and new)", async () => {
+    const oldEmail = `old-${nanoid(6)}@qa.coheronconnect.io`;
+    const newEmail = `new-${nanoid(6)}@qa.coheronconnect.io`;
+    const res = await imp({
+      dryRun: false,
+      rows: [goodRow({ email: oldEmail, taxRegime: "old" }), goodRow({ email: newEmail, taxRegime: "new" })],
+    });
+    expect(res.imported).toBe(2);
+
+    for (const id of res.ids) {
+      const [emp] = await testDb().select().from(employees).where(eq(employees.id, id));
+      const [u] = await testDb().select().from(users).where(eq(users.id, emp!.userId));
+      if (u!.email === oldEmail) expect(emp!.taxRegime).toBe("old");
+      if (u!.email === newEmail) expect(emp!.taxRegime).toBe("new");
+    }
+  });
+
+  it("hr.employees.create is UNAFFECTED — a form-created employee with no regime still defaults to new", async () => {
+    // The regime mandate is bulk-import only; a single admin choosing through the form keeps the
+    // existing NOT NULL DEFAULT 'new'. This guards against the change leaking into the create path.
+    const hr = hrRouter.createCaller(makeContext(adminId, orgId));
+    const emp = await hr.employees.create({
+      userName: "Form User",
+      userEmail: `form-${nanoid(6)}@qa.coheronconnect.io`,
+      state: "Karnataka",
+    });
+    const [row] = await testDb().select().from(employees).where(eq(employees.id, emp.id));
+    expect(row!.taxRegime).toBe("new");
   });
 });

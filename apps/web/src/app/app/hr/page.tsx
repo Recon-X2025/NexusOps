@@ -31,7 +31,11 @@ const EMPLOYEE_IMPORT_FIELDS: ImportField[] = [
   { key: "location", label: "Location" },
   { key: "city", label: "City" },
   { key: "isMetroCity", label: "Metro City (true/false)" },
-  { key: "taxRegime", label: "Tax Regime", enumValues: ["old", "new"] },
+  // REQUIRED: taxRegime is a statutory election (old vs new, s.115BAC) filed on Form 24Q / Form 16.
+  // A missing column would silently default the whole workforce to NEW, so the modal refuses a file
+  // without it and the server re-checks (see ingest.importEmployees). A blank cell in a present
+  // column is a per-row skip.
+  { key: "taxRegime", label: "Tax Regime", required: true, enumValues: ["old", "new"] },
   { key: "startDate", label: "Start Date (YYYY-MM-DD)" },
   { key: "pan", label: "PAN" },
   { key: "uan", label: "UAN" },
@@ -983,11 +987,14 @@ export default function HRPage() {
           fields={EMPLOYEE_IMPORT_FIELDS}
           hint="Salary Structure is matched by name; unknown or ambiguous names are skipped and reported. PAN is stored encrypted."
           onClose={() => setShowImportEmployees(false)}
-          onImport={async (rows) => {
+          onImport={async (rows, meta) => {
             // The user reviewed the rows in the preview/confirm steps, so this is the deliberate
             // write: pass dryRun:false explicitly (the server defaults to a safe dry run).
+            // `meta.presentColumns` lets the server refuse a file whose taxRegime column is absent
+            // (a blank cell can't be told from a missing column in `rows` alone).
             const res = await importEmployees.mutateAsync({
               dryRun: false,
+              columns: meta.presentColumns,
               rows: rows.map((r) => ({
                 name: r.name,
                 email: r.email,

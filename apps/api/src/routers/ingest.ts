@@ -1,4 +1,5 @@
 import { router, permissionProcedure } from "../lib/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
     legalMatters,
@@ -199,6 +200,23 @@ function required(v: string | undefined, message: string): string {
 function optionalEnum<T extends readonly string[]>(v: string | undefined, allowed: T, label: string): T[number] | undefined {
     const t = cleanStr(v)?.toLowerCase();
     if (t === undefined) return undefined;
+    if (!(allowed as readonly string[]).includes(t)) {
+        throw new EmployeeRowError(`invalid ${label} "${t}" — must be one of: ${allowed.join(", ")}`);
+    }
+    return t as T[number];
+}
+/**
+ * REQUIRED enum (case-insensitive). Distinguishes a BLANK cell from an out-of-set value with
+ * different messages, and never falls back to a column default — used for `taxRegime`, where the
+ * value is a statutory election (filed on Form 24Q / Form 16) that must never be silently defaulted.
+ * The column's PRESENCE is enforced separately at the file level; this handles a blank cell WITHIN
+ * a present column, which is a row error the customer can see and fix.
+ */
+function requiredEnum<T extends readonly string[]>(v: string | undefined, allowed: T, label: string): T[number] {
+    const t = cleanStr(v)?.toLowerCase();
+    if (t === undefined) {
+        throw new EmployeeRowError(`${label} is blank — enter one of: ${allowed.join(", ")} (no default is applied)`);
+    }
     if (!(allowed as readonly string[]).includes(t)) {
         throw new EmployeeRowError(`invalid ${label} "${t}" — must be one of: ${allowed.join(", ")}`);
     }
@@ -557,6 +575,12 @@ export const ingestRouter = router({
     importEmployees: permissionProcedure("hr", "assign")
         .input(z.object({
             dryRun: z.boolean().default(true),
+            // The column KEYS present in the uploaded file's header. Required — the client drops
+            // blank cells, so from `rows` alone the server cannot tell a MISSING column from a
+            // column where every cell happens to be blank. `columns` restores that distinction so
+            // the taxRegime column-presence check below can refuse the whole FILE (missing column)
+            // while a blank cell inside a PRESENT column stays a per-row skip.
+            columns: z.array(z.string()),
             rows: z.array(EmployeeIngestRowSchema).min(1),
         }))
         .mutation(async ({ ctx, input }) => {
@@ -565,6 +589,24 @@ export const ingestRouter = router({
             const ids: string[] = [];
             const skipped: Array<{ row: number; identifier: string; reason: string }> = [];
             let wouldImport = 0;
+
+            // ── File-level refusal: the taxRegime column must be PRESENT ──────────────────────
+            // taxRegime (old vs new, s.115BAC) is a statutory election filed on Form 24Q / Form 16.
+            // The DB column is NOT NULL DEFAULT 'new', so a file with no taxRegime column would
+            // silently elect the NEW regime for the entire workforce — a wrong filing caused by a
+            // missing spreadsheet header. Refuse the whole request before ANY row is processed;
+            // nothing is written. (A blank cell inside a PRESENT column is handled per-row below —
+            // a visible, correctable omission.) This is the server-side guarantee; the modal marks
+            // the column required too, but a direct API caller must not be able to bypass it.
+            if (!input.columns.includes("taxRegime")) {
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message:
+                        "The uploaded file has no 'taxRegime' column. Add a taxRegime column with a value " +
+                        "of 'old' or 'new' for every employee — a bulk import must not silently elect the " +
+                        "tax regime. Nothing was imported.",
+                });
+            }
 
             // Salary-structure NAME → set of distinct family ids (case-insensitive), resolved once
             // for the whole batch. 0 matches ⇒ "not found"; >1 distinct family ⇒ "ambiguous". A
@@ -639,7 +681,11 @@ export const ingestRouter = router({
                     // ── Enums / booleans / dates ──
                     const employmentType = optionalEnum(raw.employmentType, EMPLOYMENT_TYPES, "employmentType");
                     const gender = optionalEnum(raw.gender, GENDERS, "gender");
-                    const taxRegime = optionalEnum(raw.taxRegime, TAX_REGIMES, "taxRegime");
+                    // taxRegime is REQUIRED per row (its column is guaranteed present by the file-level
+                    // check above): a blank cell is a named skip, never the silent NEW-regime default.
+                    // isMetroCity / gender stay optional-with-default on purpose — they err toward
+                    // over-deduction, which is recoverable; the regime election is not.
+                    const taxRegime = requiredEnum(raw.taxRegime, TAX_REGIMES, "taxRegime");
                     const isMetroCity = optionalBool(raw.isMetroCity, "isMetroCity");
                     const startDate = optionalDate(raw.startDate, "startDate");
                     const dateOfBirth = optionalDate(raw.dateOfBirth, "dateOfBirth");
