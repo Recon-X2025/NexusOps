@@ -38,16 +38,16 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `db529c0`** — migration head
+- **LIVE on `connect.coheron.tech` = `origin/main` = `7a76624`** — migration head
   **`0074_ambiguous_rick_jones`** — verified through the terminal **`Deploy to Vultr`
-  job of CI run `31258191554`** (all five jobs green: Lint · Unit & Integration · E2E ·
-  Build Docker Images · Deploy to Vultr). `db529c0` is A12-D (LOP split-logic tax
-  projection); the employee bulk importer (`0c77dbd`) rode up in the same push.
+  job of CI run `31265258768`** (all five jobs green: Lint · Unit & Integration · E2E ·
+  Build Docker Images · Deploy to Vultr). `7a76624` is the doc corrections; the taxRegime
+  bulk-import column requirement (`3d416c7`) rode up in the same push.
 - **⚠️ ORIGIN IS DELIBERATELY ONE COMMIT BEHIND LOCAL — this is NOT drift, do not
   "fix" it.** Local `main` carries one extra commit, a **docs-only exit-point refresh**
   kept local per standing rule 6 (no docs-only deploy). It rides origin with the next
   code change. So `git rev-list --left-right --count origin/main...HEAD` reads `0  1`,
-  and origin records `db529c0` while local reads the exit-point commit — both describe
+  and origin records `7a76624` while local reads the exit-point commit — both describe
   the same live code. A previous session nearly looped "correcting" this; it is intentional.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
@@ -336,18 +336,20 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31258191554` — commit `db529c0` (A12-D LOP split-logic tax projection + the
-session docs; the employee bulk importer `0c77dbd` rode up in the same push) — terminal
-`Deploy to Vultr` job `success` — 2026-08-08 — migration head `0074_ambiguous_rick_jones`
-(no new migration).** Verified via `gh run view 31258191554 --json jobs` (all five jobs
-green: Lint · Unit & Integration · E2E · Build Docker Images · Deploy to Vultr). This is
-what is LIVE on `connect.coheron.tech`.
+**CI run `31265258768` — commit `7a76624` (doc corrections: wage-floor "implemented and
+wired", read-only-sweep findings, PAN-audit reconciliation; the taxRegime bulk-import
+column requirement `3d416c7` rode up in the same push) — terminal `Deploy to Vultr` job
+`success` — 2026-08-08 — migration head `0074_ambiguous_rick_jones` (no new migration).**
+Verified via `gh run view 31265258768 --json jobs` (all five jobs green: Lint · Unit &
+Integration · E2E · Build Docker Images · Deploy to Vultr). This is what is LIVE on
+`connect.coheron.tech`.
 
 _This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6); it rides
 origin with the next code change, so local `main` reads one commit ahead of origin —
 deliberate, not drift._
 
-_Prior validated deploys (all superseded): `9cec822` (PAN audit workflow fix) CI `31253488299`;
-`2bb3bac` (PAN edit-dialog fix) CI `31237849026`; `5710dc2` (PAN at rest + null-structure)
-CI `31188691203`; `d979038` (C6) CI `31162786896`; `e886a9c` (C2-STRUCT) CI `31147028089`;
-`209e537` (seed reconciler) CI `31141327969`; `9960fc9` (C3 ESI) CI `31137358633`._
+_Prior validated deploys (all superseded): `db529c0` (A12-D + importer) CI `31258191554`;
+`9cec822` (PAN audit workflow fix) CI `31253488299`; `2bb3bac` (PAN edit-dialog fix) CI
+`31237849026`; `5710dc2` (PAN at rest + null-structure) CI `31188691203`; `d979038` (C6)
+CI `31162786896`; `e886a9c` (C2-STRUCT) CI `31147028089`; `209e537` (seed reconciler) CI
+`31141327969`; `9960fc9` (C3 ESI) CI `31137358633`._
