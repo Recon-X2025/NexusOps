@@ -30,14 +30,15 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **HEAD is the PAN-audit workflow-fix commit** (this commit — the read-only PAN audit workflow used
-  `docker compose` with the images override, which requires `NEXUSOPS_WEB_IMAGE` and aborted; now it
-  `docker exec`s the running api container by its compose service label, bypassing compose. **Workflow
-  + docs only — IDENTICAL app code; the deploy ships no app change.** **No migration**). Its deploy
-  **rides CI on this `main` push**; advance the exit-point once its `Deploy to Vultr` JOB is green. This
-  push also carries `f7c89ff` (the `2bb3bac` exit-point bookkeeping doc commit).
-- **`2bb3bac` (PAN edit-dialog double-encryption fix + audit) is LIVE** — CI run **`31237849026`**, all
-  five jobs green **including `Deploy to Vultr: success`**. Last VALIDATED deploy before this commit.
+- **LIVE / `origin/main` = `9cec822`** (PAN audit workflow reaches the api container via `docker exec`
+  instead of `docker compose`, fixing the `NEXUSOPS_WEB_IMAGE` abort; **workflow + docs only, IDENTICAL
+  app code; no migration**). **Confirmed LIVE** — CI run **`31253488299`**, all five jobs green
+  **including `Deploy to Vultr: success`** (see the exit-point line).
+- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
+  unpushed** (rule 6); it rides origin with the next code change, so local `main` may read **one commit
+  ahead** (live code is `9cec822` on both).
+- **`2bb3bac` (PAN edit-dialog double-encryption fix + audit)** was live via CI `31237849026`;
+  **superseded by `9cec822`**.
 - **⚠️ THE PAN AUDIT HAS NOT RUN YET.** Its first run failed on compose interpolation (fixed here).
   Production employee-PAN state is UNKNOWN — whether any row was double-encrypted between `5710dc2` and
   `2bb3bac` is not established. This **gates the PAN backfill** (don't backfill until the audit confirms
@@ -346,23 +347,24 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31237849026` — commit `2bb3bac` (stop PAN edit-dialog double-encryption: envelope guard
-in `panColumnsTolerant`, list/get stop shipping ciphertext, write-only masked dialog, PAN format
-validation; + a read-only prod-audit script & `workflow_dispatch`) — terminal `Deploy to Vultr` job
-`success` — 2026-08-08 — migration head `0074_ambiguous_rick_jones` (no new migration).** Verified
-via `gh run view 31237849026 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E ·
-Build Docker Images · **Deploy to Vultr**). This is what is LIVE on `connect.coheron.tech`. The
-deploy is the last job of the `main` CI pipeline — **not** the standalone `Deploy Vultr`
-workflow_dispatch (idle since Jul 15 / `dd1dad9`; a manual fallback only). Refresh this line with
-the next `main` CI run + its `Deploy to Vultr` job as part of the next code-change commit.
+**CI run `31253488299` — commit `9cec822` (PAN audit workflow reaches the api container via
+`docker exec` instead of `docker compose`, fixing the `NEXUSOPS_WEB_IMAGE` interpolation abort;
+workflow + docs only, IDENTICAL app code) — terminal `Deploy to Vultr` job `success` — 2026-08-08 —
+migration head `0074_ambiguous_rick_jones` (no new migration).** Verified via `gh run view
+31253488299 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E · Build Docker
+Images · **Deploy to Vultr**). This is what is LIVE on `connect.coheron.tech`. The deploy is the last
+job of the `main` CI pipeline — **not** the standalone `Deploy Vultr` workflow_dispatch (idle since
+Jul 15 / `dd1dad9`; a manual fallback only). Refresh this line with the next `main` CI run + its
+`Deploy to Vultr` job as part of the next code-change commit.
 
 _This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6 — no docs-only
 deploy); it rides origin with the next code change, so local `main` may read one commit ahead._
 
-> **⚠️ RUN NOW (deployed) — PAN prod audit.** The prod-check script is now in the live image.
-> Trigger it: GitHub → Actions → "PAN Encryption Check (prod, read-only)" → Run workflow. It reports
-> whether any production employee PAN is DOUBLE-encrypted (edit dialog opened + Saved after `5710dc2`).
-> Until it runs, prod PAN state is unknown; recovery for any affected row is re-entry from source.
+> **⚠️ RUN NOW — PAN prod audit (workflow fixed in `9cec822`, first run failed on compose interp).**
+> The prod-check script is in the live image and the workflow now works. Trigger it: GitHub → Actions
+> → "PAN Encryption Check (prod, read-only)" → Run workflow. It reports whether any production employee
+> PAN is DOUBLE-encrypted (edit dialog opened + Saved after `5710dc2`). Until it runs, prod PAN state is
+> unknown; recovery for any affected row is re-entry from source. **This gates the PAN backfill.**
 > **⚠️ PAN backfill still owed** — existing prod employee PANs are PLAINTEXT (`decryptPan` reads them
 > through, so nothing is broken); an in-process idempotent backfill is owed (needs `APP_SECRET` +
 > pepper). **⚠️ Vultr auto-backups NOT enabled on prod** — manual snapshots only; enable before go-live.
