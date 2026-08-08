@@ -2,10 +2,11 @@
 #
 # Manually triggered only (workflow_dispatch) — NEVER runs on push. It reaches the Vultr host
 # the SAME way the CI "Deploy to Vultr" job does (VULTR_HOST + VULTR_SSH_PRIVATE_KEY, ssh-agent),
-# then runs `dist/scripts/pan-prod-check.mjs` INSIDE the already-running `api` container via
-# `docker compose exec` (the pattern scripts/vultr-remote-deploy.sh uses for the seed). The
-# production DATABASE_URL / APP_SECRET / KMS_PROVIDER stay in the container's own environment
-# (.env.production on the host) — they are NOT injected into this runner and are never printed.
+# then runs `dist/scripts/pan-prod-check.mjs` INSIDE the already-running `api` container via a
+# direct `docker exec` (found by the container's compose service label — NOT `docker compose`, to
+# avoid compose-file image-var interpolation). The production DATABASE_URL / APP_SECRET /
+# KMS_PROVIDER stay in the container's own environment (.env.production on the host) — they are
+# NOT injected into this runner and are never printed.
 #
 # The script is READ ONLY (a single SELECT + in-memory decryption) and prints only counts +
 # row identifiers, never a PAN value. See apps/api/src/scripts/pan-prod-check.ts.
@@ -60,9 +61,20 @@ jobs:
           echo "Running the read-only PAN audit on $VULTR_HOST (inside the api container)…"
           ssh -o BatchMode=yes "$SERVER" 'bash -s' <<'REMOTE'
           set -euo pipefail
-          cd /opt/coheronconnect
-          docker compose --env-file .env.production \
-            -f docker-compose.vultr-test.yml \
-            -f docker-compose.vultr.images.yml \
-            exec -T api node dist/scripts/pan-prod-check.mjs
+          # Find the RUNNING api container by its Docker Compose service label and `docker exec`
+          # into it directly. This bypasses `docker compose` entirely, so NO compose-file
+          # interpolation runs — that is what failed (docker-compose.vultr.images.yml requires
+          # NEXUSOPS_WEB_IMAGE, which only the deploy command line sets). This touches nothing the
+          # deploy depends on. READ ONLY: it only exec's a command into the already-running
+          # container, which already holds the prod env (DATABASE_URL / APP_SECRET / KMS_PROVIDER
+          # from .env.production, applied to exec'd processes too).
+          CID="$(docker ps -q --filter 'label=com.docker.compose.service=api')"
+          COUNT="$(printf '%s\n' "$CID" | grep -c . || true)"
+          if [ "$COUNT" -ne 1 ]; then
+            echo "ERROR: expected exactly 1 running api container, found $COUNT — not proceeding." >&2
+            docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' >&2
+            exit 1
+          fi
+          echo "Exec'ing the read-only audit inside api container $CID…"
+          docker exec "$CID" node dist/scripts/pan-prod-check.mjs
           REMOTE

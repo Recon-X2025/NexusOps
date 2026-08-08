@@ -30,16 +30,19 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **LIVE / `origin/main` = `2bb3bac`** (fixes a DESTRUCTIVE bug: the edit dialog displayed the stored
-  PAN ciphertext and re-encrypted it on Save (double-encryption). Envelope guard in `panColumnsTolerant`,
-  list/get stop shipping ciphertext, write-only masked dialog, PAN format validation, + a read-only prod
-  audit script & `workflow_dispatch`; **no migration**). **Confirmed LIVE** — CI run **`31237849026`**,
-  all five jobs green **including `Deploy to Vultr: success`** (see the exit-point line).
-- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
-  unpushed** (rule 6); it rides origin with the next code change, so local `main` may read **one commit
-  ahead** (live code is `2bb3bac` on both).
-- **`5710dc2` (PAN encrypted at rest + null-structure warning)** was live via CI `31188691203`;
-  **superseded by `2bb3bac`**.
+- **HEAD is the PAN-audit workflow-fix commit** (this commit — the read-only PAN audit workflow used
+  `docker compose` with the images override, which requires `NEXUSOPS_WEB_IMAGE` and aborted; now it
+  `docker exec`s the running api container by its compose service label, bypassing compose. **Workflow
+  + docs only — IDENTICAL app code; the deploy ships no app change.** **No migration**). Its deploy
+  **rides CI on this `main` push**; advance the exit-point once its `Deploy to Vultr` JOB is green. This
+  push also carries `f7c89ff` (the `2bb3bac` exit-point bookkeeping doc commit).
+- **`2bb3bac` (PAN edit-dialog double-encryption fix + audit) is LIVE** — CI run **`31237849026`**, all
+  five jobs green **including `Deploy to Vultr: success`**. Last VALIDATED deploy before this commit.
+- **⚠️ THE PAN AUDIT HAS NOT RUN YET.** Its first run failed on compose interpolation (fixed here).
+  Production employee-PAN state is UNKNOWN — whether any row was double-encrypted between `5710dc2` and
+  `2bb3bac` is not established. This **gates the PAN backfill** (don't backfill until the audit confirms
+  the count; a double-encrypted row must be re-entered from source first). Trigger after this lands:
+  Actions → "PAN Encryption Check (prod, read-only)" → Run workflow.
 - **⚠️ OPEN — production employee-PAN state is UNKNOWN.** Prod may contain double-encrypted rows
   (any employee whose edit dialog was Saved after `5710dc2`). The prod-check ships in THIS commit and
   can only run **after this deploys** (Actions → "PAN Encryption Check (prod, read-only)" →

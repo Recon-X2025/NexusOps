@@ -4494,3 +4494,36 @@ Vultr **auto-backups are NOT enabled** on the production instance. The entire re
 snapshots taken by hand before each commit**. Seven pilot customers' payroll data on one instance with
 **no automatic backup** is a real go-live risk. It is a **settings checkbox**, not a build — enable
 Vultr automatic backups on the production instance before go-live.
+
+---
+
+## PAN audit workflow — compose-interpolation fix (2026-08-08)
+
+**The failure.** The read-only PAN audit workflow failed on its first run before reaching the
+database: `required variable NEXUSOPS_WEB_IMAGE is missing a value`. Root cause: the workflow ran
+`docker compose … -f docker-compose.vultr-test.yml -f docker-compose.vultr.images.yml exec`, and the
+`.images.yml` override declares `image: ${NEXUSOPS_WEB_IMAGE:?…}` — a **REQUIRED** interpolation.
+Compose resolves **every** referenced file before doing anything, so it **aborted before reaching the
+DB.** Nothing ran against production.
+
+**Why the deploy path never hits this.** `scripts/push-to-vultr.sh` passes `NEXUSOPS_WEB_IMAGE` and
+`NEXUSOPS_API_IMAGE` on the SSH command line, and `scripts/vultr-remote-deploy.sh` exports them before
+calling compose (lines 54-57). **Standing note: any compose invocation that includes the images
+override needs those two vars exported first** — worth knowing before anyone writes another one-off
+job against production.
+
+**The fix (workflow-only — `.github/workflows/pan-prod-check.yml`).** The audit now **bypasses
+`docker compose` entirely** and `docker exec`s into the running api container, discovered by its
+compose service label (`docker ps -q --filter label=com.docker.compose.service=api`), with a guard
+that fails loudly on **zero or multiple** matches rather than proceeding. Chosen over fixing the
+compose plumbing because a mistake in the compose/deploy path would break deploys three weeks from
+go-live, and a label-scoped `docker exec` cannot. Safety unchanged: still read-only, no writes, prints
+no PAN, runs inside the prod container so no secret reaches the runner. It is a workflow-only change,
+so it is runnable as soon as it lands on `main` — the audit script is already in the live image (no
+app deploy needed for the audit to work).
+
+**⚠️ STILL OPEN — the audit has NOT run.** Production employee-PAN state remains **unknown**: it is not
+yet established whether any record was double-encrypted between `5710dc2` (encryption deploy) and
+`2bb3bac` (the edit-dialog fix). This **gates the PAN backfill** — do not run the backfill until the
+audit has confirmed the double-encryption count (any double-encrypted row must be re-entered from
+source first; the backfill would otherwise re-encrypt a corrupted value).
