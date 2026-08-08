@@ -30,14 +30,16 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **HEAD is the PAN-ciphertext-fix + prod-check commit** (this commit — fixes a DESTRUCTIVE bug:
-  the edit dialog displayed the stored PAN ciphertext and re-encrypted it on Save (double-encryption).
-  Envelope guard in `panColumnsTolerant`, list/get stop shipping ciphertext, write-only masked dialog,
-  PAN format validation, and a read-only prod audit script + `workflow_dispatch`; **no migration**).
-  Its deploy **rides CI on this `main` push**; **advance the exit-point once its `Deploy to Vultr` JOB
-  is green.** This push also carries `4e7bb3a` (the `5710dc2` exit-point bookkeeping doc commit).
-- **`5710dc2` (PAN encrypted at rest + null-structure warning) is LIVE** — CI run **`31188691203`**,
-  all five jobs green **including `Deploy to Vultr: success`**. Last VALIDATED deploy before this commit.
+- **LIVE / `origin/main` = `2bb3bac`** (fixes a DESTRUCTIVE bug: the edit dialog displayed the stored
+  PAN ciphertext and re-encrypted it on Save (double-encryption). Envelope guard in `panColumnsTolerant`,
+  list/get stop shipping ciphertext, write-only masked dialog, PAN format validation, + a read-only prod
+  audit script & `workflow_dispatch`; **no migration**). **Confirmed LIVE** — CI run **`31237849026`**,
+  all five jobs green **including `Deploy to Vultr: success`** (see the exit-point line).
+- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
+  unpushed** (rule 6); it rides origin with the next code change, so local `main` may read **one commit
+  ahead** (live code is `2bb3bac` on both).
+- **`5710dc2` (PAN encrypted at rest + null-structure warning)** was live via CI `31188691203`;
+  **superseded by `2bb3bac`**.
 - **⚠️ OPEN — production employee-PAN state is UNKNOWN.** Prod may contain double-encrypted rows
   (any employee whose edit dialog was Saved after `5710dc2`). The prod-check ships in THIS commit and
   can only run **after this deploys** (Actions → "PAN Encryption Check (prod, read-only)" →
@@ -341,11 +343,11 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31188691203` — commit `5710dc2` (encrypt employee PAN at rest via shared
-`panColumnsTolerant` on create/update/importVendors; flag null-salary-structure employees on the
-run instead of silently dropping them) — terminal `Deploy to Vultr` job `success` — 2026-08-08 —
-migration head `0074_ambiguous_rick_jones` (no new migration this commit).** Verified via
-`gh run view 31188691203 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E ·
+**CI run `31237849026` — commit `2bb3bac` (stop PAN edit-dialog double-encryption: envelope guard
+in `panColumnsTolerant`, list/get stop shipping ciphertext, write-only masked dialog, PAN format
+validation; + a read-only prod-audit script & `workflow_dispatch`) — terminal `Deploy to Vultr` job
+`success` — 2026-08-08 — migration head `0074_ambiguous_rick_jones` (no new migration).** Verified
+via `gh run view 31237849026 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E ·
 Build Docker Images · **Deploy to Vultr**). This is what is LIVE on `connect.coheron.tech`. The
 deploy is the last job of the `main` CI pipeline — **not** the standalone `Deploy Vultr`
 workflow_dispatch (idle since Jul 15 / `dd1dad9`; a manual fallback only). Refresh this line with
@@ -354,11 +356,14 @@ the next `main` CI run + its `Deploy to Vultr` job as part of the next code-chan
 _This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6 — no docs-only
 deploy); it rides origin with the next code change, so local `main` may read one commit ahead._
 
-> **⚠️ OPEN — PAN backfill still owed.** Every existing employee PAN in production is PLAINTEXT
-> (the create/update fix only affects NEW writes). `decryptPan` reads them through, so nothing is
-> broken, but the at-rest exposure remains until an in-process, idempotent backfill re-encrypts
-> them (needs `APP_SECRET` + pepper; a `.sql` can't). Needs its own snapshot + dry-run + verify.
-> See `reports/fix-plan.md` → "PAN-at-rest… (2026-08-08)".
+> **⚠️ RUN NOW (deployed) — PAN prod audit.** The prod-check script is now in the live image.
+> Trigger it: GitHub → Actions → "PAN Encryption Check (prod, read-only)" → Run workflow. It reports
+> whether any production employee PAN is DOUBLE-encrypted (edit dialog opened + Saved after `5710dc2`).
+> Until it runs, prod PAN state is unknown; recovery for any affected row is re-entry from source.
+> **⚠️ PAN backfill still owed** — existing prod employee PANs are PLAINTEXT (`decryptPan` reads them
+> through, so nothing is broken); an in-process idempotent backfill is owed (needs `APP_SECRET` +
+> pepper). **⚠️ Vultr auto-backups NOT enabled on prod** — manual snapshots only; enable before go-live.
+> See `reports/fix-plan.md` → "PAN ciphertext… (2026-08-08)".
 
 _Prior validated deploys: `d979038` (C6 payslip fields) via CI `31162786896`; `e886a9c` (C2-STRUCT
 half-yearly PT) via CI `31147028089`; `209e537` (seed reconciler) via CI `31141327969` — all superseded._
