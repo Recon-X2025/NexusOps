@@ -5162,10 +5162,10 @@ the path (`payroll-cycle.ts:322-324` → `computeMonthlyStatutory` `:345` → `c
 limit was `min(basicPlusDA, 15000)` (`:225-227`). **Verified case** — total 20,000 / basic 12,000 (60%) /
 HRA 4,000 / special 4,000: the pre-clamp engine base **12,000 vs mandate 10,000**; employee PF **1,440 vs
 1,200**; employer **1,560 vs 1,300**. Masked above the ₹15,000 ceiling ⇒ bit only **below ~₹30,000
-total**. **FIX SHIPPED IN THIS COMMIT:** the base line now reads
+total**. **FIX SHIPPED AND LIVE** (commit `62b0349`, CI run `31298132260`, terminal `Deploy to Vultr`
+job `success`, 2026-08-09): the base line now reads
 `statutoryWageBase = Math.round(Math.min(core + addBack, halfOfTotal))` (`statutory-deductions.ts:825`) —
-exactly half whether the core sits below or above it; covered by `labour-code-wage-base.test.ts`. Goes
-live when this commit's `Deploy to Vultr` job is green.
+exactly half whether the core sits below or above it; covered by `labour-code-wage-base.test.ts`.
 
 **The exclusion set (corrected).** A **hardcoded seven-term sum** at `payroll-cycle.ts:314-321` — HRA,
 special allowance, LTA, overtime, arrears, bonus, other earnings — core is `basicEarned` **alone**.

@@ -251,18 +251,25 @@ _Snapshot — dated content below. For the live migration head always read
 `packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
 do not trust a commit SHA or head number quoted here._
 
-**As of 2026-08-09:** active branch is **`main`**. **Last VALIDATED deploy = `3b7b83f`**
-(dead-link repairs + a static route-integrity guard), verified via CI run `31268782618`'s
-terminal **`Deploy to Vultr`** job (all five jobs green); migration head **`0074_ambiguous_rick_jones`**;
-**237 base tables** (verify: `pgTable` count in `packages/db/src/schema/*.ts`). **This commit — the
-`probation`/`on_leave` payroll run-selection fix + the pending doc corrections, carrying the docs-only
-exit-point commit `6e55f76` up per rule 6 — is being deployed by this push; it becomes LIVE only once
-its OWN terminal `Deploy to Vultr` job is green**, at which point the exit-point line at the bottom of
-`docs/CONTEXT.md` advances to it. Until then `3b7b83f` remains the last validated live SHA. After this
-push origin catches up to this commit; the "local one commit ahead of origin" state (rule 6, the
-next docs-only exit-point refresh) re-establishes then. **For the live hand-off read `docs/CONTEXT.md`;
-the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both kept current per commit
-(their newest additions may sit UNCOMMITTED in the working tree, riding the next code change per rule 6).
+**As of 2026-08-09:** active branch is **`main`**. **Last VALIDATED deploy = `62b0349`**
+(three independent statutory fixes: PF wage base clamped to exactly 50% of total remuneration;
+per-employee leaver flag; payslip write no longer aborting the whole transaction when one employee
+has a structure and no state), verified via CI run `31298132260`'s terminal **`Deploy to Vultr`**
+job (all five jobs green); migration head **`0074_ambiguous_rick_jones`**; **237 base tables**
+(verify: `pgTable` count in `packages/db/src/schema/*.ts`). `origin/main` == `62b0349`. **The
+deploy-state refresh — this block, the `docs/CONTEXT.md` exit-point line, and the `reports/fix-plan.md`
+mandate status — is a docs-only LOCAL commit kept unpushed per rule 6; it rides the next code change,
+so local `main` reads one commit ahead of origin (deliberate, not drift).** **For the live hand-off
+read `docs/CONTEXT.md`; the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both
+kept current per commit (their newest additions may sit UNCOMMITTED in the working tree, riding the
+next code change per rule 6).
+
+Shipped 2026-08-09 (each deployed): **probation/on_leave** payroll run-selection fix + incomplete-row
+flag correction (`cbed818`, CI `31295210801`); then **three independent statutory fixes** (`62b0349`,
+CI `31298132260`) — the **50% PF wage-base downward clamp** (was a one-directional floor; a Basic-heavy
+core above half now clamps down to exactly half), a **per-employee leaver flag** (unpaid leavers named,
+not silently dropped), and **payslip-write resilience** (one structure-without-state employee no longer
+aborts the whole transaction — it is skipped, named, and everyone else is written).
 
 Shipped 2026-08-08 (each deployed; full per-item detail in `reports/fix-plan.md`): **C6** payslip
 mandatory statutory fields (`d979038`, mig `0074`; fixed the ESI-hardcoded-₹0 reconciliation defect,

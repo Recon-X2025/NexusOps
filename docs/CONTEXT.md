@@ -152,13 +152,13 @@ clamp** anywhere on the path (`payroll-cycle.ts:322-324` → `computeMonthlyStat
   engine produced a base of **₹12,000 where the mandate requires ₹10,000** → **employee PF ₹1,440 vs
   ₹1,200**, **employer ₹1,560 vs ₹1,300** (EPF+EPS+EDLI+admin). Masked above the ₹15,000 ceiling, so it
   bit only **below ~₹30,000 total** (both readings clamp to the ceiling above it).
-- **FIX SHIPPED IN THIS COMMIT.** The base line now reads
+- **FIX SHIPPED AND LIVE** (commit `62b0349`, CI run `31298132260`, terminal `Deploy to Vultr` job
+  `success`, 2026-08-09). The base line now reads
   `statutoryWageBase = Math.round(Math.min(core + addBack, halfOfTotal))` (`statutory-deductions.ts:825`):
   the add-back lifts a below-half core UP to the half, the `min` clamps an above-half core DOWN to it, so
   the base lands on **exactly half either way**. Covered by
   `apps/api/src/__tests__/labour-code-wage-base.test.ts` (the (12,000, 8,000) → 10,000 case + all five PF
-  figures). It becomes LIVE only once this commit's own `Deploy to Vultr` job is green — do not quote it
-  as deployed until then.
+  figures).
 
 **THE EXCLUSION SET (corrected — it is wider than earlier notes said).** The bucket is a **hardcoded
 seven-term sum** at `payroll-cycle.ts:314-321` — **HRA, special allowance, LTA, overtime, arrears,
@@ -181,8 +181,8 @@ scalars (`core`, `exclusions`) and **knows nothing** of which components went in
   gated by `labourCodesInForce` (`payroll-cycle.ts:296`), which resolves from the `bonus_eligibility_ceiling`
   seeded by migration `0054` as a **platform default (`org_id NULL`, ₹21,000, effective 2025-11-21)** —
   every org inherits it, no per-org seeding (dev: one `org_id NULL` row, 0 org-scoped). So the wrong
-  reading **was live for every 2026 pay period below the ceiling** until this commit's clamp — which
-  is corrected in-tree here and goes live when this commit's `Deploy to Vultr` job is green.
+  reading **was live for every 2026 pay period below the ceiling** until this commit's clamp
+  (`62b0349`, deployed 2026-08-09) — now corrected in production.
 - **No floor/cap on the `basicPercent` field itself.** Default `40`, validation only `min(0).max(100)`,
   **no DB CHECK** (`hr.ts:106`; `payroll.ts:776/844`). A client can configure a non-compliant structure,
   see it on a payslip, and never be told (see WAGE-CFG in the Deferred register).
@@ -500,18 +500,22 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31295210801` — commit `cbed818` (pay `probation` & `on_leave` employees; correct
-the incomplete-row flag) — terminal `Deploy to Vultr` job `success` — 2026-08-09 — migration
-head `0074_ambiguous_rick_jones` (no new migration).** Verified via `gh run view 31295210801
---json jobs` (all five jobs green: Lint & Type Check · Unit & Integration Tests · E2E
-(Playwright) · Build Docker Images · Deploy to Vultr). This is what is LIVE on
-`connect.coheron.tech`.
+**CI run `31298132260` — commit `62b0349` (three independent statutory fixes: PF wage-base
+clamped to exactly 50% of total; per-employee leaver flag; payslip write no longer aborting
+the whole transaction on one structure-without-state employee) — terminal `Deploy to Vultr`
+job `success` — 2026-08-09 — migration head `0074_ambiguous_rick_jones` (no new migration).**
+Verified via `gh run view 31298132260 --json jobs` (all five jobs green: Lint & Type Check ·
+Unit & Integration Tests · E2E (Playwright) · Build Docker Images · Deploy to Vultr). This is
+what is LIVE on `connect.coheron.tech`.
 
-_`origin/main` == local `main` == `cbed818` (in sync). The working tree holds UNCOMMITTED
-code + doc changes not yet shipped — the wage-base downward clamp, the leaver full-and-final
-flag, and the payslip-write resilience fix (one bad-data employee no longer aborts the run) —
-plus this exit-point refresh. Per rule 6 the doc updates ride the next code commit; until that
-commit's own `Deploy to Vultr` job is green, `cbed818` remains the last validated live SHA._
+_This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6); it rides
+origin with the next code change, so local `main` reads one commit ahead of origin —
+deliberate, not drift._
+
+_Prior validated deploys (all superseded): `cbed818` (pay probation & on_leave; incomplete-row
+flag) CI `31295210801`; `3b7b83f` (dead-link repairs + route-integrity guard) CI `31268782618`;
+`7a76624` (doc corrections + taxRegime column) CI `31265258768`; `db529c0` (A12-D + importer)
+CI `31258191554`._
 
 _Prior validated deploys (all superseded): `3b7b83f` (dead-link repairs + route-integrity
 guard) CI `31268782618`; `7a76624` (doc corrections + taxRegime column) CI
