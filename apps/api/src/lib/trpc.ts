@@ -607,6 +607,65 @@ export function permissionProcedure(module: Module, action: RbacAction) {
   });
 }
 
+/**
+ * Like `permissionProcedure`, but admits the request if the caller satisfies
+ * ANY one of the supplied `(module, action)` grants (logical OR).
+ *
+ * Use this only for a READ surface that legitimately serves callers from more
+ * than one RBAC domain — e.g. the payroll run page, which a payroll operator
+ * reads via `payroll.read` and a Finance/CFO approver must also read via their
+ * `financial.write` authority so they can open the run and act on their
+ * approval step. The approval ACTION itself keeps its own stricter gate; this
+ * only reconciles page/data read-access with the action's authoriser so the
+ * authorised approver is not locked out of the surface that hosts the control.
+ *
+ * It does NOT widen any write path: pass only the grants that should confer
+ * read access to this surface.
+ */
+export function anyPermissionProcedure(grants: ReadonlyArray<readonly [Module, RbacAction]>) {
+  return protectedProcedure.use(({ ctx, path, next }) => {
+    if (!ctx.user || !ctx.org) {
+      logAuthFail({
+        requestId:  ctx.requestId ?? null,
+        userId:     null,
+        orgId:      null,
+        route:      path,
+        ip:         ctx.ipAddress,
+        sessionRef: shortRef(ctx.sessionId),
+        reason:     "no_user_or_org",
+      });
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
+
+    const role = String(ctx.user.role ?? "");
+    const matrixRole = ctx.user.matrixRole as string | null | undefined;
+
+    const allowed = grants.some(([module, action]) =>
+      checkDbUserPermission(role, module, action, matrixRole, ctx.user!.customPermissions),
+    );
+
+    if (!allowed) {
+      // Log against the first grant for consistency with permissionProcedure.
+      const [module, action] = grants[0] ?? (["", ""] as unknown as readonly [Module, RbacAction]);
+      logRbacDenied({
+        requestId: ctx.requestId ?? null,
+        userId:    ctx.user.id as string,
+        orgId:     ctx.orgId ?? null,
+        route:     path,
+        module,
+        action,
+        role,
+      });
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Permission denied: requires one of ${grants.map(([m, a]) => `${m}.${a}`).join(", ")}`,
+      });
+    }
+
+    return next({ ctx });
+  });
+}
+
 /** Org policy: `settings.security.requireStepUpForMatrixRoles` → password re-check via `auth.verifyStepUp`. */
 export const stepUpGate = t.middleware(async ({ ctx, next }) => {
   await assertStepUpIfRequired(ctx);

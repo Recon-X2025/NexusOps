@@ -5242,3 +5242,90 @@ defect **no product path can trigger.** The widening is still correct as forward
 severity ranking was wrong. **Standing rule, now in force: establish REACHABILITY before assigning
 SEVERITY.** A defect no code path can produce is not the top of the board, however plausible the
 real-world story.
+
+## PAYROLL-APPROVAL-DEADLOCK — launch-gate; FIX UNCOMMITTED in the working tree (2026-08-09)
+
+**Status: OPEN until deployed. The fix exists in the working tree, is proven, and is NOT committed
+or shipped.** This was a launch-gate defect: **no combination of non-owner roles could complete the
+HR→Finance→CFO payroll approval chain**, so step 13 and every statutory output (PF ECR, ESI challan,
+PT challan, TDS) was unreachable. `payroll.runs.approve` gates FINANCE/CFO on `financial.write` and HR
+on `hr.write` (`apps/api/src/routers/payroll.ts:587`), with SoD by identity (`:604-616`). `hr_manager`
+holds `payroll.read` not `financial.write`; `finance_manager` the reverse; only the owner holds both,
+and SoD forbids one identity doing two steps → empty intersection → chain uncompletable.
+
+**Four gate layers had to be reconciled — fixing one was not enough:**
+1. Server `payroll.runs.list`/`get` — were `permissionProcedure("payroll","read")`; now
+   `anyPermissionProcedure([["payroll","read"],["financial","write"]])` (read-surface OR). *(found: static)*
+2. Route guard — `/app/payroll` gated on `canAccess("payroll")`; now also admits a `financial.write`
+   holder via `resolveRouteReadAlternatives` (`apps/web/src/lib/route-permissions.ts`). *(static)*
+3. Page inline gate — `if (!can("payroll","read")) return <AccessDenied/>`; now
+   `payroll.read || financial.write`, and **moved to after all hooks** (see RULES-OF-HOOKS below). *(live)*
+4. Per-step Execute button — a single `can("hr","write")` gated *every* step incl. Finance/CFO; now the
+   Finance/CFO steps gate on `financial.write`, others unchanged. *(live)*
+5. Generated `TRPC_PROCEDURE_RBAC` map — `mergeTrpcQueryOpts` (`rbac-context.tsx:213`) disabled the
+   `runs.list` query client-side because the map still said `{payroll,read}`; the query never fired.
+   Fixed by teaching the generator about `anyPermissionProcedure` and regenerating. *(live — see RBAC-MAP-DRIFT)*
+
+Layers 1–2 were visible by static reading; **3, 4 and 5 only surfaced by driving it live** (a green full
+suite did not reveal 3/4/5). **The approve action's permissions, the SoD check, and the RBAC matrix were
+NOT changed.** Proven: finance@ (previously bounced with "Access Restricted") completed the Finance
+approval through the UI (`FINANCE_APPROVED`, `approved_by_finance_id=finance@`); an integration test
+(`apps/api/src/__tests__/payroll-approval-gate.test.ts`) drives the full chain to `CFO_APPROVED` with
+three distinct identities. Full suite 1,535 tests, lint 9/9. Evidence: `docs/audits/…stage4-chain_*`,
+`…stage4-chain-corrigendum_*`, `…stage5_*`. **To close: commit + deploy, then reach step 13 (see below).**
+
+## RBAC-MAP-DRIFT — generated map silently diverges from the procedures (2026-08-09, its own finding)
+
+`apps/web/src/lib/trpc-procedure-rbac.generated.ts` is generated from the procedure definitions
+(`scripts/generate-trpc-rbac-map.ts`) and gates client queries via `mergeTrpcQueryOpts`. It had **not
+been regenerated after the procedures changed**, so it disabled a query the server would have allowed
+(the deadlock's layer 5). Regenerating also **picked up two procedures the stale map was missing entirely**
+(`financial.createCreditDebitNote`, `ingest.importEmployees`). **Nothing detects this drift**: a change can
+pass the full suite while the client silently refuses to call the procedure. **OPEN (class):** consider a
+CI check that fails if the committed map differs from a fresh regeneration.
+
+## RULES-OF-HOOKS early-return — latent, surfaced by the fix (2026-08-09)
+
+The payroll page's permission gate was an **early `return <AccessDenied/>` sitting between hook calls**.
+It never crashed because the condition could not flip for the roles that reached it. Once a `financial.write`
+holder could pass, the hook count changed between renders → "Rendered more hooks than during the previous
+render" crash. Fixed by moving the gate **after all hooks**. **OPEN (class):** the same pattern (a
+permission early-return before later hooks) may exist on other pages; nothing surfaces it until a
+condition flips. Worth a sweep.
+
+## Runtime-audit findings that change the board (2026-08-09) — evidence in `docs/audits/`
+
+- **DUP-PAN-ACCEPTED — OPEN, statutory.** Two employees now share one PAN; the create path accepted it
+  with no warning. Cause: PAN is encrypted with a **per-row IV**, so ciphertexts differ for the same
+  plaintext → a unique index cannot catch it, and the create path does **no plaintext pre-check**. It
+  surfaces at **TDS reconciliation on the return (Form 24Q / 26AS), not at entry.** Evidence:
+  `…stage3b-build_*`, `…stage4-payroll_*`.
+- **STRUCTURE-NOT-EFFECTIVE silent drop — OPEN.** An employee whose salary structure's `effective_from`
+  postdates the run's period start is **dropped from the run silently** — headcount went **12→11 with no
+  error naming who** (`resolveSalaryStructureForPeriod` returns none → skipped). Evidence: `…stage4-payroll_*`.
+- **STEP-13-UNREACHED — runtime coverage gap.** PF ECR, ESI challan, PT challan and TDS output surfaces
+  have **never been reached in any runtime pass** (Stage Two stopped at step 9; Stage Four/Five blocked by
+  the deadlock then by lack of a third `financial.write` identity). Their contents are unverified at runtime.
+- **FORMS-REFUSE-WITHOUT-MESSAGE — one finding, one cause.** The wizard's malformed statutory IDs and the
+  employee form's empty submit are refused by **native browser validation only, with no app-level message**.
+  Single cause; not several findings. Evidence: `…stage2_*`, `…stage3_*`.
+- **EMPLOYEE-FORM correction (corrects the static map).** The employee form **does** collect **state, tax
+  regime and PAN** — they render once a salary structure is selected, and **state is required**. PAN persists
+  encrypted. Evidence: `…stage3b-build_*`.
+- **Wage-base clamp + PF ceiling — VERIFIED on product-created data.** One employee's PF base was **added
+  back to exactly half of total**; another's **capped at ₹15,000**. But the **above-50% case has still never
+  run** — no employee on a >50%-basic structure has been included in a payroll run (the one such employee was
+  dropped by STRUCTURE-NOT-EFFECTIVE). Evidence: `…stage4-payroll_*`, `…stage5_*`.
+- **IMPORTER + ONBOARDING BUTTON — method limit, not a product finding.** Neither could be exercised: both
+  require a **native file upload the test harness cannot drive**. Every upload-dependent surface is unreachable
+  by that harness. Recorded so a later pass with a file-upload-capable harness picks them up. Evidence:
+  `…stage3-retry_*`, `…stage3b-build_*`.
+
+## DEV-DB-14-BEHIND — RESOLVED (2026-08-09)
+
+The local dev database was **14 migrations behind head** (61 applied vs journal head `0074`), which broke
+login (`auth.login` 500 on the missing `organizations.esi_establishment_number`, mig 0074) until
+`pnpm db:migrate` applied migs 0061–0074. **Now at head `0074`.** Cause is **operational, not a code defect:
+nothing brings a local database to the journal head and nothing checks that it is there** — prod auto-applies
+via the `migrator` service, so only local dev is exposed. **CLOSED.** (Operational rule added to `CLAUDE.md`:
+a fresh local session should confirm the dev DB is at the journal head and `db:migrate` if not.)

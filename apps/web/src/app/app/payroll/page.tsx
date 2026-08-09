@@ -128,9 +128,13 @@ export default function PayrollPage() {
   const utils = trpc.useUtils();
   const { mergeTrpcQueryOpts, can } = useRBAC();
 
-  if (!can("payroll", "read")) {
-    return <AccessDenied module="payroll" />;
-  }
+  // Finance/CFO approvers hold `financial.write` (the authority the payroll
+  // approval action requires) but not `payroll.read`. Admit them to VIEW the run
+  // surface so they can reach and act on their approval step. Every write action
+  // below keeps its own gate — a financial-only user still cannot lock, compute,
+  // generate, or complete a run. NB: the AccessDenied return lives AFTER all hooks
+  // (below) so the hook count never changes between renders (rules of hooks).
+  const canViewPayroll = can("payroll", "read") || can("financial", "write");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
@@ -252,6 +256,12 @@ export default function PayrollPage() {
   }>;
   const run = selectedRun.data;
   const currentStepIdx = run ? getStepIndex(run.status) : -1;
+
+  // Page-view gate (after all hooks — see note above). A user with neither
+  // payroll.read nor financial.write cannot see the payroll surface.
+  if (!canViewPayroll) {
+    return <AccessDenied module="payroll" />;
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -441,8 +451,17 @@ export default function PayrollPage() {
                             Step {idx + 1}: {step.label}
                           </span>
 
-                          {/* Action button for current step */}
-                          {isCurrent && run.status !== "COMPLETED" && run.status !== "FAILED" && can("hr", "write") && (
+                          {/* Action button for current step. Per-step authority
+                              mirrors the API: Finance/CFO approval needs
+                              financial.write; every other step (lock, compute,
+                              HR approve, generate, complete) stays on the payroll
+                              operator's hr.write. This lets the Finance/CFO
+                              approver reach their own control without widening
+                              any compute/lock/generate path. */}
+                          {isCurrent && run.status !== "COMPLETED" && run.status !== "FAILED" &&
+                            (step.key === "FINANCE_APPROVED" || step.key === "CFO_APPROVED"
+                              ? can("financial", "write")
+                              : can("hr", "write")) && (
                             <button
                               onClick={() => {
                                 if (step.key === "PERIOD_LOCKED") {

@@ -1,4 +1,4 @@
-import type { Module } from "@coheronconnect/types";
+import type { Module, RbacAction } from "@coheronconnect/types";
 
 /**
  * Route → RBAC module map for the layout-level page guard.
@@ -161,4 +161,39 @@ export function resolveRouteModule(pathname: string): Module | null {
     if (matchesPrefix(path, rule.prefix)) return rule.module;
   }
   return null;
+}
+
+/**
+ * Alternative read-access grants for routes whose page/data serve more than one
+ * RBAC domain. A route mapped to module X (above) is normally page-gated on
+ * `canAccess(X)`; if the user fails that, the guard additionally admits them
+ * when they hold ANY alternative grant listed here for that route.
+ *
+ * `/app/payroll`: a Finance/CFO approver holds `financial.write` (the authority
+ * the payroll approval action requires) but not `payroll.read`. Without this,
+ * the approver is locked out of the only surface that hosts the approve control
+ * — a page/action gate mismatch. This grants them page READ access only; every
+ * write/compute/lock/generate path, and the approve action's own per-step gate
+ * and segregation-of-duties check, remain unchanged and authoritative on the API.
+ */
+const ROUTE_READ_ALTERNATIVES: ReadonlyArray<{
+  prefix: string;
+  module: Module;
+  action: RbacAction;
+}> = [{ prefix: "/app/payroll", module: "financial", action: "write" }];
+
+/**
+ * Resolve any alternative `(module, action)` grants that also confer read
+ * access to `pathname`'s page. Empty when the route has no alternatives.
+ */
+export function resolveRouteReadAlternatives(
+  pathname: string,
+): ReadonlyArray<{ module: Module; action: RbacAction }> {
+  const path =
+    pathname.length > 4 && pathname.endsWith("/")
+      ? pathname.replace(/\/+$/, "")
+      : pathname;
+  return ROUTE_READ_ALTERNATIVES.filter((r) => matchesPrefix(path, r.prefix)).map(
+    ({ module, action }) => ({ module, action }),
+  );
 }

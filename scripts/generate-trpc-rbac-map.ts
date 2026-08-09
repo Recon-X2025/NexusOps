@@ -56,6 +56,10 @@ function procedureKind(init: ts.Expression, sf: ts.SourceFile): RuleJson | null 
   if (text.startsWith("adminProcedure")) return { kind: "adminRole" };
   if (text.startsWith("publicProcedure")) return { kind: "public" };
   if (text.startsWith("protectedProcedure")) return { kind: "protected" };
+  // anyPermissionProcedure admits more than one (module,action) — an OR the single
+  // {module,action} rule shape cannot express. Classify as "protected" so the client
+  // query-gate lets any authenticated user attempt; the server enforces the real OR.
+  if (text.startsWith("anyPermissionProcedure")) return { kind: "protected" };
   const perm = findPermissionProcedureCall(init);
   if (perm) {
     const p = parsePermissionArgs(perm, sf);

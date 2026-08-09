@@ -147,6 +147,31 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 - Don't commit unless explicitly asked. Prefer staging specific files over `git add -A`.
 - Never commit secrets (`.env*`, credentials). Coverage artifacts are gitignored.
 - zsh quirks observed here: multi-line SQL piped through commands breaks; `cd` with unquoted paths can error "too many arguments"; `!` triggers history expansion in `node -e`. Workaround: write a temp `.cjs` file and quote paths.
+- **Operational — the dev DB is not auto-migrated.** A fresh local session must confirm the dev
+  database is at the journal head (`packages/db/drizzle/meta/_journal.json`) and run `pnpm db:migrate`
+  if not. Nothing brings a local DB to head and nothing checks; it was found **14 migrations behind**
+  on 2026-08-09 (login 500'd on a missing column). Prod is safe — it auto-applies via the `migrator`
+  service. (Closed item; see `reports/fix-plan.md` "DEV-DB-14-BEHIND".)
+
+### Operating rules for investigation & recording (learned 2026-08-09)
+
+These govern how findings are established and written down. They exist because a whole build pass was
+spent on a defect **no product path can trigger** — its severity was *asserted* from reasoning about how
+Indian employers hire (new hires sit on probation → would go unpaid) rather than *established* from the
+code, where no path writes that status (see `reports/fix-plan.md` "CORRECTION OF RECORD — reachability
+before severity").
+
+- **Trace a finding to cause before recording it as a fault.** An artefact of a cause you have already
+  identified is not a new finding — fold it into the one it belongs to. (Multiple such near-misses on
+  2026-08-09 were caught only by tracing first.)
+- **Establish reachability before severity, and severity before priority.** A defect no code path can
+  produce is not the top of the board, however plausible the real-world story.
+- **Nothing enters a prompt as a premise unless it was read in code, cited with `file:line`.** Otherwise
+  it is a question, not framing.
+- **A finding updates its own item; it does not restart the queue.**
+- **Verify everything; do not triage by apparent importance** — importance is an output of verification,
+  not an input to it.
+- **Where a claim was not verified, say so** rather than filling the gap.
 
 ## Gap analysis (where the product actually stands)
 
@@ -263,6 +288,25 @@ so local `main` reads one commit ahead of origin (deliberate, not drift).** **Fo
 read `docs/CONTEXT.md`; the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both
 kept current per commit (their newest additions may sit UNCOMMITTED in the working tree, riding the
 next code change per rule 6).
+
+**As of 2026-08-09 (later), the working tree additionally carries — UNCOMMITTED and NOT deployed:**
+(a) a **payroll-approval-chain fix** (launch-gate: the HR→Finance→CFO chain was uncompletable by any
+non-owner role, blocking step 13 / all statutory outputs; reconciled across four gate layers; proven
+live + by an integration test to `CFO_APPROVED`, full suite 1,535 / lint 9/9 — **not shipped**), and
+(b) a **locked runtime-audit series in `docs/audits/`** (the `/app/**` page inventory + runtime passes
+stages 1–5). **Do not describe (a) as shipped.** Per-item detail: `reports/fix-plan.md` (2026-08-09
+sections — PAYROLL-APPROVAL-DEADLOCK, RBAC-MAP-DRIFT, RULES-OF-HOOKS, the runtime findings, and
+DEV-DB-14-BEHIND now CLOSED). Read the audit files by filename; do not copy their conclusions here.
+The **dev DB is now at head `0074`** (was 14 behind — see the operational note under Conventions).
+
+> **Structural note on this block (anti-drift).** The SHAs, migration head, and "237 base tables" above
+> are a **snapshot to verify, not a source of truth** — this file drifted to a stale live SHA more than
+> once (e.g. `docs/CONTEXT.md`'s top LIVE line held `3b7b83f` while origin was `62b0349`, 2026-08-09).
+> **Per-commit state should not be copied into CLAUDE.md at all.** It belongs at the source: the live
+> deploy in `docs/CONTEXT.md`'s "Last validated deployment (exit point)" line, the migration head in
+> `packages/db/drizzle/meta/_journal.json`, branch/HEAD in `git`, and runtime findings in `docs/audits/`.
+> Treat everything in "Latest session state" as needing re-verification; over time it should shrink to a
+> pointer. Conventions and the operating rules above, by contrast, do not go stale and belong here.
 
 Shipped 2026-08-09 (each deployed): **probation/on_leave** payroll run-selection fix + incomplete-row
 flag correction (`cbed818`, CI `31295210801`); then **three independent statutory fixes** (`62b0349`,

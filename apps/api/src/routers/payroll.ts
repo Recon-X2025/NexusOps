@@ -34,7 +34,7 @@ import { putObject, buildDocumentKey, enqueueVirusScan } from "../services/stora
 import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { decryptPan } from "../lib/pan";
-import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
+import { router, permissionProcedure, anyPermissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, computeHRAExemption, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { buildPayslipView, payslipViewToPortalRow } from "../lib/payslip-view";
@@ -244,8 +244,18 @@ function regimeSlice(t: ReturnType<typeof computeTax>) {
   };
 }
 
+// Read access to the payroll run SURFACE (page list + run detail). Admits the
+// payroll operator (payroll.read) AND the Finance/CFO approver (financial.write),
+// so the person authorised to approve a step can open the run and reach the
+// control. Write/compute/lock/generate paths below remain payroll.write-only;
+// the approve ACTION keeps its own stricter per-step gate + SoD unchanged.
+const PAYROLL_RUN_READ_SURFACE = [
+  ["payroll", "read"],
+  ["financial", "write"],
+] as const;
+
 const runsRouter = router({
-  list: permissionProcedure("payroll", "read").input(z.object({}).optional()).query(async ({ ctx }) => {
+  list: anyPermissionProcedure(PAYROLL_RUN_READ_SURFACE).input(z.object({}).optional()).query(async ({ ctx }) => {
     const { db, org } = ctx;
     const rows = await db
       .select()
@@ -255,7 +265,7 @@ const runsRouter = router({
     return rows.map(mapRunRow);
   }),
 
-  get: permissionProcedure("payroll", "read")
+  get: anyPermissionProcedure(PAYROLL_RUN_READ_SURFACE)
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;

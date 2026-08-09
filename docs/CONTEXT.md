@@ -38,17 +38,23 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `3b7b83f`** — migration head
+- **LIVE on `connect.coheron.tech` = `origin/main` = `62b0349`** — migration head
   **`0074_ambiguous_rick_jones`** — verified through the terminal **`Deploy to Vultr`
-  job of CI run `31268782618`** (all five jobs green: Lint · Unit & Integration · E2E ·
-  Build Docker Images · Deploy to Vultr). `3b7b83f` is the frontend dead-link repairs +
-  the route-integrity guard (now enforced in CI's test job).
+  job of CI run `31298132260`** (all five jobs green: Lint · Unit & Integration · E2E ·
+  Build Docker Images · Deploy to Vultr). `62b0349` is the three independent statutory
+  fixes (50% PF wage-base clamp · per-employee leaver flag · resilient payslip write).
+  _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
+  bottom of this file — that line is the source of truth; if the two ever disagree, trust
+  the bottom and fix this one.** The top of this file drifted to a stale `3b7b83f` before
+  (corrected 2026-08-09) because the SHA was copied here instead of pointed at._
 - **⚠️ ORIGIN IS DELIBERATELY ONE COMMIT BEHIND LOCAL — this is NOT drift, do not
   "fix" it.** Local `main` carries one extra commit, a **docs-only exit-point refresh**
-  kept local per standing rule 6 (no docs-only deploy). It rides origin with the next
-  code change. So `git rev-list --left-right --count origin/main...HEAD` reads `0  1`,
-  and origin records `7a76624` while local reads the exit-point commit — both describe
-  the same live code. A previous session nearly looped "correcting" this; it is intentional.
+  (`111fc16`) kept local per standing rule 6 (no docs-only deploy). It rides origin with
+  the next code change. So `git rev-list --left-right --count origin/main...HEAD` reads
+  `0  1` — origin records `62b0349`, local `111fc16` — both describe the same live code.
+  A previous session nearly looped "correcting" this; it is intentional.
+- **⚠️ The working tree ALSO carries an UNCOMMITTED, NOT-DEPLOYED payroll-approval-chain
+  fix and a runtime-audit series — see the "2026-08-09 (later)" section immediately below.**
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -57,6 +63,40 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   via the `migrator` service before `api` starts.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0074`).
+
+## 2026-08-09 (later) — UNCOMMITTED in the working tree, NOT deployed
+
+_None of this is on `origin/main` or `connect.coheron.tech`. It is an uncommitted fix
+plus an audit series in the working tree, recorded so it is not lost. Per-item detail and
+status live in `reports/fix-plan.md`; the runtime evidence is in the locked files under
+`docs/audits/` — pointed at by filename below, not copied, so this stays a map, not a stale
+duplicate._
+
+- **🚩 Payroll-approval-chain deadlock — FIX IN THE TREE, NOT DEPLOYED (launch-gate).**
+  Before the fix, **no combination of non-owner roles could complete the HR→Finance→CFO
+  chain**, so step 13 and every statutory output (PF ECR, ESI challan, PT challan, TDS) was
+  unreachable. `hr_manager` holds `payroll.read` not `financial.write`; `finance_manager`
+  the reverse; only the owner holds both and SoD (correctly) forbids one identity doing two
+  steps. **Four gate layers had to be reconciled** — server `runs.list`/`get`, the route
+  guard, the page's inline `AccessDenied`, the per-step Execute button (gated on `hr.write`
+  for *every* step incl. Finance/CFO), and the generated `TRPC_PROCEDURE_RBAC` map (which
+  disabled the query client-side so it never fired). Proven live (finance@ completed the
+  Finance approval through the UI) and by an integration test driving the full chain to
+  `CFO_APPROVED` with three identities; full suite 1,535 tests, lint 9/9. **Uncommitted —
+  do not describe as shipped.** Detail: `reports/fix-plan.md` (2026-08-09 payroll-approval);
+  evidence: `docs/audits/web-runtime-pass_stage4-chain_*`, `..._stage4-chain-corrigendum_*`,
+  `..._stage5_*`.
+- **Runtime-audit series (locked) now in `docs/audits/`:** the `/app/**` page inventory
+  (`web-page-inventory_2026-08-09_run-131837.md`) and runtime passes stages 1–5
+  (`web-runtime-pass_stage1..stage5_2026-08-09_*.md`). Each is immutable; read them by
+  filename. Findings that change THIS document's picture are folded into `reports/fix-plan.md`
+  (2026-08-09) and summarised there — notably: **duplicate PAN is accepted** (OPEN, statutory);
+  **an employee whose salary structure is not yet effective is dropped from a run silently**
+  (headcount 12→11, no error naming who — OPEN); **step-13 statutory outputs have never been
+  reached at runtime**; the **static page-map was wrong about the employee form** (it *does*
+  collect state/regime/PAN — corrected); the **wage-base clamp and PF ceiling compute correctly
+  on product data** (add-back to exactly half; cap at ₹15,000) but the **above-50% case has
+  still never run** (no employee on such a structure has been in a payroll run).
 
 ## What shipped THIS session, in order (each is deployed)
 
