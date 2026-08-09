@@ -765,8 +765,11 @@ export function computeMonthlyStatutory(
 //    deemed as remuneration and shall be accordingly added in wages …"
 //
 // i.e. the EXCESS OF THE EXCLUSIONS OVER 50% of total remuneration is clawed
-// BACK INTO wages. This lifts an artificially low Basic+DA up toward a floor of
-// 50% of total remuneration, which then feeds the PF/ESI/bonus ceilings.
+// BACK INTO wages. The statutory wage base is therefore EXACTLY 50% of total
+// remuneration — a fixed figure, not a mere floor: an artificially low Basic+DA
+// is lifted UP to the half, and a Basic-heavy core sitting ABOVE the half is
+// clamped back DOWN to it. That base then feeds the PF (and, via the ceilings,
+// bonus) computation.
 //
 // This function is PURE and returns the breakdown so callers/tests can assert
 // each step. It does NOT apply any ceiling — the caller passes the resulting
@@ -783,7 +786,11 @@ export interface LabourCodeWageBase {
   halfOfTotal: number;
   /** Amount clawed back into wages = max(0, exclusions − halfOfTotal). */
   addBack: number;
-  /** Final statutory wage base = coreWages + addBack (never below coreWages). */
+  /**
+   * Final statutory wage base = EXACTLY 50% of total remuneration whenever the
+   * proviso applies — a fixed figure, not a floor. The add-back lifts a
+   * below-half core UP to half; the clamp brings an above-half core DOWN to half.
+   */
   statutoryWageBase: number;
 }
 
@@ -796,9 +803,11 @@ export interface LabourCodeWageBase {
  *                           conveyance, special allowance, etc.). Must NOT
  *                           include `coreWages`.
  *
- * Negative inputs are floored at 0. When exclusions are ≤ 50% of total
- * remuneration, `addBack` is 0 and the base equals `coreWages`, so a
- * conventionally-structured salary is unaffected.
+ * Negative inputs are floored at 0. The statutory wage base is EXACTLY 50% of
+ * total remuneration — a fixed figure, not a floor. When exclusions exceed 50%,
+ * `addBack` lifts a below-half core UP to the half; when the core sits ABOVE the
+ * half (a Basic-heavy structure), the clamp brings it back DOWN to the half.
+ * Either way the base lands on exactly 50% of total remuneration.
  */
 export function calculateLabourCodeWageBase(
   coreWages: number,
@@ -809,9 +818,11 @@ export function calculateLabourCodeWageBase(
   const totalRemuneration = core + exclusions;
   const halfOfTotal = totalRemuneration / 2;
   const addBack = Math.max(0, exclusions - halfOfTotal);
-  // Round to whole rupees to keep the base consistent with downstream
-  // Math.round-based statutory computations.
-  const statutoryWageBase = Math.round(core + addBack);
+  // The base is EXACTLY half of total remuneration: the add-back lifts a
+  // below-half core (core + addBack === halfOfTotal), and this clamp brings an
+  // above-half core (addBack === 0, core > halfOfTotal) back down to the half.
+  // Round to whole rupees to stay consistent with downstream Math.round math.
+  const statutoryWageBase = Math.round(Math.min(core + addBack, halfOfTotal));
 
   return {
     coreWages: core,

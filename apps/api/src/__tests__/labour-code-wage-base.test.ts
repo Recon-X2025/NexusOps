@@ -19,6 +19,7 @@ import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
 import { statutoryCeilings, eq } from "@coheronconnect/db";
 import {
   calculateLabourCodeWageBase,
+  computePF,
   computeStatutoryBonusEligibility,
   computeEmployeePayslip,
   type EmployeePayrollInput,
@@ -78,11 +79,13 @@ describe("G2: calculateLabourCodeWageBase (Code on Wages s.2(y))", () => {
     expect(r.statutoryWageBase).toBe(20_000); // == 50% floor
   });
 
-  it("is a no-op when exclusions are at or below 50% (conventional structure)", () => {
-    // core 25,000 + excluded 15,000 = 40,000; exclusions (15k) < 20k half.
+  it("clamps a core ABOVE 50% back DOWN to exactly half (Basic-heavy structure)", () => {
+    // core 25,000 + excluded 15,000 = 40,000; exclusions (15k) < 20k half, so
+    // addBack is 0 — but the core (25k) sits ABOVE the half. The base is a fixed
+    // figure = 50% of total, so it clamps DOWN to 20,000 (NOT a no-op passthrough).
     const r = calculateLabourCodeWageBase(25_000, 15_000);
     expect(r.addBack).toBe(0);
-    expect(r.statutoryWageBase).toBe(25_000);
+    expect(r.statutoryWageBase).toBe(20_000);
   });
 
   it("floors negative inputs at zero", () => {
@@ -96,6 +99,23 @@ describe("G2: calculateLabourCodeWageBase (Code on Wages s.2(y))", () => {
     // Any skew where exclusions > 50% lands the base on the 50% floor.
     const r = calculateLabourCodeWageBase(10_000, 90_000);
     expect(r.statutoryWageBase).toBe(50_000);
+  });
+
+  it("a Basic-heavy core clamps to half, and all five PF figures move with that base", () => {
+    // Mandate worked case: total 20,000 (Basic 12,000 + HRA 4,000 + special 4,000).
+    // Core 12,000 sits ABOVE the 10,000 half. RED before the fix: base passed through
+    // at 12,000 (over-collecting PF); GREEN after: base is the fixed 10,000 = 50%.
+    const r = calculateLabourCodeWageBase(12_000, 8_000);
+    expect(r.statutoryWageBase).toBe(10_000);
+
+    // Every statutory figure is derived from that one base (below the 15k ceiling,
+    // so no clamp) — prove all five move to the 10,000 base, not the 12,000 core.
+    const pf = computePF(r.statutoryWageBase);
+    expect(pf.employeePF).toBe(1_200); //   12%   of 10,000  (was 1,440 at core 12,000)
+    expect(pf.employerEPF).toBe(367); //   3.67% of 10,000
+    expect(pf.employerEPS).toBe(833); //   8.33% of 10,000
+    expect(pf.employerEDLI).toBe(50); //    0.5% of 10,000
+    expect(pf.adminCharges).toBe(50); //    0.5% of 10,000
   });
 });
 
@@ -132,6 +152,20 @@ describe("G2: payslip wire-in — 50% proviso lifts + clamps the PF base", () =>
     });
     expect(payslip.statutoryDeductions.pf.pfWageBase).toBe(12_000);
     expect(payslip.employeePF).toBe(Math.round(12_000 * 0.12)); // 1,440
+  });
+
+  it("(a') Basic-heavy: base clamps DOWN to half through the full payslip", () => {
+    // Basic 12,000 > half (10,000): total 20,000 = Basic 12k + HRA 4k + special 4k.
+    // Under Labour Codes the PF base is the fixed 50% = 10,000 (below the 15k ceiling),
+    // so employeePF = 12% * 10,000 = 1,200 — NOT 12% * 12,000 = 1,440 on the raw Basic.
+    const input = skewedInput({
+      basicMonthly: 12_000,
+      hraMonthly: 4_000,
+      specialAllowance: 4_000,
+    });
+    const payslip = computeEmployeePayslip(input, 9, LABOUR_CODE_CEILINGS);
+    expect(payslip.statutoryDeductions.pf.pfWageBase).toBe(10_000);
+    expect(payslip.employeePF).toBe(1_200); // clamped down; RED before (was 1,440)
   });
 
   it("(b) sub-ceiling: the add-back is VISIBLE below the PF ceiling", () => {

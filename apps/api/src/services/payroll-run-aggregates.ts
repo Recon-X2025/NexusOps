@@ -24,6 +24,19 @@ import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
  */
 export const PAYROLL_EMPLOYED_STATUSES = ["active", "probation", "on_leave"] as const;
 
+/**
+ * Leaver statuses — the run does NOT pay these (they are not employed at period end). But a leaver
+ * who worked PART of the pay period is owed a final payslip for the days worked (Code on Wages:
+ * settlement within two working days of exit). The system has **no last-working-day**: `endDate` is
+ * declared on `employees` but never written by any path, and the offboarding flow records only a
+ * status, no date. So a correct final payslip cannot be COMPUTED (there is nothing that says how
+ * many days to pay), and inventing a date would be wrong. The honest floor is therefore to FLAG a
+ * leaver in the run's errors — never silently drop them — naming the employee and the missing datum,
+ * so an admin settles them manually. When `endDate` is populated (a follow-up), the run can select
+ * by date range and pro-rate to the last working day; until then, flag.
+ */
+export const PAYROLL_LEAVER_STATUSES = ["resigned", "terminated", "offboarded"] as const;
+
 /** India FY month: April = 1 … March = 12 */
 export function calendarToFyMonth(calendarMonth: number): number {
   return calendarMonth >= 4 ? calendarMonth - 3 : calendarMonth + 9;
@@ -314,6 +327,36 @@ export async function computePayrollRunTotals(
         `run — they will not be paid. Assigning ONLY a salary structure would make them payable on ` +
         `incomplete data (and their tax regime defaults to "new" unless deliberately set); complete ` +
         `every field before locking.`,
+    });
+  }
+
+  // Leavers — flag, never silently drop. A resigned/terminated/offboarded employee is not selected
+  // for pay (they are not in PAYROLL_EMPLOYED_STATUSES), but if they worked part of THIS period they
+  // are owed a final payslip. There is no last-working-day recorded anywhere (employees.endDate is
+  // never written; offboarding stores only a status), so final pay cannot be computed and must not
+  // be guessed — surface each such employee so an admin settles them by hand (Code on Wages: within
+  // two working days of exit). We skip any leaver who already has a payslip for this period (e.g. a
+  // re-run). NOTE: with no departure date the run cannot tell a THIS-period leaver from one who left
+  // long ago, so this flags every unpaid leaver; populating endDate is the follow-up that both pays
+  // them pro-rata and bounds this flag.
+  const paidThisPeriod = await db
+    .select({ employeeId: payslips.employeeId })
+    .from(payslips)
+    .where(and(eq(payslips.orgId, orgId), eq(payslips.month, month), eq(payslips.year, year)));
+  const paidIds = new Set(paidThisPeriod.map((p: { employeeId: string }) => p.employeeId));
+  const leavers = await db
+    .select({ id: employees.id, code: employees.employeeId, status: employees.status })
+    .from(employees)
+    .where(and(eq(employees.orgId, orgId), inArray(employees.status, [...PAYROLL_LEAVER_STATUSES])));
+  for (const l of leavers) {
+    if (paidIds.has(l.id)) continue;
+    errors.push({
+      employeeId: l.id,
+      message:
+        `Employee "${l.code}" has status "${l.status}" and was NOT paid by this run. If they worked ` +
+        `part of this period they are owed a final payslip, but no last working day is recorded, so ` +
+        `it cannot be computed — record their last working day and settle manually (Code on Wages: ` +
+        `within two working days of exit).`,
     });
   }
 

@@ -120,55 +120,78 @@ Full per-item detail is in `reports/fix-plan.md` under the dated sections named 
    (`apps/web/src/lib/__tests__/route-integrity.test.ts`) now walks the source and fails the
    build on any `/app/...` link with no matching `page.tsx`. ("Dead controls & links … (2026-08-08)".)
 
-## ✅ THE 50% WAGE FLOOR — IMPLEMENTED AND WIRED (correction, 2026-08-08)
+## ⚠️ THE 50% PF WAGE BASE — THE MANDATE (statutory requirement; engine clamp SHIPPED in this commit)
 
-**⚠️ CORRECTION — the previous warning here was WRONG and was corrected 2026-08-08.**
-Through 2026-08-08 this section carried, as "the largest unresolved correctness risk,"
-that the 50% wage floor was **NOT wired** and that PF was therefore understated for every
-employee on a sub-50%-basic structure. **That was wrong, in the direction where acting on
-it does harm** — a reader could rebuild or double-apply a floor that already exists. A
-read-only verification against the code established the truth below. If you saw the old
-text, this is why it changed.
+**This is a STATUTORY REQUIREMENT, not a product decision.** It has never appeared in any
+project document — which is why the engine was built against a different reading. Record it as
+the mandate against which the engine is measured.
 
-- **The rule.** Code on Wages, 2019 s.2(y) (Labour Codes, in force from 2025-11-21): if the
-  s.2(y)-excluded allowances (HRA, special, LTA, overtime, bonus, …) exceed **half of total
-  remuneration**, the excess is deemed wages and **added back**, lifting an artificially low
-  basic toward a 50%-of-total floor for the PF/ESI/bonus base.
-- **It IS implemented and wired to the CONTRIBUTION — not a display field. Do not rebuild
-  it.** `calculateLabourCodeWageBase(basicEarned, excludedAllowances)` is called in the live
-  payslip path at `payroll-cycle.ts:322-324`; the lifted `wageBase` flows through
-  `computeMonthlyStatutory` (`payroll-cycle.ts:345`) straight into `computePF(basicPlusDA,…)`
-  at `statutory-deductions.ts:723`, where it drives `employeePF = round(pfWageBase × 0.12)`
-  (`:229`) and the employer legs. Those numbers persist to `payslips.pf_*` and reach the ECR.
-- **The arithmetic is the s.2(y) mechanic verbatim** (`statutory-deductions.ts:803-824`):
-  `addBack = max(0, exclusions − totalRemuneration/2)`, `statutoryWageBase = core + addBack`.
-  When basic sits below 50% of total this resolves to **exactly total/2**; when exclusions
-  ≤ 50%, `addBack = 0` and a conventional salary is untouched.
-- **It is on for every org, automatically.** The gate is `labourCodesInForce`
-  (`payroll-cycle.ts:296` — true iff a `bonus_eligibility_ceiling` resolves). Migration
-  `0054` seeds that ceiling as a **platform default (`org_id NULL`, ₹21,000, effective
-  2025-11-21)**, which the resolver (`statutory-ceilings.ts:74-142`) applies to every tenant;
-  a newly created org inherits it with **no per-org seeding**. Dev DB confirms: one row,
-  `org_id NULL`, **0 orgs with their own row** — all covered. For any 2026 pay period the
-  floor is live.
-- **⚠️ THE NUANCE THE OLD WARNING MISSED — the affected population is narrow.** PF caps at
-  `min(basicPlusDA, 15000)` (`statutory-deductions.ts:227`). So the add-back changes the
-  contribution **only for employees whose basic falls below ₹15,000** — roughly **CTC under
-  ~₹37,500/month**. Above that, raw and lifted basic both clamp to the ₹15,000 ceiling and PF
-  is **identical either way**. The old "every employee on a sub-50% structure" claim was,
-  even in principle, bounded by that ceiling.
+_**Check the `file:line` references in this section — do not trust them.** They were first written
+against a tree carrying uncommitted changes and have **already drifted once** (the
+`payroll-run-aggregates.ts` numbers shifted when the leaver block landed above them). They were
+re-verified and corrected against THIS commit's tree, but re-check each one rather than rely on it._
 
-**What genuinely remains open (narrower than the old claim, and different from it):**
-- **No floor on the `basicPercent` field itself.** Default `40`, validation only
-  `min(0).max(100)`, **no DB CHECK constraint** (`hr.ts:106`; `payroll.ts:776/844`; verified
-  against `pg_constraint`). The compute-time add-back corrects the PF *base*; it does **not**
-  stop a non-compliant structure being configured or shown on a payslip.
-- **No DA component.** `basicPlusDA` receives **basic alone** — there is no dearness-allowance
-  field on the salary structure. If a pilot pays DA it is representable nowhere.
-- **CA sign-off + a NEW ordering question.** The accountant has **not** confirmed the mechanic
-  fully implements the rule. A second question is now open: **should the ₹15,000 PF ceiling
-  apply BEFORE or AFTER the add-back?** The engine currently applies it **after**
-  (`min(core + addBack, 15000)`). Confirm with the CA.
+**THE MANDATE.** The statutory wage base for provident fund is **EXACTLY fifty per cent of total
+remuneration — a fixed figure, not a floor.**
+- The client chooses the **composition**: **basic alone, or basic plus dearness allowance.** If DA
+  is elected at 10%, basic drops to 40% and the two sum to 50%. If no DA, basic is 50%. **If the
+  elected components exceed 50% of total, they come DOWN to 50%.**
+- **PF computes on fifty per cent regardless of composition.**
+
+**WHAT THE ENGINE USED TO DO (wrong, in the UPWARD direction — CLAMP SHIPPED IN THIS COMMIT).** The
+engine implemented a **one-directional FLOOR, not a fixed 50%.** `calculateLabourCodeWageBase` (the
+function now begins at `statutory-deductions.ts:812`; the base line is `:825`) **USED TO** compute
+`addBack = max(0, exclusions − totalRemuneration/2)`, `statutoryWageBase = core + addBack` — that
+pre-clamp `core + addBack` expression is **no longer in the file** (it is quoted here as history). The
+`max(0, …)` meant it **only ever added**. A structure whose core (basic) was **above** half of total
+got `addBack = 0` and **passed through unclamped**, so PF over-contributed. There was **no downward
+clamp** anywhere on the path (`payroll-cycle.ts:322-324` → `computeMonthlyStatutory` `:345` →
+`computePF` `statutory-deductions.ts:723`); the only limit was the ceiling `min(basicPlusDA, 15000)`
+(`:225-227`).
+- **Verified case** — total ₹20,000, basic ₹12,000 (60%), HRA ₹4,000, special ₹4,000: the pre-clamp
+  engine produced a base of **₹12,000 where the mandate requires ₹10,000** → **employee PF ₹1,440 vs
+  ₹1,200**, **employer ₹1,560 vs ₹1,300** (EPF+EPS+EDLI+admin). Masked above the ₹15,000 ceiling, so it
+  bit only **below ~₹30,000 total** (both readings clamp to the ceiling above it).
+- **FIX SHIPPED IN THIS COMMIT.** The base line now reads
+  `statutoryWageBase = Math.round(Math.min(core + addBack, halfOfTotal))` (`statutory-deductions.ts:825`):
+  the add-back lifts a below-half core UP to the half, the `min` clamps an above-half core DOWN to it, so
+  the base lands on **exactly half either way**. Covered by
+  `apps/api/src/__tests__/labour-code-wage-base.test.ts` (the (12,000, 8,000) → 10,000 case + all five PF
+  figures). It becomes LIVE only once this commit's own `Deploy to Vultr` job is green — do not quote it
+  as deployed until then.
+
+**THE EXCLUSION SET (corrected — it is wider than earlier notes said).** The bucket is a **hardcoded
+seven-term sum** at `payroll-cycle.ts:314-321` — **HRA, special allowance, LTA, overtime, arrears,
+bonus, other earnings** — and the **core is `basicEarned` alone**. It is an **arithmetic expression,
+not configuration**: changing it is a **code change**. `calculateLabourCodeWageBase` receives two
+scalars (`core`, `exclusions`) and **knows nothing** of which components went into either.
+- The run **zero-feeds** four of the seven terms — overtime, arrears, bonus, other-earnings
+  (`payroll-run-aggregates.ts:259-262`). The other three are **structure-fed**: HRA and special allowance
+  always, and **LTA whenever the structure sets `ltaAnnual`** (`ltaEarned = round(ltaAnnual/12 ×
+  lopFactor)`, `payroll-cycle.ts:267`, summed into the bucket at `:317`). So in a real run the bucket is
+  **HRA + special allowance, plus LTA when `ltaAnnual` is set** — not "HRA + special allowance only."
+  Special allowance is the **residual** `max(0, ctc/12 − basic − hra)` (`payroll-run-aggregates.ts:198`)
+  and reaches the bucket as **ONE lumped figure** — a genuine expense reimbursement and the balancing
+  residual are **indistinguishable** to the engine.
+- **One base feeds FIVE contributions** — PF employee, PF employer (EPF), EPS, EDLI, and admin charges
+  all derive from it (`statutory-deductions.ts:224-236`). A wrong base is **five wrong numbers**, not one.
+
+**Still true and load-bearing (keep):**
+- **Wired, and on for every org.** The base does reach the actual contribution (not a display field),
+  gated by `labourCodesInForce` (`payroll-cycle.ts:296`), which resolves from the `bonus_eligibility_ceiling`
+  seeded by migration `0054` as a **platform default (`org_id NULL`, ₹21,000, effective 2025-11-21)** —
+  every org inherits it, no per-org seeding (dev: one `org_id NULL` row, 0 org-scoped). So the wrong
+  reading **was live for every 2026 pay period below the ceiling** until this commit's clamp — which
+  is corrected in-tree here and goes live when this commit's `Deploy to Vultr` job is green.
+- **No floor/cap on the `basicPercent` field itself.** Default `40`, validation only `min(0).max(100)`,
+  **no DB CHECK** (`hr.ts:106`; `payroll.ts:776/844`). A client can configure a non-compliant structure,
+  see it on a payslip, and never be told (see WAGE-CFG in the Deferred register).
+- **No DA component exists**, so the basic-plus-DA composition the mandate allows **cannot be expressed**
+  today (see WAGE-DA). `basicPlusDA` receives basic alone.
+- **Open for the CA:** confirm the exclusion-set membership against s.2(y) clauses (a)–(k) (special
+  allowance and arrears are in the bucket today; the statute lists HRA but not special allowance, and
+  treats arrears as deferred wages), and whether the ₹15,000 ceiling applies BEFORE or AFTER the base is
+  resolved (engine applies it after). Full detail in `reports/fix-plan.md` → "50% PF wage base — the mandate".
 
 ## ✅ PAN — the production audit RAN and came back CLEAN (backfill unnecessary)
 
@@ -380,8 +403,13 @@ before the relevant live cycle):
     proofs, Form 10-IA + armed-forces PT evidence, EPFO Para 26(6). The engine grants each relief with
     no evidence on file; the CA should say which are legally required to be retained (drives ONBOARD-DOC).
 
-_Sharpened by today (see the wage-floor section, which is authoritative for these two): does the
-add-back implement s.2(y), and should the ₹15,000 PF ceiling apply BEFORE or AFTER the add-back?_
+15. **The 50% PF wage base — see "THE 50% PF WAGE BASE — THE MANDATE" above (authoritative).** The
+    mandate is **exactly 50% of total, a fixed figure** — the engine's one-directional floor
+    **over-contributes** when basic exceeds half (verified case: base ₹12,000 vs ₹10,000). For the CA:
+    confirm the **exclusion-set membership** against s.2(y) (a)–(k) — special allowance and arrears are
+    in the bucket today; the statute lists HRA but not special allowance, and treats arrears as deferred
+    wages — and whether the **₹15,000 ceiling applies before or after** the base is resolved (engine:
+    after). Fix (downward clamp) is IN PROGRESS in the build tree.
 
 **The customers** (pilots):
 
@@ -472,19 +500,21 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31268782618` — commit `3b7b83f` (frontend dead-link repairs + a static
-route-integrity guard that fails the build on any unresolvable internal `/app/...` link,
-now enforced in CI's test job; the local-only exit-point commit `8af9250` rode up in the
-same push) — terminal `Deploy to Vultr` job `success` — 2026-08-08 — migration head
-`0074_ambiguous_rick_jones` (no new migration).** Verified via `gh run view 31268782618
---json jobs` (all five jobs green: Lint · Unit & Integration · E2E · Build Docker Images ·
-Deploy to Vultr). This is what is LIVE on `connect.coheron.tech`.
+**CI run `31295210801` — commit `cbed818` (pay `probation` & `on_leave` employees; correct
+the incomplete-row flag) — terminal `Deploy to Vultr` job `success` — 2026-08-09 — migration
+head `0074_ambiguous_rick_jones` (no new migration).** Verified via `gh run view 31295210801
+--json jobs` (all five jobs green: Lint & Type Check · Unit & Integration Tests · E2E
+(Playwright) · Build Docker Images · Deploy to Vultr). This is what is LIVE on
+`connect.coheron.tech`.
 
-_This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6); it rides
-origin with the next code change, so local `main` reads one commit ahead of origin —
-deliberate, not drift._
+_`origin/main` == local `main` == `cbed818` (in sync). The working tree holds UNCOMMITTED
+code + doc changes not yet shipped — the wage-base downward clamp, the leaver full-and-final
+flag, and the payslip-write resilience fix (one bad-data employee no longer aborts the run) —
+plus this exit-point refresh. Per rule 6 the doc updates ride the next code commit; until that
+commit's own `Deploy to Vultr` job is green, `cbed818` remains the last validated live SHA._
 
-_Prior validated deploys (all superseded): `7a76624` (doc corrections + taxRegime column) CI
+_Prior validated deploys (all superseded): `3b7b83f` (dead-link repairs + route-integrity
+guard) CI `31268782618`; `7a76624` (doc corrections + taxRegime column) CI
 `31265258768`; `db529c0` (A12-D + importer) CI `31258191554`;
 `9cec822` (PAN audit workflow fix) CI `31253488299`; `2bb3bac` (PAN edit-dialog fix) CI
 `31237849026`; `5710dc2` (PAN at rest + null-structure) CI `31188691203`; `d979038` (C6)

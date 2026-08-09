@@ -5113,10 +5113,132 @@ run):** member name emits `emp.employeeId` not the person's name (`hr.ts:1646`,
 ignores the real `organizations.epfCode` (`hr.ts:1660`); no pre-generation validation of the
 three EPFO reject invariants (EPF ≤ gross, EPS ≤ EPF, EDLI = EPF capped ₹15,000).
 
-### UNRESOLVED CONTRADICTION — record, do not settle either way
+### STATE-ON-RUN — SETTLED (it was never two readings; it was two different inputs)
 
-Two reads of `payroll-run-aggregates.ts:187-192` disagree on what happens to an employee who
-has a salary structure but NO state: one read says the run THROWS; the other says it
-mis-computes at ₹0 PT through the unknown-state path (the F-PT-NIL behaviour). This is recorded
-as a **contradiction to be settled by tracing that code**, not asserted as a fact in either
-direction.
+The earlier "unresolved contradiction" over `payroll-run-aggregates.ts:187-192` (now shifted to
+**:212-217**) is settled. It was never two readings of one input — it was **two different inputs**:
+
+- **Structure + EMPTY/null state → `buildEmployeePayrollInput` THROWS** at
+  `payroll-run-aggregates.ts:214-217` (`if (!state) throw`), before any PT computation.
+  - In `computePayrollRunTotals` the throw is **caught per-employee** (`:482-486`,
+    `catch (e) { errors.push({ employeeId, message }) }`) and the run **continues**.
+  - In `computePayslips` it is **NOT caught** (`payroll.ts:447-449`: the loop calls
+    `buildEmployeePayrollInput`/`computeEmployeePayslip` with no try/catch), so it **propagates out
+    of the `db.transaction` (`payroll.ts:434`) and the ENTIRE payslip write rolls back.**
+- **Structure + a NON-EMPTY but UNRECOGNISED state (e.g. a misspelling)** passes the `!state` guard
+  (the string is truthy), computes **₹0 PT via the unknown-state path** (F-PT-NIL), and is **warned +
+  counted** — the run does not throw.
+
+**Record as a LATENT CRASH:** the uncaught write-path throw is unreachable through today's create
+boundary (state is required there) and there are **0 such rows on dev** — but a single
+structure-without-state row would **fail an entire payroll write**. Note the trap: the structure-less
+flag advises "assign a salary structure," which on a `createOnboarding` row (no state) produces
+**exactly this shape** (structure present, state absent) → the next run's payslip write throws. See
+ONBOARD-BTN in the Deferred register.
+
+---
+
+## 50% PF wage base — the mandate (2026-08-09)
+
+**Statutory requirement, not a product decision** — recorded because it had never been written down,
+which is why the engine was built to a different reading. The map-level version is in
+`docs/CONTEXT.md` → "THE 50% PF WAGE BASE — THE MANDATE".
+
+_**Re-verify the `file:line` references below — do not trust them.** They were first written against a
+tree with uncommitted changes and have **already drifted once** (the `payroll-run-aggregates.ts`
+numbers moved when the leaver block landed above them). Corrected against THIS commit's tree here._
+
+**The mandate.** The PF statutory wage base is **EXACTLY 50% of total remuneration — a fixed figure,
+not a floor.** The client chooses the composition (basic alone, or basic+DA): DA at 10% ⇒ basic 40%,
+sum 50%; no DA ⇒ basic 50%; elected components above 50% **come down** to 50%. **PF computes on 50%
+regardless of composition.**
+
+**What the engine USED TO do — a one-directional FLOOR (wrong upward; clamp SHIPPED in this commit).**
+`calculateLabourCodeWageBase` (the function now begins at `statutory-deductions.ts:812`; base line
+`:825`) **used to** compute `addBack = max(0, exclusions − total/2)`, `statutoryWageBase = core + addBack`
+— that pre-clamp `core + addBack` expression is **no longer in the file**; it is quoted here as history.
+`max(0, …)` ⇒ **only adds**; a core above half passed through unclamped. No downward clamp anywhere on
+the path (`payroll-cycle.ts:322-324` → `computeMonthlyStatutory` `:345` → `computePF` `:723`); the sole
+limit was `min(basicPlusDA, 15000)` (`:225-227`). **Verified case** — total 20,000 / basic 12,000 (60%) /
+HRA 4,000 / special 4,000: the pre-clamp engine base **12,000 vs mandate 10,000**; employee PF **1,440 vs
+1,200**; employer **1,560 vs 1,300**. Masked above the ₹15,000 ceiling ⇒ bit only **below ~₹30,000
+total**. **FIX SHIPPED IN THIS COMMIT:** the base line now reads
+`statutoryWageBase = Math.round(Math.min(core + addBack, halfOfTotal))` (`statutory-deductions.ts:825`) —
+exactly half whether the core sits below or above it; covered by `labour-code-wage-base.test.ts`. Goes
+live when this commit's `Deploy to Vultr` job is green.
+
+**The exclusion set (corrected).** A **hardcoded seven-term sum** at `payroll-cycle.ts:314-321` — HRA,
+special allowance, LTA, overtime, arrears, bonus, other earnings — core is `basicEarned` **alone**.
+**Arithmetic, not configuration**: changing it is a code change. `calculateLabourCodeWageBase` gets two
+scalars and knows nothing of their composition. The run **zero-feeds** four terms —
+overtime/arrears/bonus/other-earnings (`payroll-run-aggregates.ts:259-262`); the other three are
+**structure-fed** — HRA and special allowance always, and **LTA whenever the structure sets `ltaAnnual`**
+(`ltaEarned = round(ltaAnnual/12 × lopFactor)`, `payroll-cycle.ts:267`, summed at `:317`). So the real
+bucket is **HRA + special allowance, plus LTA when `ltaAnnual` is set** — not "HRA + special allowance"
+alone; special is the **lumped residual** `max(0, ctc/12 − basic − hra)` (`payroll-run-aggregates.ts:198`)
+— a real reimbursement and the balancing figure are indistinguishable. **One base drives FIVE
+contributions** — PF employee, EPF, EPS, EDLI, admin (`statutory-deductions.ts:224-236`); a wrong base is
+five wrong numbers.
+
+---
+
+## DEFERRED REGISTER — found and consciously NOT fixed (standing section, 2026-08-09)
+
+The running list of things found and deliberately left, so the next session inherits them. Each: what
+it is, where, why deferred. Add to this rather than letting a deferral live only in a chat.
+
+- **ECR-FIELD** — the live ECR (`formatECRFile` / `hr.payroll.generateECR`, `hr.ts:1646-1660`) has real
+  content defects: member name emits `emp.employeeId` not the person's name (`hr.ts:1646`); field 9
+  emits the FULL employer PF (`slip.pfEmployer`) instead of the EPF−EPS 3.67% difference (`hr.ts:1653`);
+  NCP days hardcoded `0` while `lopDays` is on the same row (`hr.ts:1654`); header uses a fabricated
+  `EPFO_${org.id…}` id and ignores `organizations.epfCode` (`hr.ts:1660`); no validation of the three
+  EPFO reject invariants (EPF ≤ gross, EPS ≤ EPF, EDLI = EPF capped ₹15,000). **Deferred:** first PF
+  return is due the 15th of the month after the first run — before then it does not file.
+- **ECR-TEST** — `india-payroll-engine.test.ts:617` pins the delimiter on the **DEAD** `|` generator;
+  nothing tests the live `#~#` path. Rides ECR-FIELD.
+- **WAGE-DA** — no DA component exists, so the basic-plus-DA composition the mandate allows **cannot be
+  expressed**. Blocking if any pilot pays DA. Gated on the customer questions.
+- **WAGE-CFG** — the 50% mandate is enforced at **compute time only**. A client can configure a
+  non-compliant structure (`basicPercent` has no floor/cap — `hr.ts:106`, `payroll.ts:776/844`), see it
+  on a payslip, and never be told.
+- **LWD-INTAKE** — **no last working day is captured anywhere.** `employees.endDate` is declared
+  (`hr.ts:274`) and **never written** by any path (create/update/importer/offboarding — offboarding
+  completion sets only `status:"offboarded"`, `hr.ts:1278`; **0/9 dev rows** have `end_date`);
+  `offboardingDetails` has no last-working-day column (`hr.ts:1003-1007`). So the system **cannot compute
+  a leaver's paid days.** The follow-up that would both pay leavers pro rata and bound the leaver flag
+  (see the LEAVER GAP section). Payroll-blocking for the first cycle with any mid-month leaver.
+- **FF-STATUS** — `offboardingDetails.ffStatus` (`hr.ts:1007`) is a manual text field, written on the
+  offboarding form and read only to render a status badge (`hr/page.tsx:2476`). **Nothing computes a
+  full-and-final settlement from it** — the settlement capability does not exist.
+- **JOIN-PRORATE** — joiner pro-ration is **attendance-driven, not date-driven**
+  (`buildEmployeePayrollInput:189` — absent an attendance record the month is treated as fully paid).
+  So a **mid-month joiner with no attendance record is paid a FULL month.** There is no date-based
+  mechanism to reuse for leavers either. **Unverified beyond this one read** — confirm before acting.
+- **STATE-UNKNOWN** — a non-empty but misspelled state passes the `!state` guard and computes **₹0 PT**
+  via the unknown-state path (F-PT-NIL), warned + counted (`payroll-run-aggregates.ts`). See STATE-ON-RUN.
+- **ONBOARD-BTN** — the "Onboarding process" labelled trap (`createOnboarding` makes an active,
+  structure-less, state-less employee). The coherent fix (b) needs a new `employee_status` value
+  ("onboarding"/"pre_hire") the run's selection excludes ⇒ **a migration** ⇒ **dev DB must be brought to
+  head first** (~14 behind). Note: `ALTER TYPE … ADD VALUE` **cannot run in the same transaction that
+  uses the value** on Postgres, and Drizzle wraps migrations — so the add-value and its first use must be
+  separate migrations. Deferred pending dev-DB-to-head.
+- **ADD-EMP-STRUCT** — `hr.employees.create` also permits a **structure-less active employee**
+  (`salaryStructureId` nullable/optional, `hr.ts:279`). Same root as the trap, smaller radius — the run
+  flags it (not silent). Deferred with ONBOARD-BTN.
+- **PROBATION-REACH** — no product path writes `probation` or `on_leave`; only `seed-smb-analytics.ts:182`
+  does. The payroll-status **widening** shipped 2026-08-09 (`PAYROLL_EMPLOYED_STATUSES`) is
+  **correct-forward robustness, not a live fix** — no pilot is exposed today. See the correction of
+  record below.
+
+---
+
+## CORRECTION OF RECORD — reachability before severity (2026-08-09)
+
+Recorded so the next session knows why the rule exists. The `probation`/`on_leave` payroll-exclusion was
+framed as **the largest money defect on the board**, on reasoning about how Indian SMBs employ people
+(new hires sit on probation and would go unpaid) — **without first establishing reachability.** In fact
+**no product path writes those statuses** (only the analytics seed does), so a build pass went to a
+defect **no product path can trigger.** The widening is still correct as forward robustness, but the
+severity ranking was wrong. **Standing rule, now in force: establish REACHABILITY before assigning
+SEVERITY.** A defect no code path can produce is not the top of the board, however plausible the
+real-world story.

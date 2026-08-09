@@ -443,10 +443,26 @@ const runsRouter = router({
         let newTotalEsiEmployer = 0;
         let newTotalPt = 0;
         let newTotalTds = 0;
+        // Employees whose input could not be built (e.g. no state on record →
+        // buildEmployeePayrollInput throws). Collected and surfaced on the run below,
+        // never allowed to abort the whole write. See the catch inside the loop.
+        const skipped: Array<{ employeeId: string; message: string }> = [];
 
         for (const { emp, st } of empRows) {
-          const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id));
-          const slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
+          let slip: ReturnType<typeof computeEmployeePayslip>;
+          try {
+            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id));
+            slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
+          } catch (e) {
+            // One employee's bad data must NOT roll back the transaction and leave every
+            // OTHER employee unpaid. Skip this one, record why, and continue — mirroring
+            // the preview/totals path (computePayrollRunTotals catches the same throw per
+            // employee, payroll-run-aggregates.ts). Narrow on purpose: only the pure
+            // input build + compute is guarded, so a genuine DB error on the insert below
+            // still aborts the transaction rather than committing a partial run.
+            skipped.push({ employeeId: emp.id, message: e instanceof Error ? e.message : "Computation failed" });
+            continue;
+          }
 
           // ESI six-month rule: persist the membership the engine assessed so later
           // months carry it. Write on a NEW period (boundary re-assessment) OR when
@@ -514,6 +530,18 @@ const runsRouter = router({
             retainUntilDate,
           });
         }
+        // Surface any skipped employees on the run so an admin who runs the write WITHOUT
+        // opening the preview still sees them, named — the write path's own flag channel,
+        // parity with the totals path. Merge into the existing workflow errors (the lock
+        // step persisted the preview warnings here) and de-dup by (employeeId, message) so
+        // a re-run — and a skip whose message already matches a lock-time flag — does not
+        // pile up duplicates. payrollEmployeeCount becomes the count actually written.
+        const prevMeta: PayrollWorkflowMeta = row.workflowMetadata ?? { errors: [], approvals: [] };
+        const seenErr = new Set((prevMeta.errors ?? []).map((e) => `${e.employeeId ?? ""}|${e.message}`));
+        const mergedErrors = [
+          ...(prevMeta.errors ?? []),
+          ...skipped.filter((s) => !seenErr.has(`${s.employeeId}|${s.message}`)),
+        ];
         await tx
           .update(payrollRuns)
           .set({
@@ -528,6 +556,11 @@ const runsRouter = router({
             totalEsiEmployer: String(newTotalEsiEmployer),
             totalPt: String(newTotalPt),
             totalTds: String(newTotalTds),
+            workflowMetadata: {
+              ...prevMeta,
+              errors: mergedErrors,
+              payrollEmployeeCount: empRows.length - skipped.length,
+            },
           })
           .where(eq(payrollRuns.id, input.runId));
       });
