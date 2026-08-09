@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, organizations, eq, and, or, isNull } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, organizations, eq, and, or, isNull, inArray } from "@coheronconnect/db";
 import {
   computeEmployeePayslip,
   ptPriorPeriodMonths,
@@ -11,6 +11,18 @@ import {
 } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
 import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
+
+/**
+ * Employee statuses that count as EMPLOYED for a pay period, and so are selected by a payroll run.
+ * Anyone employed during the period is paid for the period they were employed — probation IS
+ * employment, and a status of `on_leave` is employment too (whether that leave is paid or unpaid
+ * is a LOSS-OF-PAY computation driven by ATTENDANCE, not by this status — see india/attendance-lop).
+ * Previously the run filtered `status = "active"` only, so a probation or on_leave employee got no
+ * payslip, no total and no flag — silently unpaid. Leavers (`resigned`/`terminated`/`offboarded`)
+ * are deliberately NOT here: they need a pro-rata full-and-final settlement that does not exist yet,
+ * so they stay excluded pending that separate decision rather than be paid a full month in error.
+ */
+export const PAYROLL_EMPLOYED_STATUSES = ["active", "probation", "on_leave"] as const;
 
 /** India FY month: April = 1 … March = 12 */
 export function calendarToFyMonth(calendarMonth: number): number {
@@ -271,29 +283,37 @@ export async function computePayrollRunTotals(
     .select({ emp: employees, st: salaryStructures })
     .from(employees)
     .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
-    .where(and(eq(employees.orgId, orgId), eq(employees.status, "active")));
+    .where(and(eq(employees.orgId, orgId), inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES])));
 
-  // The inner join above SILENTLY DROPS an active employee with no salary structure — they would
+  // The inner join above SILENTLY DROPS an employed employee with no salary structure — they would
   // be excluded from the run entirely (unpaid, no error, invisible). A separate lookup finds them
   // BEFORE the join loses them, so we can flag each by name and continue (loud, not blocking, and
   // no invented default structure). `salaryStructureId` is FK set-null on delete and, when set, is
   // always the origin-version id, so IS NULL is exactly the set the join drops.
   const structurelessEmps = await db
-    .select({ id: employees.id, code: employees.employeeId })
+    .select({ id: employees.id, code: employees.employeeId, state: employees.state })
     .from(employees)
     .where(
       and(
         eq(employees.orgId, orgId),
-        eq(employees.status, "active"),
+        inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES]),
         isNull(employees.salaryStructureId),
       ),
     );
   for (const e of structurelessEmps) {
+    // Name EVERY field the row is missing — not just the structure. Assigning a salary structure to
+    // a row that also lacks a state (the createOnboarding shape) makes it PAYABLE on incomplete
+    // data: ₹0 PT from the unresolved state, plus a defaulted (not chosen) tax regime. So the fix
+    // for the flag is not "add a structure" — it is "complete the record".
+    const missing = ["a salary structure"];
+    if (!e.state || String(e.state).trim() === "") missing.push("a state (professional tax cannot be computed without it)");
     errors.push({
       employeeId: e.id,
       message:
-        `Employee "${e.code}" has NO salary structure assigned and was excluded from this payroll ` +
-        `run — they will not be paid. Assign a salary structure before locking.`,
+        `Employee "${e.code}" is missing ${missing.join(" and ")} and was excluded from this payroll ` +
+        `run — they will not be paid. Assigning ONLY a salary structure would make them payable on ` +
+        `incomplete data (and their tax regime defaults to "new" unless deliberately set); complete ` +
+        `every field before locking.`,
     });
   }
 

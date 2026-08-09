@@ -1377,17 +1377,25 @@ the generators agree to read the header from, and — for invoices/POs — no
 self-generated document at all. Do these together: they share the document-header
 code area and A15's shared source is what makes A13/B16 stop drifting apart.
 
-#### A16 — Logo upload (there is no file-upload capability anywhere)
+#### A16 — Logo upload (`logoUrl` has no writer — but object storage DOES exist)
 
-**What changes.** `organizations.logoUrl` exists
+> **⚠️ CORRECTION (2026-08-08): the old text below said "there is no file-upload
+> capability anywhere / no object storage." That is FALSE** — see "Document &
+> storage sweep (2026-08-08)". A real S3 service (`services/storage.ts`), a
+> `documents` schema with versions/ACLs, and wired upload paths (`documents.upload`,
+> `auth.uploadAvatar`) all exist. What is actually missing is **logo-SPECIFIC
+> wiring**: `organizations.logoUrl` has **no writer** (grep-verified), so A16 is now
+> a small build — a branding settings screen that uploads through the EXISTING
+> `documents`/storage path and sets `logoUrl` — NOT a from-scratch storage build.
+> (Caveat: the deployed prod stack ships no object-storage backend today, so even
+> the existing upload paths fail in prod — see the sweep.)
+
+**What changes (original text, corrected above).** `organizations.logoUrl` exists
 (`packages/db/src/schema/auth.ts:46`) and the payslip template already has code to
-place a logo (`services/payslip-pdf.ts:158-160`), but **nothing can populate the
-field**: there is no file-upload UI, no upload endpoint, and no object storage
-wired for org branding anywhere in the app (an `Upload` icon is imported into the
-onboarding wizard but never used). This is a **feature build**, not a patch: it
-needs (a) a storage destination for the image, (b) an authenticated upload
-endpoint that validates type/size and writes `logoUrl`, and (c) a branding
-settings screen to drive it. Scope it as such.
+place a logo (`services/payslip-pdf.ts:158-160`), but **nothing populates the
+field** (no writer). It needs (a) a branding settings screen that (b) uploads the
+image through the existing storage path and (c) writes `logoUrl`. Scope it as a
+small build on top of what exists, not a new storage subsystem.
 
 **Reference implementation.** The DMS upload/scan path
 (`apps/api/src/services/storage.ts` — upload, size, SHA-256, scan) is the existing
@@ -4887,6 +4895,11 @@ going green on restore.
    a known section) — always a real route by construction, but a runtime value not resolvable to a
    file statically. The exclusion list requires a per-entry comment and a `no-stale-exclusions`
    test fails the build if an exclusion stops matching a currently-dead link. Keep it at one.
+3. **The first scan returned 340 false positives from a resolution bug — caught BEFORE the test was
+   written.** The initial pass mis-resolved dynamic segments / route groups and flagged ~340 live
+   links as dead. Had that shipped, the guard would have been disabled as noise. It was fixed so the
+   test's baseline is a true zero. Lesson for anyone editing the resolver: re-validate the
+   false-positive count against known-good links before trusting a red result.
 
 ### The gap the guard does NOT cover (recorded)
 
@@ -4894,3 +4907,216 @@ The marketing-footer stubs (`src/app/page.tsx`: Privacy Policy, Terms of Service
 Platform/Support columns) are `href="#"`, not `/app/...` targets, so the guard does not flag them
 — deliberately left (a fabricated privacy policy on a governance product is worse than an empty
 link; they get written before the site is public).
+
+---
+
+## Onboarding wizard — what it actually does (2026-08-08 read-only mapping)
+
+Recorded because nobody on the team could describe it. Read-only mapping; no code changed.
+
+### "Onboarding" names THREE unconnected things
+1. **Tenant/company setup** — the customer-facing wizard at `/app/onboarding-wizard`.
+2. **Employee creation** — a separate HR area (`/app/hr`) with THREE creation buttons.
+3. **A document-collection case** — `hr.onboarding.createOnboarding`, labelled "Onboarding process".
+
+They do not connect. **The wizard sets up the company and creates NO employees.** A customer
+who finishes it has an **empty, unpayable workforce, and nothing tells them.**
+
+### The wizard is 7 steps, per-step save, not mandatory
+Welcome → Company Profile → India tax setup → Invite Team (a "Skip for now" dead-end) → Support
+SLA → Finance (seed + `completeWizard`) → Done. Data steps save on Continue (`saveWizardData`);
+re-entry resumes at the furthest step (`GREATEST`). **`completeWizard` takes empty input and
+validates nothing** (`onboarding.ts:182-194`) — "complete" = `onboardingStep 7` + a timestamp.
+Nothing blocks the rest of the app on wizard completion. **Step 6 advances to Done even when the
+finance seeding errors** (`onboarding-wizard/page.tsx:664-671`). VERIFIED.
+
+### THE SEVEN-ITEM GAP between "wizard complete" and "can run a correct payroll"
+None of these appears on the post-wizard checklist, which instead suggests **logging a ticket and
+raising an invoice** (`onboarding.ts:110-141`):
+1. Add employees (the wizard creates none).
+2. Assign each a salary structure (else excluded from the run, flagged only at run time).
+3. Set each employee's **state** (else the run throws for that employee).
+4. Set each employee's **tax regime** (else silent `"new"` on the add-employee path).
+5. Set each employee's **PAN**.
+6. Create the salary structures themselves (the wizard doesn't; they carry the `basicPercent`
+   default 40 and the three inert allowance fields).
+7. Set the **ESI establishment number** (optional in the wizard, needed for the ESI challan).
+VERIFIED for 1–5, 7; 6's "wizard doesn't create structures" VERIFIED.
+
+### THE LABELLED TRAP
+The **"Onboarding process"** button (`hr.onboarding.createOnboarding`, `hr.ts:1112-1121`) creates
+a `status:"active"` employee with **no state, no salary structure, no tax regime, no PAN** — it was
+built to collect documents. It sits beside "Add Employee" on the same HR page. **An admin adding a
+new hire will press it.** The record it makes is either **dropped from payroll** (no structure →
+"will not be paid" warning at run time) or, once given a structure but no state, **throws and blocks
+the run** ("Employee has no state on record"). VERIFIED firsthand.
+
+### Three employee-creation paths of UNEQUAL strength (same HR page, three buttons)
+- **`ingest.importEmployees`** — strongest: **state required, salary structure required** (by name,
+  ambiguous → row skip), **taxRegime required** (column + per-row, `3d416c7`), email/name required,
+  PAN optional+encrypted.
+- **`hr.employees.create`** ("Add Employee") — middle: state required; **taxRegime still defaults
+  silently to `"new"`**; `salaryStructureId` optional (null → excluded from payroll).
+- **`hr.onboarding.createOnboarding`** ("Onboarding process") — weakest: nothing required (the trap).
+VERIFIED.
+
+### The fresh-org pilot test proves almost nothing about onboarding
+`fresh-org-pilot.test.ts` asserts signup seeds a COA and that two dashboards return `null` (not
+fabricated numbers) and the checklist derives 1-of-4. It **runs no wizard, creates no employee by
+any path, runs no payroll, sets no statutory field, asserts no money value.** A pass says the flow
+starts, not that onboarding works. VERIFIED (full file read).
+
+### Broken wire + stored-but-unread wizard fields
+- **Form 16 employer TAN/PAN/address read `org.settings` JSON** (`form16-aggregator.ts:118-122`),
+  which nothing populates; the wizard writes the `organizations.tan`/`.pan` COLUMNS. **Correct entry,
+  still prints a dash.** (Form 16 is HR-preview only today, which softens it.) VERIFIED.
+- **`organizations.primaryStateCode`** — a required wizard field read by **no filing** (GST uses the
+  `gstinRegistry` copy of the state code; `primaryStateCode` is read only by the wizard read-back +
+  super-admin display). VERIFIED.
+- **EPF establishment code** — required in the wizard, reaches **only the payslip**; the ECR
+  generator that would consume it is dead code (0 callers). VERIFIED.
+
+---
+
+## Document & storage sweep (2026-08-08) — "no file upload" is FALSE (the 3rd doc defect today)
+
+**Correct the standing claim first.** "No file upload anywhere in the product" has appeared in every
+QA kit since v1.0 and is **FALSE**. This is the **third documentation defect found today in the
+dangerous direction** (after the 50% wage-floor "not wired" claim and the PAN-audit "not run" claim).
+What actually exists: an S3 service (`services/storage.ts`), a `documents`/`document_versions`/
+`documentAcls` schema storing object keys, a virus-scan worker, a retention worker, and **six wired
+upload paths**. VERIFIED (imported + called).
+
+Then the truth, in three layers:
+
+**Layer 1 — ~6 surfaces genuinely store bytes, and ALL SIX FAIL IN PRODUCTION.** DMS `documents.upload`,
+Form 16 PDF, payslip PDF, avatar, procurement PO document, e-sign key. The deployed stack composes
+**`docker-compose.vultr-test.yml`**, which ships **no object-storage service** (verified at
+`vultr-remote-deploy.sh:57`; services are web/api/caddy/postgres/redis/meilisearch/dpdp-sweeper).
+**`docker-compose.prod.yml` DEFINES MinIO but is referenced by nothing — an orphan.** So every upload
+throws a connection error in prod. Uploads ride **base64-over-tRPC** (25 MB cap); `@fastify/multipart`
+is a declared-but-unregistered dependency. VERIFIED.
+
+**Layer 2 — ~14 surfaces present a document capability that stores NOTHING even in a working env.**
+Record two by name because they are the worst, and both are the **"reports doing something it did
+not do" class** — same as the ESI payslip and the PAN ciphertext:
+- **The Employee Documents tab "Download" button is a toast with no file behind it** —
+  `onClick={() => toast.success("Downloading …")}` (`hr/page.tsx:2878`). VERIFIED firsthand.
+- **The HR onboarding "Upload" handler keeps the filename and discards the bytes** —
+  `setForm({ educationDocs: file.name })` (`hr/page.tsx:800`); the column is `text`. An HR user
+  uploading a document during onboarding gets a **success state and nothing stored**. VERIFIED firsthand.
+  (Others: asset docs use a `mock/` storageKey + `mockhash`; GRC evidence is a typed string; expense
+  receipts are URL/filename; filing acks are numbers; DPDP consent is a version string; GRN/minutes/
+  legal/performance are references; `logoUrl`/`ecrFileUrl`/`challanFileUrl` are dead columns with no
+  writer — all VERIFIED.)
+
+**Layer 3 — FIVE statutory retention obligations have NO field at all.** In each the engine grants
+the relief and holds no evidence: (1) rent receipts + landlord PAN above ₹1,00,000 annual rent,
+(2) Form 12B (prior-employer proof), (3) Chapter VI-A (80C…) investment proofs, (4) Form 10-IA +
+armed-forces evidence for the PT exemptions, (5) EPFO Para 26(6) joint declaration. VERIFIED.
+
+**One piece of good news:** there is **no local-disk fallback** — `storage.ts` only ever sends to the
+S3 endpoint, so uploads **fail cleanly rather than being silently lost** on the current stack. And
+`vultr-remote-deploy.sh` runs `docker compose down` **without `-v`**, so a named volume WOULD survive a
+redeploy if one existed. VERIFIED.
+
+**Infra fact (recorded):** a **Vultr Object Storage bucket has been provisioned (Standard, Bangalore)**
+and is **deliberately NOT yet wired** into the production environment. So the backend now exists at the
+provider; the remaining work is pointing prod's `S3_*` at it and adding the storage service to the
+deployed compose. (Decision, not a gap — the wiring is intentionally deferred.)
+
+---
+
+## ONBOARD-DOC — pre-account joining-document portal (roadmap item, post-go-live)
+
+Recorded with the decisions already taken. **Post-go-live.**
+
+- **What.** A portal where a **new recruit uploads joining documents BEFORE they have an account**,
+  with access scoped across **HR TA, HR BP, hiring manager, and the employee**.
+- **Documents stored:** mark sheets (10th, 12th, graduation); **offer letters and the last three
+  months' payslips from the previous two employers**; relieving letters; appraisal letters; resume;
+  photograph; internship certificates (freshers). **Note: the prior-employer offer letters + payslips
+  ARE Form 12B in substance** — the prior-employer income the engine currently accepts as **bare
+  numbers with nothing behind them** (ties to the Layer-3 retention gap above and C1).
+- **Identity is VERIFIED, NOT STORED — DECIDED.** Aadhaar and PAN are **sighted in person by HR**, who
+  records **that** they verified it and **when**. No stored scan, no verification provider, no OTP flow.
+  **Do NOT build an upload slot for an identity document.**
+- **Candidate information sheet** collects the fields the importer currently makes HR type: **full name
+  as per Aadhaar** (must match the PAN for TDS to reconcile), date of birth, gender, PAN, permanent
+  address, joining date, emergency contact.
+- **Prerequisites (all NET-NEW):** no authenticated-external path for a non-user exists; the employee
+  portal is read-only. The tokenised pattern exists for DATA (public survey links `/survey/[token]`,
+  invite acceptance) but **carries no bytes**, and **no multipart parser is registered**. So a
+  non-user byte-upload path is entirely new plumbing.
+
+---
+
+## Import preview truncation (2026-08-08, recorded — NOT fixed)
+
+The employee bulk-import preview shows only the **first 10 of up to 200 rows**, so validation errors
+scattered through a large file **cannot all be seen** before committing. What a customer would want is
+a **downloadable rejection report** (every skipped row + reason). Recorded as an onboarding-usability
+gap; not built. INFERRED (behaviour observed; exact row cap to re-confirm at build time).
+
+---
+
+## Payroll employment-status widening + ECR verification (2026-08-09)
+
+Payroll-run correctness pass. No migration, no frontend.
+
+### Status widening — anyone employed during the period is paid
+
+Both run paths filtered `status = "active"`: `computePayrollRunTotals`
+(`payroll-run-aggregates.ts:274` payment join, `:287` structure-less flag) and
+`computePayslips` (`payroll.ts:410`). A `probation` or `on_leave` employee got **no payslip,
+no total and no flag** — silently unpaid. Fix: a shared
+`PAYROLL_EMPLOYED_STATUSES = {active, probation, on_leave}` drives all three selects; leavers
+(`resigned`/`terminated`/`offboarded`) stay excluded pending a full-and-final path (below).
+`on_leave` is PAID like active — the status is employment; paid-vs-unpaid leave is an
+attendance-driven LOP computation, NOT this status (so the filter is widened, not blindly).
+Tests: `payroll-employment-status.test.ts` (probation paid identically to active; on_leave paid;
+the createOnboarding shape still excluded + flagged; active unchanged). Red-before proven
+(revert to `active`-only → probation/on_leave excluded). Full payroll regression + `pnpm lint` green.
+
+- **Correct-forward, not a live fix.** No product path sets `probation`/`on_leave`: create /
+  importer / createOnboarding write `"active"`, offboarding writes `"offboarded"`, the edit form
+  (`hr.employees.update`) has no status field. Only `seed-smb-analytics.ts:182` writes those. So
+  no pilot is exposed today; the widening is robustness for when a status-change feature lands.
+- **Structure-less flag message CORRECTED** (`payroll-run-aggregates.ts`): it now names EVERY
+  missing field (structure AND state), not just the structure — so an admin following it can't
+  produce a payable row with no state and a defaulted regime. `payroll-structureless-warning.test.ts`
+  matcher updated to the new wording.
+
+### ⚠️ LEAVER GAP — OPEN, payroll-blocking
+
+No full-and-final / settlement salary path exists (only gratuity settlement, separate). A
+`resigned`/`terminated`/`offboarded` employee stops being selected — no final payslip for days
+worked. Code on Wages: settlement within two working days of exit. The proper fix is date-range
+run selection (`startDate`/`endDate` exist on `employees` and the run consults NEITHER) plus a
+pro-rata policy. Must be closed before a pilot has a mid-month leaver.
+
+### ECR verification — DUP-1 `#~#` claim CONFIRMED; delimiter was never the defect
+
+**DUP-1's status-table note ("the `#~#` ECR formatter was extracted verbatim") is CONFIRMED
+correct against the code** — that row had been doubted. The LIVE ECR path is `formatECRFile`
+(`apps/api/src/lib/india/ecr-format.ts`), `#~#`-delimited, reached by `hr.payroll.generateECR`
+(`hr.ts:1662`) and `india-compliance.filing.submit` (`india-compliance.ts:733`). The
+`|`-delimited `generateECR` in `packages/payroll-math` is DEAD (only
+`india-payroll-engine.test.ts:617` calls it) — CONTEXT open-question 7 was wrong to call it
+"live"; **do not repoint the live path at the `|` generator (it would break a working delimiter).**
+
+**The real ECR defects (deferred — first PF return due the 15th of the month after the first
+run):** member name emits `emp.employeeId` not the person's name (`hr.ts:1646`,
+`india-compliance.ts:719`); field 9 (EPF-EPS difference) emits the FULL employer PF
+(`slip.pfEmployer`) not the 3.67% difference (`hr.ts:1653`); NCP days is hardcoded `0` while
+`lopDays` is on the row (`hr.ts:1654`); the header uses a fabricated `EPFO_${org.id...}` and
+ignores the real `organizations.epfCode` (`hr.ts:1660`); no pre-generation validation of the
+three EPFO reject invariants (EPF ≤ gross, EPS ≤ EPF, EDLI = EPF capped ₹15,000).
+
+### UNRESOLVED CONTRADICTION — record, do not settle either way
+
+Two reads of `payroll-run-aggregates.ts:187-192` disagree on what happens to an employee who
+has a salary structure but NO state: one read says the run THROWS; the other says it
+mis-computes at ₹0 PT through the unknown-state path (the F-PT-NIL behaviour). This is recorded
+as a **contradiction to be settled by tracing that code**, not asserted as a fact in either
+direction.

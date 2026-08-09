@@ -13,7 +13,9 @@ import { seedTestOrg, seedUser, testDb, cleanupOrg } from "./helpers";
 import { employees, salaryStructures } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 
-const NO_STRUCT_RE = /no salary structure/i;
+// The flag message now names every missing field ("is missing a salary structure [and a state]…");
+// match on the structure phrase, which is always present.
+const NO_STRUCT_RE = /missing a salary structure/i;
 
 describe("structure-less employee is flagged, not silently dropped", () => {
   let orgId: string;

@@ -71,7 +71,16 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   `organizations.dpdp_contact_email` (the tenant DPDP-notice target, fix A3/A4); `0061_walled_challans`
   extends the RLS wall (`FORCE ROW LEVEL SECURITY` + `tenant_isolation` policy) to `shift_schedules`,
   `esi_challan_records`, `pt_challan_records` — the three tenant tables added after `0052` that the
-  wall had missed (fix A11).
+  wall had missed (fix A11). Migs `0062`–`0074` (the current run): `0062` audit-chain WORM anchors
+  (`audit_chain_anchors` table + `audit_chain_status` type, R-5 — the +1 that took base tables 236→237),
+  `0063` payslip YTD columns (`ytd_net` etc.), `0064` `statutory_metric_key` type + `statutory_ceilings`
+  income-tax config (C5), `0065` `salary_structures.family_id` (structure versioning), `0066` `gender`
+  type + `employees.gender`/`esi_ip_number` (C2/C6), `0067` `employees.previous_employer_income/tds`
+  (PT4/P-15), `0068` `employees.rent_paid_annual` (HRA), `0069` `organizations.annual_aggregate_turnover`
+  (C7-1 AATO), `0070` `organizations.b2cl_threshold` (C7-2), `0071` `invoices.original_invoice_id`
+  (C7-3 credit/debit-note FK), `0072` `invoices.is_financial_note` (C7-3 part 5), `0073`
+  `employees.esi_member`/`esi_member_period_start` (C3 six-month rule), `0074`
+  `organizations.esi_establishment_number` (C6 payslip identity). **Live head is `0074`; base tables 237.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -242,20 +251,38 @@ _Snapshot — dated content below. For the live migration head always read
 `packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
 do not trust a commit SHA or head number quoted here._
 
-**As of 2026-08-07:** active branch is **`main`**, in sync with `origin/main`
-(`git rev-list --left-right --count origin/main...HEAD` = `0 0`). HEAD is **`209e537`**
-(startup per-org **seed reconciler** / COA drift fix — a startup check, **no migration**);
-migration head **`0073_red_big_bertha`**. `209e537`'s deploy rides CI (run `31141327969`);
-the last **validated** deploy before it is **`9960fc9`** (C3 ESI six-month rule) via CI run
-`31137358633`'s `Deploy to Vultr` job. **The DB has 237 base tables** (verify: `pgTable`
-count in `packages/db/src/schema/*.ts`). **For the live hand-off read `docs/CONTEXT.md`;
-the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both are kept
-current per commit. Shipped since the MFA fix: **C7 GSTR-1** structural completion
-(AATO + HSN Table 12, B2CL Table 5 at ₹1L, credit/debit notes with CA-ruled ledger
-postings — migs `0069`–`0072`), **C3 ESI** six-month contribution-period rule (asymmetric —
-entry monthly, exit only at a 1-Apr/1-Oct boundary; mig `0073`), employee-form F-DLG/
-F-PT-NIL fixes, and the seed reconciler. `apps/mobile` is **parked** (broken lint script
-removed, exclusion dropped).
+**As of 2026-08-09:** active branch is **`main`**. **Last VALIDATED deploy = `3b7b83f`**
+(dead-link repairs + a static route-integrity guard), verified via CI run `31268782618`'s
+terminal **`Deploy to Vultr`** job (all five jobs green); migration head **`0074_ambiguous_rick_jones`**;
+**237 base tables** (verify: `pgTable` count in `packages/db/src/schema/*.ts`). **This commit — the
+`probation`/`on_leave` payroll run-selection fix + the pending doc corrections, carrying the docs-only
+exit-point commit `6e55f76` up per rule 6 — is being deployed by this push; it becomes LIVE only once
+its OWN terminal `Deploy to Vultr` job is green**, at which point the exit-point line at the bottom of
+`docs/CONTEXT.md` advances to it. Until then `3b7b83f` remains the last validated live SHA. After this
+push origin catches up to this commit; the "local one commit ahead of origin" state (rule 6, the
+next docs-only exit-point refresh) re-establishes then. **For the live hand-off read `docs/CONTEXT.md`;
+the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both kept current per commit
+(their newest additions may sit UNCOMMITTED in the working tree, riding the next code change per rule 6).
+
+Shipped 2026-08-08 (each deployed; full per-item detail in `reports/fix-plan.md`): **C6** payslip
+mandatory statutory fields (`d979038`, mig `0074`; fixed the ESI-hardcoded-₹0 reconciliation defect,
+tenant identity now renders); **PAN** encrypted-at-rest (`5710dc2`) + a **destructive edit-dialog
+double-encryption fix** (`2bb3bac`) + a read-only prod audit that **ran CLEAN** (0 plaintext, 0
+double-encrypted — **PAN backfill is UNNECESSARY, do not build it**); **employee bulk importer**
+(`0c77dbd`, `ingest.importEmployees`) with an atomic delete-proof EMP-NNNN allocator shared across all
+three creation sites; **A12-D** LOP split-logic tax projection (`db529c0`); **taxRegime required column
+on import** (`3d416c7`, closes TAX-REGIME-DEFAULT for the importer; `hr.employees.create` still defaults
+silently, by decision); **dead-link sweep + route-integrity guard** (`3b7b83f`); and **doc corrections**
+(`7a76624`) — the **50% wage floor IS wired** (the old "not wired" warning was wrong) and the PAN-audit
+reconciliation. `apps/mobile` remains **parked**.
+
+Read-only sweeps this run recorded (NOT built): **INERT-ALLOWANCES** (three salary-structure allowance
+columns read nowhere; possible underpayment vs the additive `ltaAnnual`), the **onboarding-wizard map**
+(the wizard creates no employees; a seven-item gap to a correct payroll; the "Onboarding process"
+labelled trap), and the **document/storage sweep** — "no file upload anywhere" is **FALSE** (a real S3
+service + `documents` schema + ~6 wired paths exist), but the deployed stack (`docker-compose.vultr-test.yml`)
+ships **no object-storage backend**, so uploads fail in prod; a Vultr bucket is provisioned but not yet
+wired. See `docs/CONTEXT.md` + `reports/fix-plan.md` for detail.
 
 Older history (2026-08-02 and before, retained for decision-history):
 Prior snapshot: `main` was in sync with `origin/main` @ **`2baaa25`** (migration head
@@ -279,8 +306,9 @@ Prior snapshot: `main` was in sync with `origin/main` @ **`2baaa25`** (migration
   (`scratch.ts`, `scratch_check_leave.ts`, `scratch_claims.ts`, `financial_diff.txt`) and removes the
   now-dangling `check-db` script from `packages/db/package.json` that pointed at deleted `scratch.ts`.
   These should stay deleted (do not recreate). Pushing auto-deploys to Vultr — needs user approval.
-- Doc migration-head references reconciled to `0059`. **The DB has 236 tables** (verified: 236
-  `pgTable` definitions in `packages/db/src/schema/*.ts` == 236 base tables in the migrated DB).
+- Doc migration-head references reconciled to `0059`. **The DB had 236 tables _at head `0059`_**
+  (verified then: 236 `pgTable` definitions). _Historical figure — the live count is **237** from mig
+  `0062`'s `audit_chain_anchors` table onward; see the current snapshot above._
 - Dev DB is on **port 5434**; test DB `coheronconnect_test` on **port 5433**.
 - **Profile fields — FIXED (no longer a defect).** `users` now has `phone`/`jobTitle`/`location`/`bio`
   nullable text columns (`packages/db/src/schema/auth.ts:96-100`); `auth.updateProfile` persists them

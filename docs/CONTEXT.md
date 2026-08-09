@@ -197,22 +197,19 @@ The employee bulk importer and A12-D shipped 2026-08-08.)_
    have no provenance status — C1 is where that intake belongs. See "Two records
    (2026-08-05)".
 
-## Two findings recorded 2026-08-08 (read-only sweep) — NOT fixed
+## Two read-only-sweep findings (2026-08-08) — #1 CLOSED (importer), #2 OPEN
 
-Both surfaced by a read-only sweep and verified in code. Recorded, not built — full
-detail + `file:line` in `reports/fix-plan.md` under "Read-only sweep findings (2026-08-08)".
+Both surfaced by a read-only sweep and verified in code. Full detail + `file:line` in
+`reports/fix-plan.md` under "Read-only sweep findings (2026-08-08)".
 
-1. **TAX-REGIME-DEFAULT — a statutory election made by a database default.** `taxRegime` is
-   `.optional()` at `hr.employees.create` (`hr.ts:288`) and the importer (`ingest.ts:159`),
-   while the column is `notNull().default("new")` (`hr.ts:186`). A **blank cell and an absent
-   column are indistinguishable** — both resolve to `undefined` and the DB fills in `"new"`
-   (`cleanStr`/`optionalEnum`, `ingest.ts:188,199`). Nothing warns, and by run time
-   (`payroll-run-aggregates.ts:216`) there is no marker saying whether the regime was chosen.
-   So **a customer CSV with no regime column silently elects the NEW regime for an entire
-   workforce** — filed on Form 24Q and Form 16. This **fires at onboarding, on the importer
-   just built.** `isMetroCity` (default `false`) and `gender` (NULL→male PT set) default the
-   same way but **err toward over-deduction** (safe/recoverable). **The product decision about
-   what the importer should do is OPEN and is the owner's to make — do not decide it in code.**
+1. **TAX-REGIME-DEFAULT — CLOSED for the importer (`3d416c7`), residual on the add-employee path.**
+   `taxRegime` column is `notNull().default("new")` (`hr.ts:186`). In the importer a **blank cell
+   and an absent column were indistinguishable** (both → `undefined` → DB `"new"`), so a CSV with no
+   regime column silently elected NEW for a whole workforce. **Fixed:** the importer now refuses a
+   file with no taxRegime column and makes a blank cell a named row skip — neither reaches the
+   default. **⚠️ RESIDUAL (open, by decision): `hr.employees.create` still lets `taxRegime` default
+   silently to `"new"`** (a form choice is treated as a choice). `isMetroCity` (default `false`) and
+   `gender` (NULL→male PT set) default the same way but **err toward over-deduction** (safe).
 2. **INERT-ALLOWANCES — three configurable fields the compute ignores.** `bonusAnnual`,
    `medicalAllowanceAnnual`, `conveyanceAllowanceAnnual` are declared (`hr.ts:109-111`),
    written by the salary-structure router, and editable in the payroll UI — and **read nowhere
@@ -225,6 +222,121 @@ detail + `file:line` in `reports/fix-plan.md` under "Read-only sweep findings (2
    monthly value of the other three. Which behaviour was intended is a product question. Also:
    the **Payment of Bonus Act path (`payroll-cycle.ts:302`) is unreachable** — `bonus` is
    always fed `0` (`payroll-run-aggregates.ts:236`), so the eligibility gate runs but is inert.
+
+## ⚠️ The onboarding wizard — what a fresh session most needs to know
+
+Nobody on the team could describe it; mapped read-only 2026-08-08. Full detail in `reports/fix-plan.md`
+→ "Onboarding wizard — what it actually does".
+
+- **"Onboarding" names THREE unconnected things:** the **tenant setup wizard** (`/app/onboarding-wizard`),
+  **employee creation** in HR, and a **document-collection case** (`hr.onboarding.createOnboarding`).
+- **The wizard sets up the COMPANY and creates NO employees.** A customer who finishes it has an
+  **empty, unpayable workforce, and nothing tells them.** It isn't mandatory and never blocks the app;
+  `completeWizard` validates nothing.
+- **THE SEVEN-ITEM GAP between "wizard complete" and "can run a correct payroll":** add employees ·
+  assign each a salary structure · set each state · set each tax regime · set each PAN · create the
+  salary structures themselves · set the ESI establishment number. **None appears on the post-wizard
+  checklist**, which instead suggests logging a ticket and raising an invoice.
+- **⚠️ THE LABELLED TRAP:** the **"Onboarding process"** button creates an **ACTIVE employee with no
+  state, no salary structure, no tax regime, no PAN** (`hr.ts:1112-1121`). It was built to collect
+  documents; it sits beside "Add Employee". An admin adding a new hire **will press it**. The record it
+  makes is either **dropped from payroll or throws and blocks the run**.
+- **Three employee-creation paths, unequal:** importer (strongest — regime + structure required) ·
+  `hr.employees.create` (middle — regime still defaults silently) · onboarding case (weakest — nothing
+  required).
+- **The `fresh-org-pilot.test.ts` proves signup seeds accounts + dashboards don't fabricate numbers.
+  It runs no wizard, creates no employee, runs no payroll.** A pass says nothing about whether
+  onboarding works.
+- **Form 16 reads employer TAN/PAN from an `org.settings` JSON blob that nothing populates**, while the
+  wizard writes them to `organizations.tan`/`.pan`. Correct entry, still prints a dash (HR-preview only).
+- **Required wizard fields that reach no filing:** `primaryStateCode` (GST uses the registry copy) and
+  the **EPF establishment code** (reaches only the payslip; its ECR consumer is dead code).
+- **Step 6 advances to Done even when the finance seeding errors.**
+- **Import preview truncation (recorded, not built):** the bulk-import preview shows only the **first
+  10 of up to 200 rows**, so errors scattered through a large file can't all be seen before committing.
+  A **downloadable rejection report** (every skipped row + reason) is what a customer would want.
+
+## ⚠️ Document storage — the "no file upload" claim is FALSE (correction)
+
+"No file upload anywhere in the product" has been in every QA kit since v1.0 and is **wrong** — the
+**3rd documentation defect found today in the dangerous direction** (after the wage-floor and PAN-audit
+claims). Full detail in `reports/fix-plan.md` → "Document & storage sweep (2026-08-08)".
+
+- **~6 surfaces genuinely store bytes** (DMS `documents.upload`, Form 16, payslip PDF, avatar,
+  procurement PO doc, e-sign key) via a real S3 service + `documents` schema (versions/ACLs) + virus-scan
+  + retention workers. **BUT ALL SIX FAIL IN PRODUCTION:** the deployed stack composes
+  `docker-compose.vultr-test.yml`, which ships **no object-storage backend**. `docker-compose.prod.yml`
+  defines MinIO and is referenced by nothing — an orphan.
+- **~14 more present a document capability that stores NOTHING even in a working env.** The two worst
+  (same "reports doing something it didn't" class as the ESI payslip / PAN ciphertext): the **Employee
+  Documents "Download" button is a toast with no file**, and the **HR onboarding upload keeps the
+  filename and discards the bytes** — a success state, nothing stored.
+- **FIVE statutory retention obligations have NO field at all:** rent receipts + landlord PAN (>₹1L),
+  Form 12B, Chapter VI-A proofs, Form 10-IA + armed-forces PT evidence, EPFO Para 26(6). The engine
+  grants the relief and holds no evidence.
+- **Good news:** no local-disk fallback, so uploads **fail cleanly rather than being silently lost.**
+- **A Vultr Object Storage bucket has been provisioned (Standard, Bangalore) and is deliberately NOT yet
+  wired into prod** — the backend now exists; the remaining work is pointing prod `S3_*` at it and adding
+  the storage service to the deployed compose.
+
+## Roadmap: ONBOARD-DOC — pre-account joining-document portal (post-go-live)
+
+Decisions already taken (detail in `reports/fix-plan.md` → "ONBOARD-DOC"):
+- A portal where a **new recruit uploads joining documents BEFORE they have an account**, scoped across
+  HR TA / HR BP / hiring manager / employee.
+- **Stored:** mark sheets (10/12/grad), **prior two employers' offer letters + last 3 months' payslips**
+  (these ARE Form 12B in substance — the prior-employer income the engine takes as bare numbers today),
+  relieving/appraisal letters, resume, photo, internship certs.
+- **Identity is VERIFIED, NOT STORED — DECIDED.** Aadhaar/PAN sighted in person by HR, who records that
+  they verified and when. No scan, no provider, no OTP. **Do not build an identity-document upload slot.**
+- A candidate info sheet collects what the importer makes HR type (name **as per Aadhaar** — must match
+  PAN for TDS to reconcile — DOB, gender, PAN, permanent address, joining date, emergency contact).
+- **Net-new plumbing:** no authenticated-external path for a non-user exists; the portal is read-only;
+  the tokenised pattern exists for DATA (survey/invite links) but carries no bytes and no multipart parser
+  is registered.
+
+## Payroll run — employment-status widening + ECR verification (2026-08-09)
+
+**Shipped this pass (no migration, no frontend):** the payroll run now selects
+`PAYROLL_EMPLOYED_STATUSES = {active, probation, on_leave}` instead of `active` only, in all
+three selects (`payroll-run-aggregates.ts` payment join + structure-less flag; `payroll.ts`
+payslip-write). Previously a `probation`/`on_leave` employee got no payslip, no total and no
+flag — silently unpaid. An `on_leave` employee is now PAID like active: the status is
+employment; whether the leave is paid/unpaid is an attendance-driven LOP computation, separate
+from status. The structure-less flag message now names **every** missing field (structure AND
+state), not just the structure, so following it can't produce a payable row with no state and a
+defaulted regime.
+
+- **This is correct-forward, not a live fix.** `employees.status` has **no product-reachable
+  path** to `probation`/`on_leave`: create/importer/createOnboarding all write `"active"`,
+  offboarding writes `"offboarded"`, and the edit form has no status field. Only the SMB
+  analytics seed (`seed-smb-analytics.ts:182`) writes those values. So no pilot employee is
+  currently exposed; the widening makes the run robust for when a status-change feature lands.
+- **Status is the wrong question long-term.** Employment across a period is a DATE question;
+  `employees` has `startDate`/`confirmationDate`/`endDate` and the run consults NONE of them.
+  The proper fix is date-range selection (which also settles the leaver gap below).
+
+**⚠️ LEAVER GAP — OPEN, payroll-blocking.** There is **no full-and-final / settlement salary
+path** anywhere (only gratuity settlement, which is separate). A `resigned`/`terminated`/
+`offboarded` employee simply stops being selected — **no final payslip for days worked**. The
+Code on Wages requires settlement within **two working days** of exit. Deferred here by
+decision (the fix wants the date-range model + a pro-rata policy); must be closed before a
+pilot has a mid-month leaver.
+
+**ECR verification (2026-08-08) — the delimiter was never the defect; these are.** Deferred by
+decision (the first EPFO PF return is due the **15th of the month after the first run**), but
+recorded so they are not lost. In the LIVE `#~#` path (`formatECRFile`, fed by `hr.ts` +
+`india-compliance.ts`):
+  - **Member name** emits `emp.employeeId` (the EMP-NNNN code), not the person's name.
+  - **Field 9 (EPF-EPS difference)** emits `slip.pfEmployer` (the FULL employer PF), not the
+    3.67% employer-EPF-minus-EPS difference.
+  - **NCP days** is hardcoded `0` while `lopDays` sits on the same payslip row.
+  - The **header** carries a fabricated establishment id (`EPFO_${org.id...}`) while the real
+    `organizations.epfCode` is ignored.
+  - **No pre-generation validation** of the three EPFO reject invariants (EPF ≤ gross,
+    EPS ≤ EPF, EDLI = EPF capped ₹15,000).
+See open-question 7 above (delimiter is CORRECT `#~#`; the `|` generator is dead — do not
+repoint at it) and the fix-plan dated section for the full trace.
 
 ## Every open question, split by who answers it
 
@@ -244,8 +356,14 @@ before the relevant live cycle):
 5. **Karnataka annual PT ceiling** (₹2,400 vs ₹2,500 — do not derive from the rate).
 6. **Mid-period PT joiner AND leaver treatment** (joiners currently flag alongside
    migration gaps — loud-over-wrong, refinement deferred).
-7. **ECR delimiter format** — the retired engine used `#~#`, the live `generateECR` uses
-   `|`; one is wrong against the EPFO spec.
+7. **ECR delimiter format — CORRECTED 2026-08-08 (this earlier note was WRONG).** The old
+   text said "the live `generateECR` uses `|`". Verified against the code: the LIVE path is
+   `formatECRFile` (`apps/api/src/lib/india/ecr-format.ts`) and emits **`#~#`, which is
+   correct** — it is what `hr.payroll.generateECR` and `india-compliance.filing.submit` send.
+   The `|`-delimited `generateECR` in `packages/payroll-math/src/payroll-cycle.ts` is **DEAD**
+   — reachable only from `india-payroll-engine.test.ts:617`. **Do NOT repoint the live path at
+   the `|` generator: that would replace a working delimiter with a wrong one.** The delimiter
+   was never the defect (see the ECR-verification findings below).
 8. **PF arrears month-mapping in the ECR** — EPFO rejects arrears lumped into one basic-
    wage field; they must map to originating months.
 9. **Revised Form 24Q with 1.5%/month interest** — periods already filed on a pre-PT1 /
@@ -257,6 +375,13 @@ before the relevant live cycle):
     address, or do city/state suffice? (No full-address column exists; city/state render.)
 13. **Half-yearly PT payslip note** — should a Kerala/TN payslip carry a "levied
     half-yearly, collected in <month>" note on the ₹0 months?
+14. **Which of the five statutory DOCUMENT-RETENTION obligations must the employer actually hold?**
+    (from the document sweep — Layer 3): rent receipts + landlord PAN (>₹1L), Form 12B, Chapter VI-A
+    proofs, Form 10-IA + armed-forces PT evidence, EPFO Para 26(6). The engine grants each relief with
+    no evidence on file; the CA should say which are legally required to be retained (drives ONBOARD-DOC).
+
+_Sharpened by today (see the wage-floor section, which is authoritative for these two): does the
+add-back implement s.2(y), and should the ₹15,000 PF ceiling apply BEFORE or AFTER the add-back?_
 
 **The customers** (pilots):
 

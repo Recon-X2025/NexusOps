@@ -25,6 +25,7 @@ import {
   gte,
   lte,
   isNull,
+  inArray,
   max,
   type DbOrTx,
   type PayrollWorkflowMeta,
@@ -48,6 +49,7 @@ import {
   calendarToFyMonth,
   computePayrollRunTotals,
   esiContributionPeriodStart,
+  PAYROLL_EMPLOYED_STATUSES,
 } from "../services/payroll-run-aggregates";
 import { checkDbUserPermission } from "../lib/rbac-db";
 
@@ -404,10 +406,12 @@ const runsRouter = router({
       // family has no version covering the period are skipped — preserving the old
       // inner-join semantics (only employees with an applicable structure are paid).
       const periodDate = new Date(row.year, row.month - 1, 1);
+      // Anyone employed during the period is paid (probation + on_leave included, per
+      // PAYROLL_EMPLOYED_STATUSES); leavers stay excluded pending a full-and-final path.
       const activeEmps = await db
         .select()
         .from(employees)
-        .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
+        .where(and(eq(employees.orgId, org!.id), inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES])));
       const empRows: Array<{ emp: typeof employees.$inferSelect; st: typeof salaryStructures.$inferSelect }> = [];
       for (const emp of activeEmps) {
         if (!emp.salaryStructureId) continue;
