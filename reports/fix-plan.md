@@ -5243,10 +5243,11 @@ severity ranking was wrong. **Standing rule, now in force: establish REACHABILIT
 SEVERITY.** A defect no code path can produce is not the top of the board, however plausible the
 real-world story.
 
-## PAYROLL-APPROVAL-DEADLOCK — launch-gate; FIX UNCOMMITTED in the working tree (2026-08-09)
+## PAYROLL-APPROVAL-DEADLOCK — launch-gate; SHIPPED `3bf2bf7` (2026-08-09)
 
-**Status: OPEN until deployed. The fix exists in the working tree, is proven, and is NOT committed
-or shipped.** This was a launch-gate defect: **no combination of non-owner roles could complete the
+**Status: SHIPPED & DEPLOYED — commit `3bf2bf7`, CI run `31317164831` (all five jobs green incl.
+terminal Deploy to Vultr), live on `connect.coheron.tech` 2026-08-09.** This was a launch-gate
+defect: **no combination of non-owner roles could complete the
 HR→Finance→CFO payroll approval chain**, so step 13 and every statutory output (PF ECR, ESI challan,
 PT challan, TDS) was unreachable. `payroll.runs.approve` gates FINANCE/CFO on `financial.write` and HR
 on `hr.write` (`apps/api/src/routers/payroll.ts:587`), with SoD by identity (`:604-616`). `hr_manager`
@@ -5272,7 +5273,8 @@ NOT changed.** Proven: finance@ (previously bounced with "Access Restricted") co
 approval through the UI (`FINANCE_APPROVED`, `approved_by_finance_id=finance@`); an integration test
 (`apps/api/src/__tests__/payroll-approval-gate.test.ts`) drives the full chain to `CFO_APPROVED` with
 three distinct identities. Full suite 1,535 tests, lint 9/9. Evidence: `docs/audits/…stage4-chain_*`,
-`…stage4-chain-corrigendum_*`, `…stage5_*`. **To close: commit + deploy, then reach step 13 (see below).**
+`…stage4-chain-corrigendum_*`, `…stage5_*`. **DONE (shipped `3bf2bf7`). Remaining follow-up: reach
+step 13 and verify the statutory outputs on real data — Stage Six (STEP-13-UNREACHED, below).**
 
 ## RBAC-MAP-DRIFT — generated map silently diverges from the procedures (2026-08-09, its own finding)
 

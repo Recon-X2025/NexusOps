@@ -276,28 +276,27 @@ _Snapshot — dated content below. For the live migration head always read
 `packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
 do not trust a commit SHA or head number quoted here._
 
-**As of 2026-08-09:** active branch is **`main`**. **Last VALIDATED deploy = `62b0349`**
-(three independent statutory fixes: PF wage base clamped to exactly 50% of total remuneration;
-per-employee leaver flag; payslip write no longer aborting the whole transaction when one employee
-has a structure and no state), verified via CI run `31298132260`'s terminal **`Deploy to Vultr`**
-job (all five jobs green); migration head **`0074_ambiguous_rick_jones`**; **237 base tables**
-(verify: `pgTable` count in `packages/db/src/schema/*.ts`). `origin/main` == `62b0349`. **The
-deploy-state refresh — this block, the `docs/CONTEXT.md` exit-point line, and the `reports/fix-plan.md`
-mandate status — is a docs-only LOCAL commit kept unpushed per rule 6; it rides the next code change,
-so local `main` reads one commit ahead of origin (deliberate, not drift).** **For the live hand-off
-read `docs/CONTEXT.md`; the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both
-kept current per commit (their newest additions may sit UNCOMMITTED in the working tree, riding the
-next code change per rule 6).
+**As of 2026-08-09 (latest):** active branch is **`main`**. **Last VALIDATED deploy = `3bf2bf7`**
+— the **payroll approval-chain deadlock fix** (the HR→Finance→CFO chain was uncompletable by any
+non-owner role, so step 13 and every statutory output was unreachable; reconciled across five gate
+layers, approve-action perms + SoD untouched) — verified via CI run `31317164831`'s terminal
+**`Deploy to Vultr`** job (all five jobs green); migration head **`0074_ambiguous_rick_jones`**;
+**237 base tables** (verify: `pgTable` count in `packages/db/src/schema/*.ts`). `origin/main` ==
+`3bf2bf7`. _(Prior deploy: `62b0349`, three statutory fixes, CI `31298132260`.)_ **This deploy-state
+refresh — this block, the `docs/CONTEXT.md` exit-point line, and the `reports/fix-plan.md` item
+status — is a docs-only LOCAL commit kept unpushed per rule 6; it rides the next code change, so
+local `main` reads one commit ahead of origin (deliberate, not drift).** **For the live hand-off read
+`docs/CONTEXT.md`; the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both kept
+current per commit (their newest additions may sit UNCOMMITTED in the working tree, riding the next
+code change per rule 6).
 
-**As of 2026-08-09 (later), the working tree additionally carries — UNCOMMITTED and NOT deployed:**
-(a) a **payroll-approval-chain fix** (launch-gate: the HR→Finance→CFO chain was uncompletable by any
-non-owner role, blocking step 13 / all statutory outputs; reconciled across four gate layers; proven
-live + by an integration test to `CFO_APPROVED`, full suite 1,535 / lint 9/9 — **not shipped**), and
-(b) a **locked runtime-audit series in `docs/audits/`** (the `/app/**` page inventory + runtime passes
-stages 1–5). **Do not describe (a) as shipped.** Per-item detail: `reports/fix-plan.md` (2026-08-09
-sections — PAYROLL-APPROVAL-DEADLOCK, RBAC-MAP-DRIFT, RULES-OF-HOOKS, the runtime findings, and
-DEV-DB-14-BEHIND now CLOSED). Read the audit files by filename; do not copy their conclusions here.
-The **dev DB is now at head `0074`** (was 14 behind — see the operational note under Conventions).
+**Shipped in `3bf2bf7` (this session):** the payroll-approval fix above **plus** the locked
+runtime-audit series in `docs/audits/` (the `/app/**` page inventory + runtime passes stages 1–5).
+Per-item detail: `reports/fix-plan.md` (2026-08-09 sections — PAYROLL-APPROVAL-DEADLOCK, RBAC-MAP-DRIFT,
+RULES-OF-HOOKS, the runtime findings, and DEV-DB-14-BEHIND now CLOSED). Read the audit files by
+filename; do not copy their conclusions here. The **dev DB is now at head `0074`** (was 14 behind — see
+the operational note under Conventions). _(A later Stage-Six runtime pass, if run, adds another locked
+`docs/audits/` file that sits UNCOMMITTED until the next code change.)_
 
 > **Structural note on this block (anti-drift).** The SHAs, migration head, and "237 base tables" above
 > are a **snapshot to verify, not a source of truth** — this file drifted to a stale live SHA more than
