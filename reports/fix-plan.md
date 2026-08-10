@@ -5331,3 +5331,50 @@ login (`auth.login` 500 on the missing `organizations.esi_establishment_number`,
 nothing brings a local database to the journal head and nothing checks that it is there** — prod auto-applies
 via the `migrator` service, so only local dev is exposed. **CLOSED.** (Operational rule added to `CLAUDE.md`:
 a fresh local session should confirm the dev DB is at the journal head and `db:migrate` if not.)
+
+## PAYROLL-READINESS + DATA-DRIVEN PROFESSIONAL TAX — SHIPPED `9f2f07c` (2026-08-10)
+
+**Status: SHIPPED & DEPLOYED — commit `9f2f07c`, CI run `31348702370` (all five jobs green incl.
+terminal `Deploy to Vultr`), 2026-08-10. Migration `0075_clever_sleepwalker`; 238 base tables.**
+`9f2f07c` includes the prior `3bf2bf7` payroll-approval fix as an ancestor.
+
+Two independent changes + a provenance discipline:
+
+- **Payroll-readiness signal (Command Center).** `onboarding.getChecklist` returns a `payrollReadiness`
+  block; the dashboard renders a "Before you can run payroll" panel naming what is missing (no employees /
+  no salary structure) with links to where each is created, and the wizard's final step points at it
+  instead of "you're all set". Test: `apps/api/src/__tests__/onboarding-payroll-readiness.test.ts`.
+  (Origin: the Part-A runtime finding that a customer finishing setup was told they were "all set" while
+  no payroll could run — see `docs/audits/web-runtime-pass_stage7_*`.)
+- **Professional tax → data-driven** (`professional_tax_slabs`, mig `0075`). Moved from an 8-state
+  in-code `PT_SLABS` table to a seeded **36-state** table: **22 levying, 14 recorded as explicitly NOT
+  levying** — so a state with no PT (a recorded nil) is distinguishable from a state we have no data for
+  (an unknown/absent row the engine flags). `resolveStatutoryCeilings` projects the computable subset into
+  `overrides.ptSlabs`; **no payroll-math change** (the engine already consumed the override). RLS-walled
+  (nullable-org `tenant_isolation`, matching `statutory_ceilings`). Test:
+  `apps/api/src/__tests__/professional-tax-slabs.test.ts`.
+- **Provenance / not-yet-verified.** Every rate is SECONDARY-sourced
+  (`docs/reference/professional-tax-slabs.json`; `sourceType='secondary'`, `verifiedOn=NULL`) — verified
+  against no state's own bare act yet. The provenance columns exist so every rate still on a secondary
+  source can be found and confirmed later.
+
+**Two things stated plainly (open follow-ups):**
+- **Adopting the reference file CHANGED the live Kerala and Tamil Nadu rates** (both differed from the
+  previous in-code slabs — e.g. Kerala's top half-yearly slab 600 → 1,250; Tamil Nadu's middle bands rose).
+  These now rest on unverified secondary data and must be confirmed against the acts. Karnataka effectively
+  unchanged (both exempt below ₹25,000; they differ only at exactly ₹25,000). The earlier "engine
+  over-deducts KA below ₹25k" hypothesis was FALSE against the code.
+- **Five levying states are recorded but cannot yet compute** — Bihar & Manipur (annual), Jharkhand &
+  Sikkim (quarterly), Puducherry (half-yearly, collection timing not wired). The engine knows only monthly
+  and Kerala/TN half-yearly cadences, so these are stored with full provenance but NOT projected into the
+  override — the engine flags them (unknown state) rather than compute a wrong amount. Follow-up: extend
+  the engine's cadence support before they can levy correctly.
+
+**CI note:** the first push `d831441` FAILED CI on the `no-untyped-jsonb` schema guard (three new jsonb
+columns — `last_period_adjustment`, `exemptions`, `due_date` — lacked `.$type<…>()`); it never deployed
+(Deploy skipped). Fixed by adding open-record `.$type<…>()` typings, amend + force-push → `9f2f07c`, which
+went green. Process lesson: turbo cached the API test task, so a local `pnpm test` returned a stale green;
+re-run with `--force` (or run vitest directly) when a cross-package file the tests read at runtime changes.
+
+Migration `0075` was validated against a **throwaway full-history (prod-shaped) schema** (empty DB,
+`0000→0075` applied in order): all apply clean, 36 rows seeded, RLS enabled+forced. **DONE.**

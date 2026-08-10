@@ -80,7 +80,9 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   (C7-1 AATO), `0070` `organizations.b2cl_threshold` (C7-2), `0071` `invoices.original_invoice_id`
   (C7-3 credit/debit-note FK), `0072` `invoices.is_financial_note` (C7-3 part 5), `0073`
   `employees.esi_member`/`esi_member_period_start` (C3 six-month rule), `0074`
-  `organizations.esi_establishment_number` (C6 payslip identity). **Live head is `0074`; base tables 237.**
+  `organizations.esi_establishment_number` (C6 payslip identity). `0075_clever_sleepwalker` adds the
+  `professional_tax_slabs` table (data-driven PT: 36 states seeded, provenance + levies fact, RLS-walled)
+  — the +1 that took base tables 237→238. **Live head is `0075`; base tables 238.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -276,29 +278,31 @@ _Snapshot — dated content below. For the live migration head always read
 `packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
 do not trust a commit SHA or head number quoted here._
 
-**As of 2026-08-09 (latest):** active branch is **`main`**. **Last VALIDATED deploy = `3bf2bf7`**
-— the **payroll approval-chain deadlock fix** (the HR→Finance→CFO chain was uncompletable by any
-non-owner role, so step 13 and every statutory output was unreachable; reconciled across five gate
-layers, approve-action perms + SoD untouched) — verified via CI run `31317164831`'s terminal
-**`Deploy to Vultr`** job (all five jobs green); migration head **`0074_ambiguous_rick_jones`**;
-**237 base tables** (verify: `pgTable` count in `packages/db/src/schema/*.ts`). `origin/main` ==
-`3bf2bf7`. _(Prior deploy: `62b0349`, three statutory fixes, CI `31298132260`.)_ **This deploy-state
-refresh — this block, the `docs/CONTEXT.md` exit-point line, and the `reports/fix-plan.md` item
-status — is a docs-only LOCAL commit kept unpushed per rule 6; it rides the next code change, so
-local `main` reads one commit ahead of origin (deliberate, not drift).** **For the live hand-off read
-`docs/CONTEXT.md`; the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both kept
-current per commit (their newest additions may sit UNCOMMITTED in the working tree, riding the next
-code change per rule 6).
+**As of 2026-08-10 (latest):** active branch is **`main`**. **Last VALIDATED deploy = `9f2f07c`**
+— the **payroll-readiness signal + data-driven professional tax** change (a Command Center panel that
+tells a customer what stands between them and their first payroll; PT moved from an 8-state in-code
+table to a seeded 36-state `professional_tax_slabs` table — 22 levying, 14 recorded as explicitly
+not-levying — with per-rate secondary-source provenance) — verified via CI run `31348702370`'s terminal
+**`Deploy to Vultr`** job (all five jobs green); migration head **`0075_clever_sleepwalker`**;
+**238 base tables** (verify: `pgTable` count in `packages/db/src/schema/*.ts`). `origin/main` ==
+`9f2f07c` (includes the prior `3bf2bf7` payroll-approval fix as an ancestor). _(Prior deploy: `3bf2bf7`,
+payroll approval-chain fix, CI `31317164831`.)_ **This deploy-state refresh — this block, the
+`docs/CONTEXT.md` exit-point line, and `CLAUDE.md`'s head/table count — is a docs-only LOCAL commit kept
+unpushed per rule 6; it rides the next code change, so local `main` reads one commit ahead of origin
+(deliberate, not drift).** **For the live hand-off read `docs/CONTEXT.md`; the source of truth for
+done/pending/blocked is `reports/fix-plan.md`.**
 
-**Shipped in `3bf2bf7` (this session):** the payroll-approval fix above **plus** the locked
-runtime-audit series in `docs/audits/` (the `/app/**` page inventory + runtime passes stages 1–5).
-Per-item detail: `reports/fix-plan.md` (2026-08-09 sections — PAYROLL-APPROVAL-DEADLOCK, RBAC-MAP-DRIFT,
-RULES-OF-HOOKS, the runtime findings, and DEV-DB-14-BEHIND now CLOSED). Read the audit files by
-filename; do not copy their conclusions here. The **dev DB is now at head `0074`** (was 14 behind — see
-the operational note under Conventions). _(A later Stage-Six runtime pass, if run, adds another locked
-`docs/audits/` file that sits UNCOMMITTED until the next code change.)_
+**Shipped in `9f2f07c` (this session):** the payroll-readiness signal (+ `onboarding-payroll-readiness.test.ts`)
+and the data-driven PT table (mig `0075`, + `professional-tax-slabs.test.ts`), plus the reference file
+`docs/reference/professional-tax-slabs.json` and the locked `docs/audits/web-runtime-pass_stage6/stage7`
+files. **Every PT rate is SECONDARY-sourced (unverified against any act); adopting the file changed the
+live Kerala and Tamil Nadu rates, and five levying states (Bihar/Manipur annual, Jharkhand/Sikkim
+quarterly, Puducherry half-yearly) are recorded but cannot yet compute** (engine knows only monthly +
+Kerala/TN half-yearly cadences). The first push `d831441` failed CI on the untyped-jsonb guard and never
+deployed; `9f2f07c` is the corrected amend + force-push. Read audit files by filename; do not copy their
+conclusions here.
 
-> **Structural note on this block (anti-drift).** The SHAs, migration head, and "237 base tables" above
+> **Structural note on this block (anti-drift).** The SHAs, migration head, and "238 base tables" above
 > are a **snapshot to verify, not a source of truth** — this file drifted to a stale live SHA more than
 > once (e.g. `docs/CONTEXT.md`'s top LIVE line held `3b7b83f` while origin was `62b0349`, 2026-08-09).
 > **Per-commit state should not be copied into CLAUDE.md at all.** It belongs at the source: the live

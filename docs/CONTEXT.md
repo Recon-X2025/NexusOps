@@ -38,12 +38,14 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `3bf2bf7`** — migration head
-  **`0074_ambiguous_rick_jones`** — verified through the terminal **`Deploy to Vultr`
-  job of CI run `31317164831`** (all five jobs green: Lint · Unit & Integration · E2E ·
-  Build Docker Images · Deploy to Vultr). `3bf2bf7` is the **payroll approval-chain
-  deadlock fix** (see the "2026-08-09 (later)" section below); the docs-only `111fc16`
-  rode up with it.
+- **LIVE on `connect.coheron.tech` = `origin/main` = `9f2f07c`** — migration head
+  **`0075_clever_sleepwalker`**, 238 base tables — verified through the terminal **`Deploy
+  to Vultr` job of CI run `31348702370`** (all five jobs green: Lint · Unit & Integration ·
+  E2E · Build Docker Images · Deploy to Vultr). `9f2f07c` is the **payroll-readiness signal
+  + data-driven professional tax (36 states, provenance)** change (see the "2026-08-10"
+  section below); it includes the prior `3bf2bf7` payroll-approval fix as an ancestor. (The
+  first push `d831441` failed CI on the untyped-jsonb guard and never deployed; `9f2f07c` is
+  the corrected amend + force-push.)
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale `3b7b83f` before
@@ -52,11 +54,11 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   "fix" it.** Local `main` carries one extra commit, a **docs-only exit-point refresh**
   kept local per standing rule 6 (no docs-only deploy). It rides origin with the next
   code change. So `git rev-list --left-right --count origin/main...HEAD` reads `0  1` —
-  origin records `3bf2bf7`, local reads the docs-only refresh — both describe the same
+  origin records `9f2f07c`, local reads the docs-only refresh — both describe the same
   live code. A previous session nearly looped "correcting" this; it is intentional.
-- **The payroll-approval fix is now LIVE (`3bf2bf7`).** The working tree may still carry
-  UNCOMMITTED runtime-audit files (e.g. a Stage-Six run) plus this docs refresh — see the
-  "2026-08-09 (later)" section immediately below for status.
+- **The payroll-readiness + professional-tax change is now LIVE (`9f2f07c`).** The working
+  tree may still carry UNCOMMITTED files plus this docs refresh — see the "2026-08-10"
+  section for status.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -64,7 +66,32 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `main` CI run: `gh run view <ci-run-id> --json jobs`. Migrations auto-apply in prod
   via the `migrator` service before `api` starts.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
-  count = head-number + 1 files (`0000`…`0074`).
+  count = head-number + 1 files (`0000`…`0075`).
+
+## 2026-08-10 — payroll-readiness signal + data-driven professional tax SHIPPED
+
+_Shipped & deployed as `9f2f07c` (CI `31348702370`, all five jobs green incl. terminal
+`Deploy to Vultr`; migration `0075_clever_sleepwalker`, 238 base tables). Per-item detail in
+`reports/fix-plan.md`; runtime evidence for the readiness walk is in the locked
+`docs/audits/web-runtime-pass_stage7_*` file._
+
+- **✅ Payroll-readiness signal (Command Center).** `onboarding.getChecklist` now returns a
+  `payrollReadiness` block; the dashboard renders a "Before you can run payroll" panel naming
+  what's missing (no employees / no salary structure) with links to where each is created,
+  and the wizard's final step points at it instead of "you're all set". Test:
+  `onboarding-payroll-readiness.test.ts`.
+- **✅ Professional tax → data-driven (`professional_tax_slabs`, mig `0075`).** Moved from an
+  8-state in-code table to a seeded 36-state table: **22 levying, 14 recorded as explicitly
+  NOT levying** (a recorded nil, distinct from an unknown/absent state). `resolveStatutoryCeilings`
+  projects it into `overrides.ptSlabs`; no payroll-math change. Test: `professional-tax-slabs.test.ts`.
+- **⚠️ Every rate is SECONDARY-sourced** (`docs/reference/professional-tax-slabs.json`;
+  `sourceType='secondary'`, `verifiedOn=NULL`) — verified against no state's own act yet.
+  Adopting the file **changed the live Kerala and Tamil Nadu rates** (both differed from the
+  in-code slabs). **Five levying states are recorded but cannot yet compute** — Bihar/Manipur
+  (annual), Jharkhand/Sikkim (quarterly), Puducherry (half-yearly, timing unwired) — because the
+  engine knows only monthly and Kerala/TN half-yearly cadences; they are stored + flagged, not projected.
+- **Note:** the first push `d831441` failed CI on the untyped-jsonb schema guard (three new jsonb
+  columns lacked `.$type<…>()`) and never deployed; fixed by amend + force-push → `9f2f07c`.
 
 ## 2026-08-09 (later) — payroll-approval fix SHIPPED; audit series recorded
 
@@ -540,14 +567,18 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31317164831` — commit `3bf2bf7` (payroll approval-chain deadlock fix: the
-HR→Finance→CFO chain — previously uncompletable by any non-owner role, so every statutory
-output was unreachable — reconciled across five gate layers, with the approve action's own
-permissions and the SoD check untouched; the docs-only `111fc16` rode up with it) — terminal
-`Deploy to Vultr` job `success` — 2026-08-09 — migration head `0074_ambiguous_rick_jones`
-(no new migration).** Verified via `gh run view 31317164831 --json jobs` (all five jobs green:
-Lint & Type Check · Unit & Integration Tests · E2E (Playwright) · Build Docker Images ·
-Deploy to Vultr). This is what is LIVE on `connect.coheron.tech`.
+**CI run `31348702370` — commit `9f2f07c` (payroll-readiness signal on the Command Center +
+professional tax moved from an 8-state in-code table to a seeded 36-state table — 22 levying,
+14 recorded as explicitly not-levying — with per-rate secondary-source provenance; migration
+`0075_clever_sleepwalker`) — terminal `Deploy to Vultr` job `success` — 2026-08-10 — migration
+head `0075_clever_sleepwalker`, 238 base tables.** Verified via `gh run view 31348702370 --json
+jobs` (all five jobs green: Lint & Type Check · Unit & Integration Tests · E2E (Playwright) ·
+Build Docker Images · Deploy to Vultr). This is what is LIVE on `connect.coheron.tech`.
+`9f2f07c` includes the prior `3bf2bf7` payroll-approval fix as an ancestor.
+
+_The corrected `9f2f07c` replaced a first push `d831441` whose CI failed on the untyped-jsonb
+schema guard (three jsonb columns on the new table lacked `.$type<…>()`); that never deployed
+(Deploy skipped), was fixed by amend + force-push, and CI `31348702370` then went green._
 
 _This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6); it rides
 origin with the next code change, so local `main` reads one commit ahead of origin —
