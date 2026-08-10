@@ -1,0 +1,1120 @@
+{
+  "$comment": "Professional tax reference data. EVERY entry here is SECONDARY-sourced and must be verified against the state's own bare act before it is trusted for a live payroll. See _meta.verification.",
+  "_meta": {
+    "version": 1,
+    "compiledOn": "2026-08-09",
+    "annualCapPerPerson": 2500,
+    "annualCapAuthority": "Article 276(2), Constitution of India. Per person per year, across all states combined.",
+    "statesLevying": 22,
+    "verification": {
+      "status": "UNVERIFIED",
+      "note": "Every rate below carries sourceType 'secondary'. A secondary-sourced rate is a claim, not an authority. Verify against the linked bare act and flip sourceType to 'primary' with the verifiedOn date and the specific section relied on. Karnataka, Kerala, Tamil Nadu and Delhi NCR are the pilot cohort and should be verified first.",
+      "knownDisputes": [
+        {
+          "state": "KA",
+          "issue": "Engine deducted 200 at a monthly gross of 20833, which is below the 25000 exemption threshold recorded here. Either this threshold is wrong or the engine carries a stale one. Establish against the act before changing either.",
+          "raisedOn": "2026-08-09"
+        },
+        {
+          "state": "KL",
+          "issue": "Project records previously stated Kerala employee slabs top at 600 per half-year (1200 a year) and therefore never reach the 2500 annual cap. This source states the top slab is 1250 per half-year, which reaches the cap exactly. The two cannot both be right.",
+          "raisedOn": "2026-08-09"
+        }
+      ]
+    },
+    "schema": {
+      "levies": "boolean. false means the state has no professional tax at all. This is a RECORDED FACT, not an absent row. A state with levies:false and an unrecognised state must remain distinguishable.",
+      "cadence": "monthly | quarterly | halfYearly | annual — the deduction/assessment period",
+      "slabBasis": "monthlySalary | halfYearlySalary | annualSalary — the income figure the bands are read against. A band is meaningless without this.",
+      "bands": "ordered, ascending. min inclusive, max inclusive, null max means open-ended. amount is per cadence period.",
+      "lastPeriodAdjustment": "where a state deducts a higher amount in the final period of the cycle to reach the annual cap",
+      "exemptions": "non-income-based exemptions — age, gender, disability",
+      "dueDate": "when the collected tax must be remitted",
+      "sourceType": "primary (the state's own act or notification) | secondary (an aggregator)"
+    }
+  },
+  "states": [
+    {
+      "code": "AP",
+      "name": "Andhra Pradesh",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 15000,
+          "amount": 0
+        },
+        {
+          "min": 15001,
+          "max": 20000,
+          "amount": 150
+        },
+        {
+          "min": 20001,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Enrolled on or before 31 May: pay by 30 June of the same year. Enrolled after 31 May: pay within one month of enrolment."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://apct.gov.in/gstportal/GST_Portal/AboutAPPT/Act.aspx",
+      "verifiedOn": null
+    },
+    {
+      "code": "AS",
+      "name": "Assam",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 10000,
+          "amount": 0
+        },
+        {
+          "min": 10001,
+          "max": 15000,
+          "amount": 150
+        },
+        {
+          "min": 15001,
+          "max": 24999,
+          "amount": 180
+        },
+        {
+          "min": 25000,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "dayOfMonth",
+        "day": 28,
+        "note": "Payable before the 28th of every month."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.indiacode.nic.in/bitstream/123456789/13883/1/the_assam_professions%2C_trades%2C_callings_%26_employments_taxation_act%2C_1947_0.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "BR",
+      "name": "Bihar",
+      "levies": true,
+      "cadence": "annual",
+      "slabBasis": "annualSalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 300000,
+          "amount": 0
+        },
+        {
+          "min": 300001,
+          "max": 500000,
+          "amount": 1000
+        },
+        {
+          "min": 500001,
+          "max": 1000000,
+          "amount": 2000
+        },
+        {
+          "min": 1000001,
+          "max": null,
+          "amount": 2500
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "annualDate",
+        "month": 11,
+        "note": "On or before the end of November each year. Late payment attracts a fine of 500."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.datocms-assets.com/40521/1615372483-bihar-pt-rules.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "CG",
+      "name": "Chhattisgarh",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "annualSalary",
+      "$note": "Bands are read against ANNUAL salary but deducted MONTHLY — verify this carefully against the act, it is an unusual combination and a misreading would be material.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 100000,
+          "amount": 0
+        },
+        {
+          "min": 100001,
+          "max": 150000,
+          "amount": 130
+        },
+        {
+          "min": 150001,
+          "max": 200000,
+          "amount": 150
+        },
+        {
+          "min": 200001,
+          "max": 250000,
+          "amount": 200
+        },
+        {
+          "min": 250001,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": {
+        "appliesAboveAnnualSalary": 250001,
+        "amount": 212,
+        "note": "212 deducted once yearly, in the last month of the deduction cycle."
+      },
+      "exemptions": [],
+      "dueDate": {
+        "rule": "daysAfterMonthEnd",
+        "days": 10,
+        "note": "Within ten days of month end. Late payment: 2% of the month's due, capped at two-thirds of the total due."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.datocms-assets.com/40521/1615539050-chhattisgarh-professional-tax-act-1995.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "GJ",
+      "name": "Gujarat",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 11999,
+          "amount": 0
+        },
+        {
+          "min": 12000,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Enrolled before the year commences or before 31 August: pay by 30 September of the same year. Enrolled after 31 August: within one month of enrolment."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://commercialtax.gujarat.gov.in/vatwebsite/download/rule/Ptact.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "JH",
+      "name": "Jharkhand",
+      "levies": true,
+      "cadence": "quarterly",
+      "slabBasis": "annualSalary",
+      "$note": "Source states amounts as 'tax per month' against annual salary bands while the deduction period is quarterly. This is internally ambiguous — verify against the act before seeding as authoritative.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 300000,
+          "amount": 0
+        },
+        {
+          "min": 300001,
+          "max": 500000,
+          "amount": 100
+        },
+        {
+          "min": 500001,
+          "max": 800000,
+          "amount": 150
+        },
+        {
+          "min": 800001,
+          "max": 1000000,
+          "amount": 175
+        },
+        {
+          "min": 1000001,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "quarterly",
+        "dates": [
+          "05-15",
+          "08-16",
+          "11-15",
+          "02-15"
+        ],
+        "note": "For quarters ending 30 June, 30 September, 31 December and 31 March respectively."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://ctax.jharkhand.gov.in/documents/10231/16514/Professional+Tax+Rules%2C+2012/7462df88-a600-4f9c-a035-c92ef02678b5?version=1.1",
+      "verifiedOn": null
+    },
+    {
+      "code": "KA",
+      "name": "Karnataka",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 24999,
+          "amount": 0
+        },
+        {
+          "min": 25000,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [
+        {
+          "type": "age",
+          "operator": "gte",
+          "value": 65,
+          "note": "Exempt at 65 and above. Already implemented in the engine — verify the threshold matches."
+        }
+      ],
+      "dueDate": {
+        "rule": "dayOfFollowingMonth",
+        "day": 20,
+        "note": "By the 20th of the succeeding month. Delay can attract up to 50% of the amount due."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://dpal.karnataka.gov.in/storage/pdf-files/acts%20alpha%20and%20dept%20wise%20acts/35of1976(E)14of2023.pdf",
+      "verifiedOn": null,
+      "$dispute": "VERIFY FIRST. The engine deducted 200 at a monthly gross of 20833, below the 25000 threshold recorded here. Most pilot employees are in Karnataka. If this threshold is right, the engine is over-deducting from every Karnataka employee below 25000."
+    },
+    {
+      "code": "KL",
+      "name": "Kerala",
+      "levies": true,
+      "cadence": "halfYearly",
+      "slabBasis": "halfYearlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 11999,
+          "amount": 0
+        },
+        {
+          "min": 12000,
+          "max": 17999,
+          "amount": 320
+        },
+        {
+          "min": 18000,
+          "max": 29999,
+          "amount": 450
+        },
+        {
+          "min": 30000,
+          "max": 44999,
+          "amount": 600
+        },
+        {
+          "min": 45000,
+          "max": 99999,
+          "amount": 750
+        },
+        {
+          "min": 100000,
+          "max": 124999,
+          "amount": 1000
+        },
+        {
+          "min": 125000,
+          "max": null,
+          "amount": 1250
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "halfYearly",
+        "firstHalf": "08-31",
+        "secondHalf": "02-28",
+        "note": "April–September due by 31 August; October–March due by end of February. Non-payment: fine up to 5000. Delay: 1% per month."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "http://www.bareactslive.com/KER/ker048.htm",
+      "verifiedOn": null,
+      "$dispute": "Project records state the top employee slab is 600 per half (1200 a year, never reaching the 2500 cap). This source states 1250 per half, which reaches the cap exactly. Resolve against the act.",
+      "$note": "Kerala rates differ between panchayat and municipal bodies. This table does not distinguish them. The body an employee falls under must be captured before these rates can be applied correctly."
+    },
+    {
+      "code": "MP",
+      "name": "Madhya Pradesh",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 18750,
+          "amount": 0
+        },
+        {
+          "min": 18751,
+          "max": 25000,
+          "amount": 125
+        },
+        {
+          "min": 25001,
+          "max": 33333,
+          "amount": 166
+        },
+        {
+          "min": 33334,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": [
+        {
+          "appliesToBandMin": 25001,
+          "appliesToBandMax": 33333,
+          "amount": 174,
+          "note": "166 for the first 11 months, 174 in the last."
+        },
+        {
+          "appliesToBandMin": 33334,
+          "appliesToBandMax": null,
+          "amount": 212,
+          "note": "208 for the first 11 months, 212 in the last."
+        }
+      ],
+      "exemptions": [],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Registered before the year commences or before 31 August: pay by 30 September each year. Registered after 31 August: within 30 days of registration. Delay: 2% per month of tax due."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://mptax.mp.gov.in/mpvatweb/download/act/pdf/PTACTRules.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "MH",
+      "name": "Maharashtra",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 7500,
+          "amount": 0
+        },
+        {
+          "min": 7501,
+          "max": 10000,
+          "amount": 175
+        },
+        {
+          "min": 10001,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": [
+        {
+          "appliesToBandMin": 10001,
+          "appliesToBandMax": null,
+          "amount": 300,
+          "note": "200 for the first 11 months, 300 in the last, reaching the 2500 annual cap."
+        }
+      ],
+      "exemptions": [
+        {
+          "type": "gender",
+          "value": "female",
+          "belowMonthlySalary": 10000,
+          "note": "Women earning up to 10000 a month are exempt. Requires gender on the employee record — establish whether that is captured before relying on this."
+        }
+      ],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Enrolled before the year starts or before 31 May: pay for that year by 30 June. Enrolled after 31 May: within 30 days of enrolment. Late payment: 10% penalty."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.mahagst.gov.in/en/act/5",
+      "verifiedOn": null
+    },
+    {
+      "code": "MN",
+      "name": "Manipur",
+      "levies": true,
+      "cadence": "annual",
+      "slabBasis": "annualSalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 50000,
+          "amount": 0
+        },
+        {
+          "min": 50001,
+          "max": 75000,
+          "amount": 1200
+        },
+        {
+          "min": 75001,
+          "max": 100000,
+          "amount": 2000
+        },
+        {
+          "min": 100001,
+          "max": 125000,
+          "amount": 2400
+        },
+        {
+          "min": 125001,
+          "max": null,
+          "amount": 2500
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "annualDate",
+        "date": "03-30",
+        "note": "By 30 March each year."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.indiacode.nic.in/bitstream/123456789/13461/1/the_manipur_professions%2C_trades%2C_callings_and_employments_taxation_%28eight_amendment%29_act%2C_2012.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "ML",
+      "name": "Meghalaya",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "$note": "Amounts include paise. Establish how the engine and the challan handle non-integer amounts before seeding.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 4166,
+          "amount": 0
+        },
+        {
+          "min": 4167,
+          "max": 6250,
+          "amount": 16.5
+        },
+        {
+          "min": 6251,
+          "max": 8333,
+          "amount": 25
+        },
+        {
+          "min": 8334,
+          "max": 12500,
+          "amount": 41.5
+        },
+        {
+          "min": 12501,
+          "max": 16666,
+          "amount": 62.5
+        },
+        {
+          "min": 16667,
+          "max": 20833,
+          "amount": 83.33
+        },
+        {
+          "min": 20834,
+          "max": 25000,
+          "amount": 104.16
+        },
+        {
+          "min": 25001,
+          "max": 29166,
+          "amount": 125
+        },
+        {
+          "min": 29167,
+          "max": 33333,
+          "amount": 150
+        },
+        {
+          "min": 33334,
+          "max": 37500,
+          "amount": 175
+        },
+        {
+          "min": 37501,
+          "max": 41666,
+          "amount": 200
+        },
+        {
+          "min": 41667,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "dayOfMonth",
+        "day": 28,
+        "note": "Before the 28th of every month. Delay: 2% of the total due. Non-payment: up to 10%."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://meglaw.gov.in/acts/1991.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "MZ",
+      "name": "Mizoram",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "$note": "Source states the deduction period as monthly but collection as yearly (due 30 June). Verify which applies to an employer deducting from salary.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 5000,
+          "amount": 0
+        },
+        {
+          "min": 5001,
+          "max": 8000,
+          "amount": 75
+        },
+        {
+          "min": 8001,
+          "max": 10000,
+          "amount": 120
+        },
+        {
+          "min": 10001,
+          "max": 12000,
+          "amount": 150
+        },
+        {
+          "min": 12001,
+          "max": 15000,
+          "amount": 180
+        },
+        {
+          "min": 15001,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "annualDate",
+        "date": "06-30",
+        "note": "Collected yearly; payment by 30 June each year."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://zotax.nic.in/files/act/TheMizoramProfessionsTradesCallingsandEmploymentsTaxationAct1995.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "NL",
+      "name": "Nagaland",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 4000,
+          "amount": 0
+        },
+        {
+          "min": 4001,
+          "max": 5000,
+          "amount": 35
+        },
+        {
+          "min": 5001,
+          "max": 7000,
+          "amount": 75
+        },
+        {
+          "min": 7001,
+          "max": 9000,
+          "amount": 110
+        },
+        {
+          "min": 9001,
+          "max": 12000,
+          "amount": 180
+        },
+        {
+          "min": 12001,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Enrolled before the year starts or before 31 August: pay by 30 September. Enrolled after 31 August: within one month of enrolment."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.indiacode.nic.in/bitstream/123456789/15161/1/thenagaland_professions_trades_callings_and_employment_taxation_4th_amendment_act_2012.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "OD",
+      "name": "Odisha",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "annualSalary",
+      "$note": "Bands read against ANNUAL salary, deducted MONTHLY. Verify against the act.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 159999,
+          "amount": 0
+        },
+        {
+          "min": 160000,
+          "max": 300000,
+          "amount": 125
+        },
+        {
+          "min": 300001,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": [
+        {
+          "appliesToBandMin": 300001,
+          "appliesToBandMax": null,
+          "amount": 300,
+          "note": "200 for the first 11 months, 300 in the last."
+        }
+      ],
+      "exemptions": [],
+      "dueDate": {
+        "rule": "endOfFollowingMonth",
+        "note": "Deposited before the end of the month following deduction."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://web.odishatax.gov.in/PT/ptaxrule.htm",
+      "verifiedOn": null
+    },
+    {
+      "code": "PY",
+      "name": "Puducherry",
+      "levies": true,
+      "unionTerritory": true,
+      "cadence": "halfYearly",
+      "slabBasis": "halfYearlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 99999,
+          "amount": 0
+        },
+        {
+          "min": 100000,
+          "max": 200000,
+          "amount": 250
+        },
+        {
+          "min": 200001,
+          "max": 300000,
+          "amount": 500
+        },
+        {
+          "min": 300001,
+          "max": 400000,
+          "amount": 750
+        },
+        {
+          "min": 400001,
+          "max": 500000,
+          "amount": 1000
+        },
+        {
+          "min": 500001,
+          "max": null,
+          "amount": 1250
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "halfYearly",
+        "firstHalf": "07-31",
+        "secondHalf": "01-31"
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "http://pdymun.in/know-about-tax.php",
+      "verifiedOn": null
+    },
+    {
+      "code": "PB",
+      "name": "Punjab",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 20833,
+          "amount": 0
+        },
+        {
+          "min": 20834,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "endOfFollowingMonth",
+        "note": "Before the last date of the following month. Delay: up to 2% of tax due."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://psdt.punjab.gov.in/docs/PSDT_Rules_2018.pdf",
+      "verifiedOn": null,
+      "$note": "Source gives only the taxable band (above 20833). The nil band below it is inferred, not stated. Verify."
+    },
+    {
+      "code": "SK",
+      "name": "Sikkim",
+      "levies": true,
+      "cadence": "quarterly",
+      "slabBasis": "monthlySalary",
+      "$note": "Bands read against MONTHLY salary, remitted QUARTERLY. Verify how the quarterly amount is derived from the monthly band.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 20000,
+          "amount": 0
+        },
+        {
+          "min": 20001,
+          "max": 30000,
+          "amount": 125
+        },
+        {
+          "min": 30001,
+          "max": 40000,
+          "amount": 150
+        },
+        {
+          "min": 40001,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "quarterly",
+        "dates": [
+          "07-31",
+          "10-31",
+          "01-31",
+          "04-30"
+        ],
+        "note": "Delay: 15 per day. Non-payment: up to 1000."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "http://sikkimfred.gov.in/FRED%20Acts/Documents/TaxOnProfessionAct.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "TN",
+      "name": "Tamil Nadu",
+      "levies": true,
+      "cadence": "halfYearly",
+      "slabBasis": "halfYearlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 21000,
+          "amount": 0
+        },
+        {
+          "min": 21001,
+          "max": 30000,
+          "amount": 180
+        },
+        {
+          "min": 30001,
+          "max": 45000,
+          "amount": 425
+        },
+        {
+          "min": 45001,
+          "max": 60000,
+          "amount": 930
+        },
+        {
+          "min": 60001,
+          "max": 75000,
+          "amount": 1025
+        },
+        {
+          "min": 75001,
+          "max": null,
+          "amount": 1250
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "halfYearly",
+        "firstHalf": "09-30",
+        "secondHalf": "03-31",
+        "note": "Delay: 2% of the total due."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.tn.gov.in/dtp/professional-tax.htm",
+      "verifiedOn": null
+    },
+    {
+      "code": "TG",
+      "name": "Telangana",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 15000,
+          "amount": 0
+        },
+        {
+          "min": 15001,
+          "max": 20000,
+          "amount": 150
+        },
+        {
+          "min": 20001,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Enrolled before the year starts or before 31 May: pay by 30 June. Enrolled after 31 May: within one month of enrolment."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.tgct.gov.in/tgportal/AllActs/APPT/APPTAct.aspx",
+      "verifiedOn": null
+    },
+    {
+      "code": "TR",
+      "name": "Tripura",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "bands": [
+        {
+          "min": 0,
+          "max": 7500,
+          "amount": 0
+        },
+        {
+          "min": 7501,
+          "max": 15000,
+          "amount": 150
+        },
+        {
+          "min": 15001,
+          "max": null,
+          "amount": 208
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "enrolmentDependent",
+        "note": "Enrolled before 31 August: pay by 30 September for the year. Enrolled after 31 August: within one month. Delay: 2% per month of tax due."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://taxes.tripura.gov.in/sites/default/files/2024-04/The%20Tripura%20Professions%20Act.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "WB",
+      "name": "West Bengal",
+      "levies": true,
+      "cadence": "monthly",
+      "slabBasis": "monthlySalary",
+      "$note": "Source states deduction is monthly but the employer remits once per financial year by 31 July. Verify which applies.",
+      "bands": [
+        {
+          "min": 0,
+          "max": 10000,
+          "amount": 0
+        },
+        {
+          "min": 10001,
+          "max": 15000,
+          "amount": 110
+        },
+        {
+          "min": 15001,
+          "max": 25000,
+          "amount": 130
+        },
+        {
+          "min": 25001,
+          "max": 40000,
+          "amount": 150
+        },
+        {
+          "min": 40001,
+          "max": null,
+          "amount": 200
+        }
+      ],
+      "lastPeriodAdjustment": null,
+      "exemptions": [],
+      "dueDate": {
+        "rule": "annualDate",
+        "date": "07-31",
+        "note": "On or before 31 July within the same year. Delay: 1% of the due amount."
+      },
+      "sourceType": "secondary",
+      "sourceUrl": "https://www.indiacode.nic.in/bitstream/123456789/14628/1/1979-6.pdf",
+      "verifiedOn": null
+    },
+    {
+      "code": "DL",
+      "name": "Delhi",
+      "levies": false,
+      "note": "No professional tax. PILOT COHORT STATE — a Delhi NCR employee must return a recorded nil, not an accidental zero.",
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "HR",
+      "name": "Haryana",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "UP",
+      "name": "Uttar Pradesh",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "RJ",
+      "name": "Rajasthan",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "UK",
+      "name": "Uttarakhand",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "GA",
+      "name": "Goa",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "HP",
+      "name": "Himachal Pradesh",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "JK",
+      "name": "Jammu and Kashmir",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "AR",
+      "name": "Arunachal Pradesh",
+      "levies": false,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "CH",
+      "name": "Chandigarh",
+      "levies": false,
+      "unionTerritory": true,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "AN",
+      "name": "Andaman and Nicobar Islands",
+      "levies": false,
+      "unionTerritory": true,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "LA",
+      "name": "Ladakh",
+      "levies": false,
+      "unionTerritory": true,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "LD",
+      "name": "Lakshadweep",
+      "levies": false,
+      "unionTerritory": true,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    },
+    {
+      "code": "DNHDD",
+      "name": "Dadra and Nagar Haveli and Daman and Diu",
+      "levies": false,
+      "unionTerritory": true,
+      "sourceType": "secondary",
+      "verifiedOn": null
+    }
+  ]
+}

@@ -22,6 +22,7 @@
  */
 import {
   statutoryCeilings,
+  professionalTaxSlabs,
   eq,
   and,
   or,
@@ -43,7 +44,10 @@ interface PTSlab {
   monthly: number;
 }
 
-type PtSlabTable = Record<string, { slabs: PTSlab[]; annualCap: number }>;
+type PtSlabTable = Record<
+  string,
+  { slabs: PTSlab[]; annualCap: number; levyPeriod?: "MONTHLY" | "HALF_YEARLY" }
+>;
 type LwfRateTable = Record<
   string,
   { employee: number; employer: number; frequency: "HALF_YEARLY" | "ANNUAL" }
@@ -209,5 +213,86 @@ export async function resolveStatutoryCeilings(
   if (hasPt) overrides.ptSlabs = ptSlabs;
   if (hasLwf) overrides.lwfRates = lwfRates;
   if (hasTax) overrides.taxConfig = taxConfig;
+
+  // ── Professional Tax: the dedicated `professional_tax_slabs` table (the one PT
+  // rate mechanism, seeded from docs/reference/professional-tax-slabs.json). Same
+  // scope/effective rules as above: org beats platform default, latest effectiveFrom
+  // wins. This SUPERSEDES the legacy `pt_slab` metric branch (which has no rows).
+  const ptRows = await db
+    .select()
+    .from(professionalTaxSlabs)
+    .where(
+      and(
+        or(eq(professionalTaxSlabs.orgId, orgId), isNull(professionalTaxSlabs.orgId)),
+        lte(professionalTaxSlabs.effectiveFrom, period),
+        or(
+          isNull(professionalTaxSlabs.effectiveTo),
+          gt(professionalTaxSlabs.effectiveTo, period),
+        ),
+      ),
+    );
+  const bestPt = new Map<string, (typeof ptRows)[number]>();
+  for (const row of ptRows) {
+    const key = row.stateCode;
+    const prev = bestPt.get(key);
+    if (!prev) {
+      bestPt.set(key, row);
+      continue;
+    }
+    const rowOrgScoped = row.orgId !== null;
+    const prevOrgScoped = prev.orgId !== null;
+    if (rowOrgScoped !== prevOrgScoped) {
+      if (rowOrgScoped) bestPt.set(key, row);
+      continue;
+    }
+    if (row.effectiveFrom > prev.effectiveFrom) bestPt.set(key, row);
+  }
+
+  const ptFromTable: PtSlabTable = {};
+  let hasPtTable = false;
+  for (const row of bestPt.values()) {
+    // The engine keys PT on the NORMALISED state name ("Tamil Nadu" → "TAMIL_NADU"),
+    // matching `normalizePtStateKey` in payroll-math and the free text on employees.state.
+    const stateKey = row.stateName.toUpperCase().replace(/\s+/g, "_");
+
+    // levies=false is a RECORDED FACT: emit an empty-slab config so the engine returns a
+    // silent, levied nil — distinguishable from an UNKNOWN state (no row at all → the
+    // engine flags `unknownState`). This is the defect this table exists to remove.
+    if (!row.levies) {
+      ptFromTable[stateKey] = { slabs: [], annualCap: 0 };
+      hasPtTable = true;
+      continue;
+    }
+
+    // Only project cadences the engine can actually compute: MONTHLY, or HALF_YEARLY for
+    // the two states whose collection timing is wired in payroll-math
+    // (PT_HALF_YEARLY_DEPOSIT_MONTH = Kerala, Tamil Nadu). Quarterly, annual, and any other
+    // half-yearly state (e.g. Puducherry) are STORED as data but NOT projected — the engine
+    // then flags them as unknown rather than compute a wrong amount. See the report.
+    const cadence = row.cadence;
+    const computableHalfYearly =
+      cadence === "halfYearly" && (stateKey === "KERALA" || stateKey === "TAMIL_NADU");
+    if (cadence !== "monthly" && !computableHalfYearly) continue;
+
+    const bands = (row.bands ?? []) as Array<{ min: number; max: number | null; amount: number }>;
+    // Bands → engine slabs. `max: null` is an open-ended top band (JSON cannot encode
+    // Infinity), normalised to Infinity so the engine's `<= to` match treats it as unbounded.
+    const slabs: PTSlab[] = bands.map((b) => ({
+      from: b.min,
+      to: b.max === null ? Infinity : b.max,
+      monthly: b.amount,
+    }));
+    ptFromTable[stateKey] = {
+      slabs,
+      // Per-state annual caps are not in the source (only the constitutional ₹2,500
+      // per-person cap). This flows only to the annual-PT ESTIMATE in the tax profile,
+      // never to the monthly PT deduction (which is band-driven).
+      annualCap: 2500,
+      ...(computableHalfYearly ? { levyPeriod: "HALF_YEARLY" as const } : {}),
+    };
+    hasPtTable = true;
+  }
+  if (hasPtTable) overrides.ptSlabs = ptFromTable;
+
   return overrides;
 }

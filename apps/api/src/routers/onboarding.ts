@@ -8,13 +8,17 @@ import {
   invoices,
   chartOfAccounts,
   organizations,
+  employees,
+  salaryStructures,
   eq,
   and,
   count,
+  inArray,
   sql,
 } from "@coheronconnect/db";
 
 import { writeWizardData, DuplicateGstinError } from "../services/orgWizardWrite";
+import { PAYROLL_EMPLOYED_STATUSES } from "../services/payroll-run-aggregates";
 
 export const profileSchema = z.object({
   displayName: z.string().min(1),
@@ -66,6 +70,29 @@ export interface OnboardingItem {
   description: string;
   href: string;
   done: boolean;
+}
+
+/**
+ * One reason an org cannot yet run a payroll. `message` names WHAT is missing
+ * (and, when it is a per-employee gap, WHICH employees); `href` + `hrefLabel`
+ * name WHERE to go and fix it.
+ */
+export interface PayrollReadinessBlocker {
+  code:
+    | "no_employees"
+    | "no_structures"
+    | "employees_missing_structure"
+    | "employees_missing_state";
+  message: string;
+  href: string;
+  hrefLabel: string;
+}
+
+/** Whether the org can run a payroll, and if not, exactly why (see the run's
+ *  own selection in `payroll-run-aggregates` — this mirrors it). */
+export interface PayrollReadiness {
+  ready: boolean;
+  blockers: PayrollReadinessBlocker[];
 }
 
 export const onboardingRouter = router({
@@ -142,11 +169,112 @@ export const onboardingRouter = router({
 
     const completed = items.filter((i) => i.done).length;
 
+    // ── Payroll readiness ──────────────────────────────────────────────────
+    // A finished setup wizard says "You're all set", but an org with no
+    // employees and no salary structures cannot run a single payroll. This
+    // signal spells out what still stands between the org and its first run.
+    //
+    // The conditions are taken from the payroll run's OWN employee selection
+    // (services/payroll-run-aggregates.ts) so the readiness signal cannot drift
+    // from what a run actually requires:
+    //   • the run selects employees whose status is in PAYROLL_EMPLOYED_STATUSES
+    //     (active | probation | on_leave); leavers are excluded.
+    //   • an employee with no salaryStructureId is dropped from the run (unpaid).
+    //   • buildEmployeePayrollInput() throws when an employee has no `state`
+    //     (the PT slab cannot be resolved), so a stateless employee is excluded.
+    //   • at least one salary structure must exist to assign in the first place.
+    // taxRegime is deliberately NOT a blocker: the column is NOT NULL DEFAULT
+    // 'new' (schema/hr.ts), so it is never absent — the run always reads a
+    // regime. The real risk there is a *silent default*, which no stored flag
+    // distinguishes from a deliberate choice; flagging it would be a guess.
+    const [structRow] = await db
+      .select({ n: count() })
+      .from(salaryStructures)
+      // No isArchived filter: the run's resolver (salary-structure-resolver.ts)
+      // resolves by familyId + effective window and does NOT skip archived rows,
+      // so "a structure exists" must mirror that or the signal would diverge.
+      .where(eq(salaryStructures.orgId, orgId));
+    const structureCount = structRow?.n ?? 0;
+
+    const employed = await db
+      .select({
+        id: employees.id,
+        code: employees.employeeId,
+        state: employees.state,
+        salaryStructureId: employees.salaryStructureId,
+      })
+      .from(employees)
+      .where(
+        and(
+          eq(employees.orgId, orgId),
+          inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES]),
+        ),
+      );
+
+    const missingStructure = employed.filter((e) => !e.salaryStructureId);
+    const missingState = employed.filter((e) => !e.state || e.state.trim() === "");
+
+    const MAX_NAMED = 5;
+    const nameList = (rows: Array<{ code: string }>): string => {
+      const codes = rows.map((r) => r.code);
+      return codes.length <= MAX_NAMED
+        ? codes.join(", ")
+        : `${codes.slice(0, MAX_NAMED).join(", ")}, +${codes.length - MAX_NAMED} more`;
+    };
+
+    const blockers: PayrollReadinessBlocker[] = [];
+    if (employed.length === 0) {
+      blockers.push({
+        code: "no_employees",
+        message: "No employees exist yet — add your workforce before a payroll can run.",
+        href: "/app/hr",
+        hrefLabel: "HR → Employees",
+      });
+    }
+    if (structureCount === 0) {
+      blockers.push({
+        code: "no_structures",
+        message:
+          "No salary structures exist yet — create at least one before a payroll can run.",
+        href: "/app/payroll",
+        hrefLabel: "Payroll → Salary structures",
+      });
+    }
+    // Only surface a per-employee structure gap when structures exist to assign;
+    // when there are none, the no_structures blocker already says what to do first.
+    if (structureCount > 0 && missingStructure.length > 0) {
+      blockers.push({
+        code: "employees_missing_structure",
+        message:
+          `${missingStructure.length} employee(s) have no salary structure and would be left ` +
+          `unpaid: ${nameList(missingStructure)}. Assign one on each employee's record.`,
+        href: "/app/hr",
+        hrefLabel: "HR → Employees",
+      });
+    }
+    if (missingState.length > 0) {
+      blockers.push({
+        code: "employees_missing_state",
+        message:
+          `${missingState.length} employee(s) have no work state, so professional tax cannot be ` +
+          `computed and they would be excluded from payroll: ${nameList(missingState)}. ` +
+          `Set each employee's state.`,
+        href: "/app/hr",
+        hrefLabel: "HR → Employees",
+      });
+    }
+
+    const payrollReadiness: PayrollReadiness = {
+      ready: blockers.length === 0,
+      blockers,
+    };
+
     return {
       items,
       completed,
       total: items.length,
       allComplete: completed === items.length,
+      payrollReadiness,
     };
   }),
 

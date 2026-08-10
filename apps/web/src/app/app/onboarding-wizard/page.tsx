@@ -346,9 +346,11 @@ function DoneStep() {
         <CheckCircle2 className="h-8 w-8 text-white" />
       </div>
       <div>
-        <h2 className="text-h3 font-bold text-foreground">You're all set! 🎉</h2>
+        <h2 className="text-h3 font-bold text-foreground">Setup complete! 🎉</h2>
         <p className="mt-2 text-body-sm text-muted-foreground max-w-sm">
-          Your CoheronConnect workspace is configured. Head to the dashboard to start managing your operations.
+          Your CoheronConnect workspace is configured. On your dashboard, the
+          &ldquo;Before you can run payroll&rdquo; panel lists anything still needed
+          before your first payroll — typically adding employees and a salary structure.
         </p>
       </div>
       <div className="flex items-center gap-3">

@@ -526,6 +526,13 @@
       "when": 1786079489810,
       "tag": "0074_ambiguous_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1786294835262,
+      "tag": "0075_clever_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

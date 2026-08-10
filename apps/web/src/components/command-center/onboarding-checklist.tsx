@@ -38,73 +38,114 @@ export function OnboardingChecklist() {
     setDismissed(true);
   };
 
-  // Hide while loading, on error, once fully complete, or when dismissed.
-  if (dismissed || q.isLoading || q.isError || !q.data || q.data.allComplete) {
+  const payrollReady = q.data?.payrollReadiness?.ready ?? true;
+
+  // Hide while loading, on error, or when dismissed. Once the getting-started
+  // items are all done AND the org can run payroll, there is nothing left to
+  // show — but if payroll is not yet runnable, keep showing even when the
+  // exploratory items are complete: an unpayable org is not "all set".
+  if (dismissed || q.isLoading || q.isError || !q.data || (q.data.allComplete && payrollReady)) {
     return null;
   }
 
-  const { items, completed, total } = q.data;
+  const { items, completed, total, payrollReadiness } = q.data;
+  const showItems = !q.data.allComplete;
+  const showPayroll = !!payrollReadiness && !payrollReadiness.ready;
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/30">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <div className="relative rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/30">
+      <button
+        type="button"
+        aria-label="Dismiss getting-started checklist"
+        className="absolute right-3 top-3 rounded p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-800"
+        onClick={dismiss}
+      >
+        <X className="h-4 w-4" />
+      </button>
+
+      {showItems && (
+        <div className="pr-8">
           <h2 className="text-body-sm font-semibold text-slate-900 dark:text-slate-100">
             Get your workspace ready
           </h2>
           <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
             {completed} of {total} done — finish these to get the most out of the pilot.
           </p>
-        </div>
-        <button
-          type="button"
-          aria-label="Dismiss getting-started checklist"
-          className="rounded p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-800"
-          onClick={dismiss}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
 
-      <ul className="mt-3 space-y-1.5">
-        {items.map((item) => (
-          <li key={item.key}>
-            <Link
-              href={item.href}
-              className={`group flex items-center gap-3 rounded-lg border px-3 py-2 transition ${
-                item.done
-                  ? "border-transparent bg-transparent"
-                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700"
-              }`}
-            >
-              {item.done ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-              ) : (
-                <Circle className="h-4 w-4 shrink-0 text-slate-400" />
-              )}
-              <span className="flex-1">
-                <span
-                  className={`block text-[13px] font-medium ${
+          <ul className="mt-3 space-y-1.5">
+            {items.map((item) => (
+              <li key={item.key}>
+                <Link
+                  href={item.href}
+                  className={`group flex items-center gap-3 rounded-lg border px-3 py-2 transition ${
                     item.done
-                      ? "text-slate-500 line-through dark:text-slate-500"
-                      : "text-slate-900 dark:text-slate-100"
+                      ? "border-transparent bg-transparent"
+                      : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700"
                   }`}
                 >
-                  {item.title}
-                </span>
-                {!item.done && (
-                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                    {item.description}
+                  {item.done ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <Circle className="h-4 w-4 shrink-0 text-slate-400" />
+                  )}
+                  <span className="flex-1">
+                    <span
+                      className={`block text-[13px] font-medium ${
+                        item.done
+                          ? "text-slate-500 line-through dark:text-slate-500"
+                          : "text-slate-900 dark:text-slate-100"
+                      }`}
+                    >
+                      {item.title}
+                    </span>
+                    {!item.done && (
+                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                        {item.description}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              {!item.done && (
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 opacity-0 transition group-hover:opacity-100" />
-              )}
-            </Link>
-          </li>
-        ))}
-      </ul>
+                  {!item.done && (
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 opacity-0 transition group-hover:opacity-100" />
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {showPayroll && (
+        <div className={showItems ? "mt-4 border-t border-blue-200 pt-4 dark:border-blue-900/50" : "pr-8"}>
+          <h2 className="text-body-sm font-semibold text-amber-800 dark:text-amber-300">
+            Before you can run payroll
+          </h2>
+          <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
+            Your workspace is set up, but it can&apos;t run a payroll yet. Finish these:
+          </p>
+
+          <ul className="mt-3 space-y-1.5">
+            {payrollReadiness!.blockers.map((b) => (
+              <li key={b.code}>
+                <Link
+                  href={b.href}
+                  className="group flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2 transition hover:border-amber-400 hover:bg-amber-50 dark:border-amber-900/50 dark:bg-slate-900 dark:hover:border-amber-700"
+                >
+                  <Circle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <span className="flex-1">
+                    <span className="block text-[13px] text-slate-900 dark:text-slate-100">
+                      {b.message}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      {b.hrefLabel}
+                    </span>
+                  </span>
+                  <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 opacity-0 transition group-hover:opacity-100" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

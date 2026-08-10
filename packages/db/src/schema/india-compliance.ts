@@ -381,6 +381,74 @@ export const statutoryCeilings = pgTable(
   }),
 );
 
+// ── Professional Tax slabs (per state; the data-driven PT rate source) ──────
+// ONE mechanism for PT rates, seeded from docs/reference/professional-tax-slabs.json
+// (36 states/UTs). EVERY seeded rate is SECONDARY-sourced (sourceType='secondary',
+// verifiedOn=NULL) — a claim, not an authority; the provenance columns are how we later
+// find every rate still resting on a secondary source and flip it to 'primary'.
+// `resolveStatutoryCeilings` projects the engine-computable subset (monthly states +
+// Kerala/Tamil Nadu half-yearly) into `overrides.ptSlabs`, which payroll-math `computePT`
+// consumes. `levies=false` is a RECORDED FACT (→ recorded nil), DISTINCT from an absent
+// row, which the engine treats as an UNKNOWN (unrecognised) state. Cadences the engine
+// cannot yet compute (quarterly/annual, and half-yearly beyond KL/TN whose collection
+// timing is not wired) are stored as data but NOT projected — the engine flags them
+// rather than compute a wrong amount. See docs/reference/professional-tax-slabs.json _meta.
+export const professionalTaxSlabs = pgTable(
+  "professional_tax_slabs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    // 2-letter code (e.g. "KA") for provenance/joins. `stateName` is what the PT engine
+    // keys on after normalisation ("Karnataka" → "KARNATAKA"), so it must match the free
+    // text stored on employees.state.
+    stateCode: text("state_code").notNull(),
+    stateName: text("state_name").notNull(),
+    // RECORDED FACT: false = the state levies no PT (→ a recorded nil the engine returns
+    // silently). Distinct from an absent row, which the engine flags as an unknown state.
+    levies: boolean("levies").notNull(),
+    // monthly | quarterly | halfYearly | annual. NULL for a non-levying state.
+    cadence: text("cadence"),
+    // monthlySalary | halfYearlySalary | annualSalary — the income the bands read against.
+    slabBasis: text("slab_basis"),
+    // Ordered ascending [{min, max (null = open-ended), amount}]. `amount` is per cadence period.
+    bands: jsonb("bands").$type<Array<{ min: number; max: number | null; amount: number }>>(),
+    // Per-state annual caps are NOT in the source (only the constitutional ₹2,500 per-person
+    // cap, in _meta). NULL here; the resolver derives the annual estimate. PT deduction itself
+    // is band-driven and does not use this.
+    annualCap: decimal("annual_cap", { precision: 14, scale: 2 }),
+    // Carried from the source for governance; the engine keeps its own in-code handling of
+    // last-period true-up and exemptions this pass (behaviour unchanged for those). These are
+    // deliberately OPEN blobs — the reference file's shapes vary per state and nothing reads
+    // them programmatically yet — so they are typed as open records, a visible choice.
+    lastPeriodAdjustment: jsonb("last_period_adjustment").$type<Array<Record<string, unknown>>>(),
+    exemptions: jsonb("exemptions").$type<Array<Record<string, unknown>>>(),
+    dueDate: jsonb("due_date").$type<Record<string, unknown>>(),
+    // Provenance — how we later find every rate still resting on a secondary source.
+    sourceType: text("source_type").notNull().default("secondary"),
+    sourceUrl: text("source_url"),
+    verifiedOn: timestamp("verified_on", { withTimezone: true }),
+    // Ambiguity carried forward verbatim from the source ($note / $dispute) — NOT resolved
+    // here by guessing; a human resolves it against the state's bare act.
+    sourceNote: text("source_note"),
+    disputeNote: text("dispute_note"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    lookupIdx: index("professional_tax_slabs_lookup_idx").on(t.stateName, t.effectiveFrom),
+    orgIdx: index("professional_tax_slabs_org_idx").on(t.orgId),
+    // One row per (scope, state, effectiveFrom); coalesce NULL orgId to a sentinel so
+    // platform defaults collapse to a single arbiter (matches statutory_ceilings). The
+    // ON CONFLICT target the seed binds to.
+    scopeUniqueIdx: uniqueIndex("professional_tax_slabs_scope_unique_idx").on(
+      sql`coalesce(${t.orgId}::text, '00000000-0000-0000-0000-000000000000')`,
+      t.stateCode,
+      t.effectiveFrom,
+    ),
+  }),
+);
+
 // ── E-Way Bills (G3: NIC portal push) ──────────────────────────────────────
 // One row per E-Way Bill request against a tax invoice. `payloadJson` holds the
 // canonical NIC request body built at enqueue time; `ewbNo`/`validUpto` are
