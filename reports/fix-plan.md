@@ -5378,3 +5378,39 @@ re-run with `--force` (or run vitest directly) when a cross-package file the tes
 
 Migration `0075` was validated against a **throwaway full-history (prod-shaped) schema** (empty DB,
 `0000→0075` applied in order): all apply clean, 36 rows seeded, RLS enabled+forced. **DONE.**
+
+## PERIOD-START-TZ-BOUNDARY — latent hazard, established read-only (2026-08-10)
+
+**Status: NOT a live defect on the current prod stack (UTC), but a latent hazard. Recorded for a
+design decision — do NOT fix in passing; a date-boundary fix touches every period comparison in
+the engine.**
+
+**What.** Every real payroll path builds the period start as `new Date(year, month-1, 1)` — a
+LOCAL-time value: `computePayrollRunTotals` (payroll-run-aggregates.ts:304, and ceilings :402),
+`computePayslips` (payroll.ts:422), `lockPeriod` → `computePayrollRunTotals` (payroll.ts:333),
+plus payroll.ts:983. A salary structure's `effectiveFrom`, entered in the UI as a date-only
+`"yyyy-mm-dd"`, is stored at **UTC midnight** (`new Date("2026-09-01")` → UTC; `z.coerce.date`;
+`timestamptz` `00:00:00+00`), independent of the browser timezone.
+
+**Why it is safe today.** The deployed stack runs **UTC** (node:20-alpine, no `TZ` in any compose
+env / Dockerfile / deploy script; Alpine has no `/etc/localtime` → Node local == UTC). CI runners
+are UTC too. On UTC, the period start for a September run is `2026-09-01T00:00:00Z`, which equals a
+1-September `effectiveFrom`, and `resolveSalaryStructureForPeriod` uses an inclusive `effectiveFrom
+<= period` — so a structure effective on the 1st IS resolved and the employee IS paid.
+
+**Why it is a hazard.** Correctness rests on a three-way boundary equality: prod being UTC AND
+`effectiveFrom` at UTC-midnight AND the inclusive `<=`. If prod were ever deployed with
+`TZ=Asia/Kolkata` (plausible for an India product), the period start becomes `2026-08-31T18:30:00Z`
+— 5.5h BEFORE the 1-September `effectiveFrom` — and **every** customer whose structure starts on
+the 1st, running that month's payroll, gets **nobody paid** for the month (now with a named
+effective-structure flag, but still unpaid). The same happens if `effectiveFrom` is ever stored at
+a local-offset midnight instead of UTC. This was surfaced by the multi-version test in
+`payroll-effective-structure-exclusion.test.ts`, which failed only on an IST dev machine — a test
+artefact given UTC prod, but the boundary it exposed is real.
+
+**Proposed shape (for decision, not built).** Compare on a timezone-independent basis — either
+construct the period start as an explicit UTC instant (`new Date(Date.UTC(year, month-1, 1))`) or
+compare date-only (calendar month), applied consistently to the resolver AND every period
+comparison (ceilings, half-yearly PT windows, ESI period, LOP). Because it touches every statutory
+computation, the shape is the owner's call. Until then: keep prod on UTC, and do not store
+`effectiveFrom` with a local offset.

@@ -293,6 +293,10 @@ export const tdsChallanRecords = pgTable(
   (t) => ({
     orgIdx: index("tds_challan_records_org_idx").on(t.orgId),
     monthYearIdx: index("tds_challan_records_month_year_idx").on(t.month, t.year),
+    // One salary-TDS (24Q) challan per org per period — the arbiter generateStatutory's
+    // upsert binds to, so re-running a run cannot create a duplicate. The other three
+    // statutory tables already carry this unique constraint; this one was missing it.
+    orgMonthYearUnique: uniqueIndex("tds_challan_records_org_month_year_idx").on(t.orgId, t.month, t.year),
   }),
 );
 

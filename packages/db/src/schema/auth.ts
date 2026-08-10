@@ -70,6 +70,15 @@ export const organizations = pgTable(
      * 10+ employees), and it is set via the India setup wizard alongside TAN / EPF code.
      */
     esiEstablishmentNumber: text("esi_establishment_number"),
+    /**
+     * Professional Tax employer registration number (the state PT enrolment/registration
+     * certificate number). Mandatory on a PT challan for any state where PT is owed — a
+     * challan without it is not a challan — so `generateStatutory` refuses to produce a PT
+     * challan when PT is owed and this is absent, naming the field. Nullable: not every org
+     * operates in a PT-levying state, and it is set via the India setup wizard alongside
+     * TAN / EPF code / ESI establishment number.
+     */
+    ptRegistrationNumber: text("pt_registration_number"),
     primaryStateCode: text("primary_state_code"),
     /**
      * Annual Aggregate Turnover (AATO) in rupees — the PAN-level turnover of the

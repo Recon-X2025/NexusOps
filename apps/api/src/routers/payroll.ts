@@ -16,6 +16,10 @@ import {
   salaryStructures,
   users,
   organizations,
+  epfoEcrSubmissions,
+  esiChallanRecords,
+  ptChallanRecords,
+  tdsChallanRecords,
   documents,
   documentVersions,
   eq,
@@ -40,7 +44,7 @@ import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { buildPayslipView, payslipViewToPortalRow } from "../lib/payslip-view";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
-import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
+import { resolveSalaryStructureForPeriod, structureNotEffectiveError } from "../lib/india/salary-structure-resolver";
 import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 import { computeRetainUntil } from "../lib/retention";
 import {
@@ -423,10 +427,17 @@ const runsRouter = router({
         .from(employees)
         .where(and(eq(employees.orgId, org!.id), inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES])));
       const empRows: Array<{ emp: typeof employees.$inferSelect; st: typeof salaryStructures.$inferSelect }> = [];
+      // Employees dropped because their structure has no version in effect for the period.
+      // Previously a bare `continue` here left the exclusion in NEITHER the empRows nor the
+      // skipped channel — the headcount shrank at payslip time with no explanation. Name each,
+      // by code, in the run's error channel below. The message is identical to the lock/totals
+      // path (computePayrollRunTotals), so the two de-dup to a single flag on the run.
+      const excludedNoEffectiveStructure: Array<{ employeeId: string; message: string }> = [];
       for (const emp of activeEmps) {
-        if (!emp.salaryStructureId) continue;
+        if (!emp.salaryStructureId) continue; // structureless: flagged by the lock/totals path
         const st = await resolveSalaryStructureForPeriod(db, org!.id, emp.salaryStructureId, periodDate);
         if (st) empRows.push({ emp, st });
+        else excludedNoEffectiveStructure.push({ employeeId: emp.id, message: structureNotEffectiveError(emp.employeeId, row.month, row.year) });
       }
 
       // G1: resolve effective-dated statutory ceilings for this pay period.
@@ -522,6 +533,12 @@ const runsRouter = router({
             grossEarnings: String(slip.grossEarnings),
             pfEmployee: String(slip.employeePF),
             pfEmployer: String(slip.employerPF),
+            // Persist the PF wage base + the EPS/EPF employer split the engine computed, so the
+            // statutory ECR carries the numbers the run actually used (not a reverse-engineered
+            // pfEmployee ÷ 0.12) and the employer split is no longer inferred (defect 6).
+            pfWageBase: String(slip.statutoryDeductions.pf.pfWageBase),
+            pfEmployerEps: String(slip.statutoryDeductions.pf.employerEPS),
+            pfEmployerEpf: String(slip.statutoryDeductions.pf.employerEPF),
             esiEmployee: String(slip.employeeESI),
             esiEmployer: String(slip.employerESI),
             professionalTax: String(slip.professionalTax),
@@ -548,9 +565,14 @@ const runsRouter = router({
         // pile up duplicates. payrollEmployeeCount becomes the count actually written.
         const prevMeta: PayrollWorkflowMeta = row.workflowMetadata ?? { errors: [], approvals: [] };
         const seenErr = new Set((prevMeta.errors ?? []).map((e) => `${e.employeeId ?? ""}|${e.message}`));
+        // Both the effective-structure exclusions (resolved before the transaction) and the
+        // compute-time skips reach the run's error channel, de-duped by (employeeId, message).
+        // The exclusion message matches the lock/totals path exactly, so a flag the lock step
+        // already persisted here collapses to one rather than doubling.
+        const writePathFlags = [...excludedNoEffectiveStructure, ...skipped];
         const mergedErrors = [
           ...(prevMeta.errors ?? []),
-          ...skipped.filter((s) => !seenErr.has(`${s.employeeId}|${s.message}`)),
+          ...writePathFlags.filter((s) => !seenErr.has(`${s.employeeId}|${s.message}`)),
         ];
         await tx
           .update(payrollRuns)
@@ -679,6 +701,13 @@ const runsRouter = router({
       return mapRunRow(updated!);
     }),
 
+  // Step 13 — close the compute→file loop. A run at CFO_APPROVED implies statutory
+  // returns; this creates the submission/challan RECORDS from the run's own payslips
+  // (the missing producer — the indiaCompliance.filing.* push paths only ever consumed
+  // records nothing created). One EPFO ECR + one ESI challan (members only) + one PT
+  // challan per state + one salary-TDS (24Q) challan, all keyed by (org, period) so a
+  // re-run upserts rather than duplicating. Identity is REFUSED, never fabricated: if a
+  // levy is owed and its org identifier is absent, the whole step fails naming the field.
   generateStatutory: permissionProcedure("payroll", "write")
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -688,16 +717,192 @@ const runsRouter = router({
         .from(payrollRuns)
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      // Do NOT weaken the approval chain: records exist only for a CFO-approved run.
       if (row.pipelineStatus !== "CFO_APPROVED") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "CFO approval required first." });
       }
-      const next = "STATUTORY_GENERATED";
+
+      // The run's payslips, with each member's name (users) and state (employees).
+      const slips = await db
+        .select({
+          pfEmployee: payslips.pfEmployee,
+          pfEmployer: payslips.pfEmployer,
+          pfEmployerEps: payslips.pfEmployerEps,
+          pfEmployerEpf: payslips.pfEmployerEpf,
+          pfWageBase: payslips.pfWageBase,
+          esiEmployee: payslips.esiEmployee,
+          esiEmployer: payslips.esiEmployer,
+          professionalTax: payslips.professionalTax,
+          tds: payslips.tds,
+          state: employees.state,
+        })
+        .from(payslips)
+        .innerJoin(employees, eq(payslips.employeeId, employees.id))
+        .where(eq(payslips.payrollRunId, row.id));
+
+      const [orgRow] = await db
+        .select({
+          epfCode: organizations.epfCode,
+          esiEstablishmentNumber: organizations.esiEstablishmentNumber,
+          ptRegistrationNumber: organizations.ptRegistrationNumber,
+        })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+
+      const num = (v: string | null) => Number(v || 0);
+
+      // Which levies does this run owe?
+      let totPfEmployee = 0, totPfEmployer = 0, totEps = 0, totEpf = 0, totTds = 0;
+      let epfOwed = false;
+      const esiMembers = slips.filter((s) => num(s.esiEmployee) > 0);
+      const ptByState = new Map<string, { total: number; count: number }>();
+      for (const s of slips) {
+        totPfEmployee += num(s.pfEmployee);
+        totPfEmployer += num(s.pfEmployer);
+        totEps += num(s.pfEmployerEps);
+        totEpf += num(s.pfEmployerEpf);
+        totTds += num(s.tds);
+        if (num(s.pfWageBase) > 0 || num(s.pfEmployee) > 0) epfOwed = true;
+        if (num(s.professionalTax) > 0) {
+          const st = (s.state ?? "").trim();
+          const cur = ptByState.get(st) ?? { total: 0, count: 0 };
+          cur.total += num(s.professionalTax);
+          cur.count += 1;
+          ptByState.set(st, cur);
+        }
+      }
+      const esiOwed = esiMembers.length > 0;
+      const ptOwed = ptByState.size > 0;
+
+      // Refuse before creating anything — name the field and where to set it, never fabricate.
+      if (epfOwed && !orgRow?.epfCode?.trim()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Cannot generate the EPF ECR: the organisation has no EPF establishment code. " +
+            "Set the EPF code in the India setup wizard before generating statutory outputs.",
+        });
+      }
+      if (esiOwed && !orgRow?.esiEstablishmentNumber?.trim()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Cannot generate the ESI challan: the organisation has no ESI establishment number. " +
+            "Set the ESI establishment number in the India setup wizard before generating statutory outputs.",
+        });
+      }
+      if (ptOwed && !orgRow?.ptRegistrationNumber?.trim()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Cannot generate the PT challan: the organisation has no professional-tax registration number. " +
+            "Set the PT registration number in the India setup wizard before generating statutory outputs.",
+        });
+      }
+
+      await db.transaction(async (tx) => {
+        if (epfOwed) {
+          const epfVals = {
+            totalEmployeeContribution: String(totPfEmployee),
+            totalEmployerContribution: String(totPfEmployer),
+            totalEpsContribution: String(totEps),
+            totalEpfContribution: String(totEpf),
+          };
+          await tx
+            .insert(epfoEcrSubmissions)
+            .values({ orgId: org!.id, month: row.month, year: row.year, ...epfVals })
+            .onConflictDoUpdate({
+              target: [epfoEcrSubmissions.orgId, epfoEcrSubmissions.month, epfoEcrSubmissions.year],
+              set: epfVals,
+            });
+        }
+        if (esiOwed) {
+          const esiVals = {
+            totalEmployees: esiMembers.length,
+            totalEmployeeContribution: String(esiMembers.reduce((a, s) => a + num(s.esiEmployee), 0)),
+            totalEmployerContribution: String(esiMembers.reduce((a, s) => a + num(s.esiEmployer), 0)),
+          };
+          await tx
+            .insert(esiChallanRecords)
+            .values({ orgId: org!.id, month: row.month, year: row.year, ...esiVals })
+            .onConflictDoUpdate({
+              target: [esiChallanRecords.orgId, esiChallanRecords.month, esiChallanRecords.year],
+              set: esiVals,
+            });
+        }
+        for (const [stateName, agg] of ptByState) {
+          const ptVals = {
+            ptRegistrationNumber: orgRow!.ptRegistrationNumber,
+            totalEmployees: agg.count,
+            totalPtDeducted: String(agg.total),
+          };
+          await tx
+            .insert(ptChallanRecords)
+            .values({ orgId: org!.id, stateCode: stateName, month: row.month, year: row.year, ...ptVals })
+            .onConflictDoUpdate({
+              target: [
+                ptChallanRecords.orgId,
+                ptChallanRecords.stateCode,
+                ptChallanRecords.month,
+                ptChallanRecords.year,
+              ],
+              set: ptVals,
+            });
+        }
+        if (slips.length > 0) {
+          // Salary TDS is section 192, filed on Form 24Q. A wrong section is a rejected return.
+          const tdsVals = { totalTdsDeducted: String(totTds) };
+          await tx
+            .insert(tdsChallanRecords)
+            .values({ orgId: org!.id, tdsSection: "192", formType: "24Q", month: row.month, year: row.year, ...tdsVals })
+            .onConflictDoUpdate({
+              target: [tdsChallanRecords.orgId, tdsChallanRecords.month, tdsChallanRecords.year],
+              set: tdsVals,
+            });
+        }
+
+        const next = "STATUTORY_GENERATED";
+        await tx
+          .update(payrollRuns)
+          .set({ pipelineStatus: next, status: legacyStatusForPipeline(next) })
+          .where(eq(payrollRuns.id, row.id));
+      });
+
       const [updated] = await db
-        .update(payrollRuns)
-        .set({ pipelineStatus: next, status: legacyStatusForPipeline(next) })
-        .where(eq(payrollRuns.id, input.runId))
-        .returning();
+        .select()
+        .from(payrollRuns)
+        .where(eq(payrollRuns.id, row.id));
       return mapRunRow(updated!);
+    }),
+
+  // Run-scoped statutory outputs — so the admin who ran the payroll sees what step 13
+  // produced without leaving the payroll surface. Reads the records by the run's period.
+  statutoryOutputs: permissionProcedure("payroll", "read")
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [run] = await db
+        .select()
+        .from(payrollRuns)
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
+      if (!run) throw new TRPCError({ code: "NOT_FOUND" });
+      const [epfoEcr] = await db
+        .select()
+        .from(epfoEcrSubmissions)
+        .where(and(eq(epfoEcrSubmissions.orgId, org!.id), eq(epfoEcrSubmissions.month, run.month), eq(epfoEcrSubmissions.year, run.year)));
+      const [esiChallan] = await db
+        .select()
+        .from(esiChallanRecords)
+        .where(and(eq(esiChallanRecords.orgId, org!.id), eq(esiChallanRecords.month, run.month), eq(esiChallanRecords.year, run.year)));
+      const ptChallans = await db
+        .select()
+        .from(ptChallanRecords)
+        .where(and(eq(ptChallanRecords.orgId, org!.id), eq(ptChallanRecords.month, run.month), eq(ptChallanRecords.year, run.year)));
+      const [tdsChallan] = await db
+        .select()
+        .from(tdsChallanRecords)
+        .where(and(eq(tdsChallanRecords.orgId, org!.id), eq(tdsChallanRecords.month, run.month), eq(tdsChallanRecords.year, run.year)));
+      return { epfoEcr: epfoEcr ?? null, esiChallan: esiChallan ?? null, ptChallans, tdsChallan: tdsChallan ?? null };
     }),
 
   complete: permissionProcedure("payroll", "write")

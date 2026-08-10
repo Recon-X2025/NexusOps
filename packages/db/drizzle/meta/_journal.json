@@ -533,6 +533,13 @@
       "when": 1786294835262,
       "tag": "0075_clever_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1786345514981,
+      "tag": "0076_lean_puppet_master",
+      "breakpoints": true
     }
   ]
 }

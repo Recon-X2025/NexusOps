@@ -520,6 +520,16 @@ export const payslips = pgTable(
     grossEarnings: decimal("gross_earnings", { precision: 12, scale: 2 }).notNull().default("0"),
     pfEmployee: decimal("pf_employee", { precision: 12, scale: 2 }).notNull().default("0"),
     pfEmployer: decimal("pf_employer", { precision: 12, scale: 2 }).notNull().default("0"),
+    // PF wage base actually used for the contribution (the 50%-clamp result, capped at the
+    // PF ceiling). Persisted — not reverse-engineered from pfEmployee — so the EPFO ECR states
+    // the number the run computed on: epfWages here, and epfWages * 12% == pfEmployee.
+    pfWageBase: decimal("pf_wage_base", { precision: 12, scale: 2 }).notNull().default("0"),
+    // Employer PF split. `pfEmployer` is the TOTAL employer contribution (EPF+EPS+EDLI+admin);
+    // the ECR needs the EPS (8.33%, capped) and EPF (3.67%) shares separately. Not storing them
+    // is exactly why the ECR double-counted EPS (defect 6). pfEmployerEps + pfEmployerEpf are the
+    // two ECR employer figures; they do NOT sum to pfEmployer (which also carries EDLI + admin).
+    pfEmployerEps: decimal("pf_employer_eps", { precision: 12, scale: 2 }).notNull().default("0"),
+    pfEmployerEpf: decimal("pf_employer_epf", { precision: 12, scale: 2 }).notNull().default("0"),
     esiEmployee: decimal("esi_employee", { precision: 12, scale: 2 }).notNull().default("0"),
     esiEmployer: decimal("esi_employer", { precision: 12, scale: 2 }).notNull().default("0"),
     professionalTax: decimal("professional_tax", { precision: 10, scale: 2 }).notNull().default("0"),

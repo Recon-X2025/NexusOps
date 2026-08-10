@@ -3,7 +3,8 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, organizations, eq, and, or, isNull, inArray } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, organizations, eq, and, or, isNull, isNotNull, inArray } from "@coheronconnect/db";
+import { resolveSalaryStructureForPeriod, structureNotEffectiveError } from "../lib/india/salary-structure-resolver";
 import {
   computeEmployeePayslip,
   ptPriorPeriodMonths,
@@ -292,11 +293,37 @@ export async function computePayrollRunTotals(
   const errors: Array<{ employeeId: string; message: string }> = [];
   const fyMonth = calendarToFyMonth(month);
 
-  const rows = await db
-    .select({ emp: employees, st: salaryStructures })
+  // ONE resolver, shared with payslip generation (payroll.ts computePayslips). Lock must
+  // resolve the salary-structure VERSION in force for the period exactly as the write path
+  // does — via resolveSalaryStructureForPeriod — so the headcount and totals it reports are
+  // the employees who will ACTUALLY be paid. A direct `innerJoin` on salaryStructureId (the
+  // old approach) ignored the effective window: it counted an employee whose structure is not
+  // yet effective (effectiveFrom after the period start), who payslip generation then silently
+  // dropped — a headcount that shrank at payslip time with no explanation. The status
+  // selection (PAYROLL_EMPLOYED_STATUSES) is unchanged and already matches the write path.
+  const periodDate = new Date(year, month - 1, 1);
+  const employedWithStructure = await db
+    .select()
     .from(employees)
-    .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
-    .where(and(eq(employees.orgId, orgId), inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES])));
+    .where(
+      and(
+        eq(employees.orgId, orgId),
+        inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES]),
+        isNotNull(employees.salaryStructureId),
+      ),
+    );
+  const rows: Array<{ emp: typeof employees.$inferSelect; st: typeof salaryStructures.$inferSelect }> = [];
+  for (const emp of employedWithStructure) {
+    const st = await resolveSalaryStructureForPeriod(db, orgId, emp.salaryStructureId!, periodDate);
+    if (st) {
+      rows.push({ emp, st });
+    } else {
+      // Excluded for want of an EFFECTIVE structure — named in the same errors[] channel the
+      // structureless flag below uses (by employee code, never a raw UUID). Identical message to
+      // the write path so the two de-dup to a single flag on the run.
+      errors.push({ employeeId: emp.id, message: structureNotEffectiveError(emp.employeeId, month, year) });
+    }
+  }
 
   // The inner join above SILENTLY DROPS an employed employee with no salary structure — they would
   // be excluded from the run entirely (unpaid, no error, invisible). A separate lookup finds them

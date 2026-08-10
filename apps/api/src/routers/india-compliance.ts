@@ -594,6 +594,38 @@ export const indiaComplianceRouter = router({
       }),
   }),
 
+  // ESI / PT challan browse lists. These were missing — which is why nobody noticed the
+  // tables were never populated by any runtime path. Mirrors epfoEcr.list / tdsChallans.list.
+  esiChallans: router({
+    list: permissionProcedure("hr", "read")
+      .input(z.object({ year: z.number().int().optional(), month: z.number().int().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conditions = [eq(esiChallanRecords.orgId, org!.id)];
+        if (input.month) conditions.push(eq(esiChallanRecords.month, input.month));
+        if (input.year) conditions.push(eq(esiChallanRecords.year, input.year));
+        return db.select().from(esiChallanRecords).where(and(...conditions)).orderBy(desc(esiChallanRecords.createdAt));
+      }),
+  }),
+  ptChallans: router({
+    list: permissionProcedure("hr", "read")
+      .input(
+        z.object({
+          year: z.number().int().optional(),
+          month: z.number().int().optional(),
+          stateCode: z.string().optional(),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conditions = [eq(ptChallanRecords.orgId, org!.id)];
+        if (input.month) conditions.push(eq(ptChallanRecords.month, input.month));
+        if (input.year) conditions.push(eq(ptChallanRecords.year, input.year));
+        if (input.stateCode) conditions.push(eq(ptChallanRecords.stateCode, input.stateCode));
+        return db.select().from(ptChallanRecords).where(and(...conditions)).orderBy(desc(ptChallanRecords.createdAt));
+      }),
+  }),
+
   // ── Statutory Ceilings (G1: versioned PF/ESI/PT/LWF config) ───────────────
   statutoryCeilings: router({
     list: permissionProcedure("hr", "read")
@@ -685,10 +717,30 @@ export const indiaComplianceRouter = router({
 
         // Rebuild the canonical `#~#` ECR body from the payroll run behind this
         // return so the pushed payload is always regenerated from source of truth.
-        const { payrollRuns, payslips: payslipsTable, employees: employeesTable } = await import(
-          "@coheronconnect/db"
-        );
-        const { formatECRFile } = await import("../lib/india/ecr-format.js");
+        const {
+          payrollRuns,
+          payslips: payslipsTable,
+          employees: employeesTable,
+          users: usersTable,
+          organizations: orgsTable,
+        } = await import("@coheronconnect/db");
+        const { formatECRFile, buildEcrLine } = await import("../lib/india/ecr-format.js");
+
+        // Establishment id from the org's REAL EPF code — refuse if absent, never fabricate
+        // one from the org id (that fabricated id was the defect this replaces).
+        const [orgRow] = await db
+          .select({ epfCode: orgsTable.epfCode })
+          .from(orgsTable)
+          .where(eq(orgsTable.id, org!.id));
+        const orgEpfoId = orgRow?.epfCode?.trim();
+        if (!orgEpfoId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Cannot file the EPF ECR: the organisation has no EPF establishment code. " +
+              "Set the EPF code in the India setup wizard before filing.",
+          });
+        }
 
         const [run] = await db
           .select()
@@ -710,26 +762,21 @@ export const indiaComplianceRouter = router({
         const ecrLines = await Promise.all(
           slips.map(async (slip) => {
             const [emp] = await db
-              .select()
+              .select({ uan: employeesTable.uan, employeeCode: employeesTable.employeeId, userId: employeesTable.userId })
               .from(employeesTable)
               .where(eq(employeesTable.id, slip.employeeId));
-            const pfWages = Math.min(Number(slip.basic), 15000);
-            return {
+            const [u] = emp?.userId
+              ? await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, emp.userId))
+              : [];
+            // Single source of the member figures (see buildEcrLine): epfWages from the persisted
+            // wage base (defect 1), employer EPS/EPF from the persisted split (defect 6), NCP from
+            // LOP (defect 3), and the member's real name (defect 2).
+            return buildEcrLine(slip, {
               uan: emp?.uan ?? "UNKNOWN",
-              memberName: emp?.employeeId ?? "EMPLOYEE",
-              grossWages: Number(slip.grossEarnings),
-              epfWages: pfWages,
-              epsWages: pfWages,
-              edliWages: pfWages,
-              employeeEpf: Number(slip.pfEmployee),
-              employerEps: Math.min(Math.round(pfWages * 0.0833), 1250),
-              employerEpf: Number(slip.pfEmployer),
-              ncp: 0,
-              refund: 0,
-            };
+              memberName: u?.name ?? emp?.employeeCode ?? "EMPLOYEE",
+            });
           }),
         );
-        const orgEpfoId = `EPFO_${org!.id.slice(0, 8).toUpperCase()}`;
         const ecrBody = formatECRFile(orgEpfoId, submission.month, submission.year, ecrLines);
 
         const { enqueueStatutoryFilingJob } = await import(
@@ -809,26 +856,28 @@ export const indiaComplianceRouter = router({
           .from(payslipsTable)
           .where(eq(payslipsTable.payrollRunId, run.id));
 
+        // ESI is a MEMBER-ONLY levy: only employees who are members for the period belong on
+        // the challan. A member is one for whom the run computed an ESI contribution
+        // (esiEmployee > 0) — the ≤₹21,000 rule is already applied at run time. The old code
+        // recomputed 0.75%/3.25% on gross for EVERY payslip with no filter, so a non-member
+        // (gross > ceiling) appeared with a fabricated contribution (defect 5). Use the
+        // PERSISTED per-IP amounts the run computed, not a gross recompute.
         const mcRows = await Promise.all(
-          slips.map(async (slip) => {
-            const [emp] = await db
-              .select()
-              .from(employeesTable)
-              .where(eq(employeesTable.id, slip.employeeId));
-            const gross = Number(slip.grossEarnings);
-            // ESI applies only up to the wage ceiling; the resolved ceiling lives
-            // on the record's persisted totals, so we derive per-IP contributions
-            // at statutory rates and let the portal reconcile against the ceiling.
-            const employee = Math.round(gross * 0.0075);
-            const employer = Math.round(gross * 0.0325);
-            return [
-              emp?.uan ?? emp?.employeeId ?? "UNKNOWN",
-              emp?.employeeId ?? "EMPLOYEE",
-              gross,
-              employee,
-              employer,
-            ].join("#~#");
-          }),
+          slips
+            .filter((slip) => Number(slip.esiEmployee) > 0)
+            .map(async (slip) => {
+              const [emp] = await db
+                .select()
+                .from(employeesTable)
+                .where(eq(employeesTable.id, slip.employeeId));
+              return [
+                emp?.uan ?? emp?.employeeId ?? "UNKNOWN",
+                emp?.employeeId ?? "EMPLOYEE",
+                Number(slip.grossEarnings),
+                Number(slip.esiEmployee),
+                Number(slip.esiEmployer),
+              ].join("#~#");
+            }),
         );
         const mcLines = mcRows.join("\n");
 

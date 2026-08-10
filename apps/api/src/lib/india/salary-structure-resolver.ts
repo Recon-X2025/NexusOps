@@ -63,3 +63,34 @@ export async function resolveSalaryStructureForPeriod(
     .limit(1);
   return row ?? null;
 }
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * The per-employee flag raised when an employee HAS a salary structure assigned but no
+ * VERSION of it is in effect for the pay period — its `effectiveFrom` falls after the period
+ * start, so `resolveSalaryStructureForPeriod` returns null and the employee is excluded.
+ *
+ * Both the lock/totals path (`computePayrollRunTotals`) and the write path (`computePayslips`)
+ * exclude such an employee via the SAME resolver, and BOTH raise this IDENTICAL message so the
+ * run's error channel names them exactly once (de-duped by `employeeId|message`). Names by the
+ * employee CODE — an admin cannot act on a raw UUID.
+ *
+ * @param month 1 = January … 12 = December (the calendar month of the run).
+ */
+export function structureNotEffectiveError(
+  employeeCode: string,
+  month: number,
+  year: number,
+): string {
+  const period = `${MONTH_NAMES[month - 1] ?? `month ${month}`} ${year}`;
+  return (
+    `Employee "${employeeCode}" has a salary structure, but no version of it is in effect for ` +
+    `${period} — its effective date falls after the first of the month — so they were excluded ` +
+    `from this payroll run and will not be paid. Set the structure's effective date to on or ` +
+    `before the 1st of the month, or assign a structure that is effective for this period.`
+  );
+}
