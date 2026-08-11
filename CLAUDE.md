@@ -84,8 +84,12 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   `professional_tax_slabs` table (data-driven PT: 36 states seeded, provenance + levies fact, RLS-walled)
   — the +1 that took base tables 237→238. `0076_lean_puppet_master` persists the PF wage base +
   employer EPS/EPF split on `payslips`, adds `organizations.pt_registration_number`, and a unique index
-  on `tds_challan_records(org,month,year)` — columns + index only, no new table. **Live head is `0076`;
-  base tables 238.**
+  on `tds_challan_records(org,month,year)` — columns + index only, no new table. The current run
+  `0077`–`0079` makes the India wage config expressible: `0077_mean_wong` (`employees.voluntary_pf_rate`,
+  `payslips.da`, `salary_structures.da_percent`), `0078_slimy_nocturne` (`organizations.pf_contribution_rate`
+  + the four `employees.para266_*` fields), `0079_peaceful_caretaker` (`pf_reduced_rate_reason` enum type +
+  `organizations.pf_reduced_rate_reason`) — additive columns and one enum, no new table. **Live head is
+  `0079`; base tables 238.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -120,14 +124,44 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
   2026-08-10). Do **not** treat any of them as a fact to gather from a customer before building —
   they are inputs the product must support. Specifically:
   - **Wage composition (Basic alone vs Basic+DA):** a **DA component must exist** so a customer
-    electing Basic+DA can express it; PF/ESI/gratuity bases then read Basic+DA. (Today DA ≡ 0 and no
-    component exists — that is a build, tracked as WAGE-DA / C4 in `reports/fix-plan.md`.)
+    electing Basic+DA can express it; PF/ESI/gratuity/leave-encashment bases then read Basic+DA.
+    (SHIPPED 2026-08-11 as WAGE-DA / C4: the DA component exists and those bases read Basic+DA — see
+    the Base Pay composition decision below.)
   - **Voluntary PF (VPF, above 12%):** a per-employee input added on top of the 12%, employee side
     only, capped so 12%+VPF ≤ 100% of the wage base; the employer never matches it.
   - **Para 26(6) (contribution on the uncapped base above ₹15,000):** computes on the uncapped base
     **only where an EPFO approval reference is recorded** — no reference, no uncapping.
   This retires the old "three customer questions" gating: C4 and WAGE-DA are **builds**, not
   gated-on-a-customer-letter items (see `reports/fix-plan.md` → C4-CONFIG-DECISION).
+
+- **Base Pay composition + LTA (decided 2026-08-11; full reasoning in `docs/COMPONENT_BASE_MATRIX.md`).**
+  The salary-structure `CTC` field holds **gross, not cost-to-company**, and is relabelled **Base Pay**
+  (label only; the column/identifier stays `ctc`). Nine decisions, all built in the Base Pay unit:
+  1. **Basic % + DA % = 50** — DA is the input, Basic is derived `50 − DA` (read-only), enforced in the
+     **server validator**, not only the form.
+  2. **Every named component (Basic, DA, HRA, LTA) sits INSIDE Base Pay** and is carved out of the
+     special-allowance residual; **only bonus sits on top**. Special allowance is the balancing figure.
+  3. **LTA is carved from the residual** (was additive, inflating gross); gross stays Base Pay/12.
+  4. **Bonus is two objects** — a target tagged at offer time + a discretionary year-end payout — neither
+     a recurring structure component; the Bonus field is off the structure form (column kept) and returns
+     with the variable-pay / offer-letter build. Bonus enters **taxable income only** (a future code change).
+  5. **Medical & Conveyance removed** from the form (columns kept) — inert (read nowhere; payslip hardcodes 0).
+  6. **Gratuity and leave-encashment bases are Basic + DA** — both previously omitted DA (the DA-consumer
+     class; `payroll-run-aggregates` already handles DA correctly).
+  7. **LTA tax** — three separate premises, held apart (do not merge):
+     - **Owner ruling (standing decision):** new regime — no exemption, no declaration shown; old regime —
+       exclude on declaration until claimed, and if unclaimed **include and tax in March**.
+     - **CA ruling (recorded, but about investment declarations — NOT LTA):** provisional declaration in
+       April, physical proofs by January; if proofs are not submitted, zero the declared values and spread
+       the resulting extra tax over **February and March**. The CA has said nothing about LTA; that LTA
+       follows this same mechanism is our inference, not the CA's word.
+     - **Open (CA letter B8(c), unsent):** whether LTA follows the declaration mechanism at all, and whether
+       the exemption is capped at actual eligible travel cost and limited to two journeys in a four-year block.
+     `computeTax` already taxes LTA fully, so no first-cycle under-deduction regardless.
+  8. **True CTC / the offer letter is deferred** (post-go-live) — Base Pay stays gross for the pilot;
+     retirals (employer PF, EDLI, admin, gratuity) are added only in the later offer-letter build.
+  9. **No bulk import for salary structures** (STRUCTURE-BULK) — hand-created during onboarding week; a
+     throughput risk, not a correctness one.
 
 ## Common commands
 

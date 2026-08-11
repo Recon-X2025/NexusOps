@@ -36,7 +36,10 @@ function monthlyBasicPlusDA(struct: typeof salaryStructures.$inferSelect | undef
   if (!struct) return 0;
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
-  return Math.round((ctc * basicPct) / 12);
+  const daPct = Number(struct.daPercent ?? 0) / 100;
+  // Gratuity is on last-drawn Basic + DA (Payment of Gratuity Act) — DA was previously omitted,
+  // understating the base by the DA share for any Basic+DA composition.
+  return Math.round((ctc * (basicPct + daPct)) / 12);
 }
 
 /** Completed years + trailing months between two dates. */

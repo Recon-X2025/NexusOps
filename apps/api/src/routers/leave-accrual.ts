@@ -56,7 +56,10 @@ function monthlyBasicPlusDA(
   if (!struct) return 0;
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
-  return Math.round((ctc * basicPct) / 12);
+  const daPct = Number(struct.daPercent ?? 0) / 100;
+  // Encashment values leave at (Basic + DA)/26 per day — DA was previously omitted, understating
+  // the payment by the DA share for any Basic+DA composition (same fix as gratuity, C11).
+  return Math.round((ctc * (basicPct + daPct)) / 12);
 }
 
 /** Map a persisted policy row to the pure-engine config shape. */

@@ -76,13 +76,9 @@ interface StructureFormState {
   id?: string;
   structureName: string;
   ctcAnnual: string;
-  basicPercent: string;
-  daPercent: string;
+  daPercent: string; // Basic % is derived as 50 − DA (composition is fixed at 50%)
   hraPercentOfBasic: string;
   ltaAnnual: string;
-  medicalAllowanceAnnual: string;
-  conveyanceAllowanceAnnual: string;
-  bonusAnnual: string;
   effectiveFrom: string; // yyyy-mm-dd
   effectiveTo: string; // yyyy-mm-dd or ""
 }
@@ -91,13 +87,9 @@ function emptyStructureForm(): StructureFormState {
   return {
     structureName: "",
     ctcAnnual: "",
-    basicPercent: "40",
     daPercent: "0",
     hraPercentOfBasic: "50",
     ltaAnnual: "0",
-    medicalAllowanceAnnual: "15000",
-    conveyanceAllowanceAnnual: "19200",
-    bonusAnnual: "0",
     effectiveFrom: new Date().toISOString().slice(0, 10),
     effectiveTo: "",
   };
@@ -109,13 +101,9 @@ function structureToForm(s: Record<string, any>): StructureFormState {
     id: s.id,
     structureName: s.structureName ?? "",
     ctcAnnual: String(s.ctcAnnual ?? ""),
-    basicPercent: String(s.basicPercent ?? "40"),
     daPercent: String(s.daPercent ?? "0"),
     hraPercentOfBasic: String(s.hraPercentOfBasic ?? "50"),
     ltaAnnual: String(s.ltaAnnual ?? "0"),
-    medicalAllowanceAnnual: String(s.medicalAllowanceAnnual ?? "15000"),
-    conveyanceAllowanceAnnual: String(s.conveyanceAllowanceAnnual ?? "19200"),
-    bonusAnnual: String(s.bonusAnnual ?? "0"),
     effectiveFrom: toDate(s.effectiveFrom) || new Date().toISOString().slice(0, 10),
     effectiveTo: toDate(s.effectiveTo),
   };
@@ -747,13 +735,11 @@ export default function PayrollPage() {
                   ...(structureEditor.id ? { id: structureEditor.id } : {}),
                   structureName: structureEditor.structureName,
                   ctcAnnual: Number(structureEditor.ctcAnnual),
-                  basicPercent: Number(structureEditor.basicPercent),
+                  // Basic is derived: Basic % + DA % = 50 (composition fixed at the 50% core).
+                  basicPercent: 50 - Number(structureEditor.daPercent || 0),
                   daPercent: Number(structureEditor.daPercent),
                   hraPercentOfBasic: Number(structureEditor.hraPercentOfBasic),
                   ltaAnnual: Number(structureEditor.ltaAnnual),
-                  medicalAllowanceAnnual: Number(structureEditor.medicalAllowanceAnnual),
-                  conveyanceAllowanceAnnual: Number(structureEditor.conveyanceAllowanceAnnual),
-                  bonusAnnual: Number(structureEditor.bonusAnnual),
                   effectiveFrom: new Date(structureEditor.effectiveFrom),
                   effectiveTo: structureEditor.effectiveTo ? new Date(structureEditor.effectiveTo) : null,
                 });
@@ -771,15 +757,56 @@ export default function PayrollPage() {
                 />
               </label>
               <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Base Pay (₹/yr)</span>
+                  <input
+                    required
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={structureEditor.ctcAnnual}
+                    onChange={(e) => setStructureEditor({ ...structureEditor, ctcAnnual: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm font-mono"
+                  />
+                </label>
+                {/* DA is the composition input; Basic is derived below so Basic + DA = 50 by construction. */}
+                <label className="block">
+                  <span className="text-caption font-medium text-gray-500 dark:text-gray-400">DA % of Base Pay</span>
+                  <input
+                    required
+                    type="number"
+                    min={0}
+                    max={50}
+                    step="0.01"
+                    value={structureEditor.daPercent}
+                    onChange={(e) => setStructureEditor({ ...structureEditor, daPercent: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm font-mono"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Basic % of Base Pay</span>
+                  <input
+                    readOnly
+                    tabIndex={-1}
+                    type="number"
+                    value={50 - Number(structureEditor.daPercent || 0)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-3 py-2 text-body-sm font-mono cursor-not-allowed"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-caption font-medium text-gray-500 dark:text-gray-400">HRA % of Basic</span>
+                  <input
+                    required
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={structureEditor.hraPercentOfBasic}
+                    onChange={(e) => setStructureEditor({ ...structureEditor, hraPercentOfBasic: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm font-mono"
+                  />
+                </label>
                 {([
-                  ["ctcAnnual", "Annual CTC (₹)"],
-                  ["basicPercent", "Basic %"],
-                  ["daPercent", "DA %"],
-                  ["hraPercentOfBasic", "HRA % of Basic"],
                   ["ltaAnnual", "LTA (₹/yr)"],
-                  ["medicalAllowanceAnnual", "Medical (₹/yr)"],
-                  ["conveyanceAllowanceAnnual", "Conveyance (₹/yr)"],
-                  ["bonusAnnual", "Bonus (₹/yr)"],
                 ] as const).map(([key, label]) => (
                   <label key={key} className="block">
                     <span className="text-caption font-medium text-gray-500 dark:text-gray-400">{label}</span>
@@ -796,16 +823,28 @@ export default function PayrollPage() {
                 ))}
               </div>
               <p className="text-caption text-gray-500 dark:text-gray-400 -mt-1">
-                DA joins Basic in the PF/ESI wage base (the statutory &ldquo;Basic + DA&rdquo; core). Leave 0 for a
-                basic-alone composition; DA is carved out of the special-allowance residual, so gross is unchanged.
+                Base Pay is annual fixed pay. Includes the employee&rsquo;s own PF contribution; excludes employer PF,
+                gratuity and bonus. It is the Gross Earnings line on the employee&rsquo;s current payslip &times; 12.
+                Basic + DA are the statutory 50% wage-base core (DA is your input; Basic is the remainder); HRA is a
+                percentage of Basic.
               </p>
-              {Number(structureEditor.basicPercent || 0) + Number(structureEditor.daPercent || 0) > 100 && (
-                <div className="text-body-sm text-amber-600 dark:text-amber-500">
-                  Basic % + DA % is{" "}
-                  {Number(structureEditor.basicPercent || 0) + Number(structureEditor.daPercent || 0)}% — over 100% of
-                  CTC. The special-allowance residual will clamp to zero and gross may exceed CTC. Check the composition.
-                </div>
-              )}
+              {(() => {
+                const basePay = Number(structureEditor.ctcAnnual || 0);
+                const daPct = Number(structureEditor.daPercent || 0);
+                const basicAmt = (basePay * (50 - daPct)) / 100;
+                const namedTotal =
+                  basicAmt +
+                  (basePay * daPct) / 100 +
+                  (basicAmt * Number(structureEditor.hraPercentOfBasic || 0)) / 100 +
+                  Number(structureEditor.ltaAnnual || 0);
+                return basePay > 0 && namedTotal > basePay ? (
+                  <div className="text-body-sm text-amber-600 dark:text-amber-500">
+                    Basic + DA + HRA + LTA total ₹{Math.round(namedTotal).toLocaleString("en-IN")}, above Base Pay ₹
+                    {Math.round(basePay).toLocaleString("en-IN")} — the special-allowance residual will be zero and gross
+                    may exceed Base Pay. Reduce HRA % or LTA.
+                  </div>
+                ) : null;
+              })()}
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Effective from</span>

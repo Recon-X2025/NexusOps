@@ -38,27 +38,30 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `6b08414`** — migration head
-  **`0076_lean_puppet_master`**, 238 base tables — verified through the terminal **`Deploy
-  to Vultr` job of CI run `31367753313`** (all five jobs green; the first Deploy attempt failed
-  on an unhealthy Postgres container on the host — a server restart + Deploy re-run fixed it,
-  see the exit-point note). `6b08414` **closed the statutory-filing loop** (generateStatutory now
-  creates the ECR/ESI/PT/TDS records) + **unified the salary-structure resolver** + fixed six ECR/ESI
-  filing defects (see the "2026-08-10 (later)" section below). It includes `9f2f07c` (payroll-readiness
-  + data-driven PT) and `3bf2bf7` (payroll-approval) as ancestors.
+- **LIVE on `connect.coheron.tech` = `origin/main` = `8b4191a`** — migration head
+  **`0079_peaceful_caretaker`**, 238 base tables — verified through the terminal **`Deploy
+  to Vultr` job of CI run `31453603778`** (all five jobs green — but the first Deploy attempt
+  again failed on an unhealthy Postgres container on the host; a server reboot + Deploy re-run
+  fixed it. This is the **second deploy in a row** to fail that way — see the recurring-failure
+  note at the exit point). `8b4191a` **made the India statutory wage config expressible and
+  reachable**: DA composition, voluntary PF, the employer contribution rate and Para 26(6) —
+  each previously computable but with no web form — plus a new **Organisation Settings →
+  Statutory Identity** screen so a completed-onboarding tenant can set ESI/PT/PF-rate at all;
+  and it corrected the ECR field-7 invariant (see the "2026-08-11" section below). It includes
+  `6b08414` (statutory-filing loop), `9f2f07c` (payroll-readiness + data-driven PT) and
+  `3bf2bf7` (payroll-approval) as ancestors.
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
-  the bottom and fix this one.** The top of this file drifted to a stale `3b7b83f` before
-  (corrected 2026-08-09) because the SHA was copied here instead of pointed at._
-- **⚠️ ORIGIN IS DELIBERATELY ONE COMMIT BEHIND LOCAL — this is NOT drift, do not
-  "fix" it.** Local `main` carries one extra commit, a **docs-only exit-point refresh**
-  kept local per standing rule 6 (no docs-only deploy). It rides origin with the next
-  code change. So `git rev-list --left-right --count origin/main...HEAD` reads `0  1` —
-  origin records `6b08414`, local reads the docs-only refresh — both describe the same
-  live code. A previous session nearly looped "correcting" this; it is intentional.
-- **The statutory-filing-loop + salary-structure-resolver change is now LIVE (`6b08414`).** The
-  working tree may still carry UNCOMMITTED files plus this docs refresh — see the "2026-08-10
-  (later)" section for status.
+  the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
+  `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
+- **This "2026-08-11" exit-point refresh is UNCOMMITTED working-tree changes, not a commit.**
+  origin/main and local `main` are both at `8b4191a` (`git rev-list --left-right --count
+  origin/main...HEAD` reads `0  0`). This docs-only refresh is left uncommitted and rides the
+  next code change — do **not** commit or push it on its own. (Earlier refreshes were kept as
+  a local unpushed commit per rule 6; this one is deliberately left uncommitted, per instruction.)
+- **The statutory web-forms + Statutory-Identity-screen change is now LIVE (`8b4191a`).** The
+  working tree carries only this uncommitted docs refresh — see the "2026-08-11" section for
+  detail. `6b08414` (the statutory-filing loop) is an ancestor and also live.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -66,7 +69,68 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `main` CI run: `gh run view <ci-run-id> --json jobs`. Migrations auto-apply in prod
   via the `migrator` service before `api` starts.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
-  count = head-number + 1 files (`0000`…`0075`).
+  count = head-number + 1 files (`0000`…`0079`).
+
+## 2026-08-11 — statutory wage config made expressible AND reachable SHIPPED (`8b4191a`)
+
+_Shipped & deployed as `8b4191a` (CI `31453603778`; migrations `0077`–`0079`, head
+`0079_peaceful_caretaker`, 238 base tables — the three add columns + one enum, no new table).
+Per-item detail in `reports/fix-plan.md`. The engine side (DA/VPF/employer-rate/Para 26(6))
+had shipped earlier as inert config; this deploy makes it **expressible in the product and
+reachable by an admin**._
+
+**Four things shipped:**
+- **DA composition.** The composition the 50% wage-base mandate allows — Basic alone, or
+  Basic + Dearness Allowance — is now expressible. DA reaches the PF/ESI wage base as part of
+  the "Basic + DA" core rather than falling into the excluded special-allowance residual, and
+  is carved out of that residual so gross does not inflate (DA = 0 is byte-identical).
+- **Voluntary PF** above the statutory 12% — employee side only, employer unchanged, freely
+  changeable with no lock.
+- **Employer contribution rate** as an organisation setting (12% or 10%, the reduced rate
+  carrying a ground from EPFO's enumerated list); and **Para 26(6)**, computing on the uncapped
+  base only where an EPFO approval reference exists and its effective date has been reached.
+- **All of it made reachable.** None of it had a web form. An organisation that had completed
+  onboarding could not set its ESI establishment number, PT registration number or PF rate
+  anywhere — so a tenant owing ESI or professional tax could not reach a statutory output at
+  all, and step 13's own error directed them to a read-only wizard. A **Statutory Identity**
+  screen now exists in the admin console (`/app/admin?tab=org_statutory`, reachable from the
+  account menu and the wizard's "Edit in Settings"), and the step-13 refusal messages name it.
+
+Also: the **bonus eligibility gate now reads Basic + DA** (Payment of Bonus Act), and the
+statutory-ceiling **resolver fix** restored its empty-when-nothing-configured contract.
+
+**The ECR correction (why it mattered).** This repository asserted in three places that the ECR
+reconciles on reported EPF wages × 12% equalling the reported contribution. The EPFO ECR 2.0
+specification says no such thing: field 7 is **EE Share Remitted**, and its only validation is a
+whole number not exceeding gross wages. The false invariant would have **flagged correct lines**
+(a VPF top-up, or a base moved by the 50% clamp) as errors, and a rework was nearly built on it.
+Fields are now rounded and the zero-wage NCP rule applied. **Lesson, because it generalises:
+three copies of one reading is one reading — where a statutory question arises, the authority is
+the statute or the specification, not this repository's description of itself.**
+
+**Verified through the interface — two UI walks (see `docs/audits/`):**
+- `ui-runtime-walk_statutory-payroll_2026-08-11_run-063424.md` established that everything built
+  over two passes was **unreachable through the product** — one cause: the backend was wired and
+  the web forms were not.
+- `ui-runtime-walk_statutory-fix-verify_2026-08-11_run-075248.md` established the fix from the
+  interface — **refusal, remedy, retry, records** — plus DA on a payslip without gross inflating,
+  voluntary PF raising the employee side only, and the base uncapping only with an approval
+  reference present.
+
+**New findings — recorded, not fixed (detail in `reports/fix-plan.md`):**
+- The payroll run's **readiness error panel still names the India setup wizard** and does not
+  recompute after the ESI number is set — the same wrong-destination problem in a second code path.
+- The **Payroll Compliance cards display produced records as ₹0** because they read deposited /
+  component fields that `generateStatutory` does not populate; the real totals are correct in the DB.
+- **EPS membership is not tracked.** A member above superannuation age, or a post-01.09.2014
+  joiner earning above the ceiling, is not an EPS member and the spec permits zero EPS wages —
+  we always emit a positive figure.
+
+**⚠️ The deploy failure is now recurring** (see the exit-point note): two deploys in a row
+(`6b08414`, `8b4191a`) required a manual server reboot to complete — the compose down-and-up
+leaves Postgres unable to pass its healthcheck, and a reboot clears it. **Cause unestablished**
+(the Postgres logs were not read on either occasion — do not record one). What it means: **a
+deploy currently cannot complete without manual intervention.**
 
 ## 2026-08-10 (later) — statutory-filing loop closed + salary-structure resolver unified SHIPPED
 
@@ -604,33 +668,40 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31367753313` — commit `6b08414` (statutory-filing loop closed: `generateStatutory`
-now creates the EPFO ECR + ESI + per-state PT + salary-TDS records from a CFO-approved run's
-own payslips, refusing on missing org identity; six ECR/ESI filing defects fixed; lock and
-payslip generation unified on the effective-window resolver; migration `0076_lean_puppet_master`
-persists the PF wage base + employer EPS/EPF split, adds `organizations.pt_registration_number`
-and a unique index on `tds_challan_records`) — terminal `Deploy to Vultr` job `success` —
-2026-08-10 — migration head `0076_lean_puppet_master`, 238 base tables (0076 adds columns/index,
-no new table).** Verified via `gh run view 31367753313 --json jobs` (all five jobs green: Lint &
-Type Check · Unit & Integration Tests · E2E (Playwright) · Build Docker Images · Deploy to Vultr).
-This is what is LIVE on `connect.coheron.tech`. `6b08414` includes `9f2f07c` (payroll-readiness +
-data-driven PT) as an ancestor.
+**CI run `31453603778` — commit `8b4191a` (India statutory wage config made expressible and
+reachable: DA composition, voluntary PF, the employer contribution rate and Para 26(6) — each
+previously computable but with no web form — plus a new Organisation Settings → Statutory Identity
+screen so a completed-onboarding tenant can set ESI/PT/PF-rate, and the step-13 refusal messages
+corrected to name it; the ECR field-7 invariant corrected against the EPFO ECR 2.0 spec; the bonus
+gate reads Basic + DA; the ceiling-resolver empty-contract restored; migrations `0077`–`0079`) —
+terminal `Deploy to Vultr` job `success` — 2026-08-11 — migration head `0079_peaceful_caretaker`,
+238 base tables (0077–0079 add columns + one enum, no new table).** Verified via `gh run view
+31453603778 --json jobs` (all five jobs green: Lint & Type Check · Unit & Integration Tests · E2E
+(Playwright) · Build Docker Images · Deploy to Vultr) and `curl connect.coheron.tech/api/health`
+returning `version: 8b4191a…`. This is what is LIVE on `connect.coheron.tech`. `8b4191a` includes
+`6b08414` (statutory-filing loop), `9f2f07c` (payroll-readiness + data-driven PT) and `3bf2bf7`
+(payroll-approval) as ancestors.
 
-_Deploy history for this run — a production OUTAGE (see `reports/fix-plan.md` → "OUTAGE-2026-08-10").
-The FIRST Deploy attempt ran `docker compose down` then `up`; Redis and Meilisearch came up, but the
-Postgres container never passed its healthcheck, so the migrator, api, web and caddy never started, and
-there was **no automatic rollback** — the site was down. **Cause UNESTABLISHED**: the Postgres container
-logs were never read (the host was unreachable via SSH and the browser console throughout), so do not
-record one. Resolved by a **full server reboot** (the first since the instance was created), after which
-the Deploy job was re-run, all five jobs went green, and migration 0076 applied. Lint/Test/E2E/Build were
-green throughout — this was not a code failure. What it exposed: a deploy that takes the whole stack down
-has no fallback, and recovery depended on host access that was not available._
+_Deploy history for this run — the OUTAGE pattern of `6b08414` **RECURRED**, so it is now a
+**recurring failure** (see `reports/fix-plan.md` → "OUTAGE-2026-08-10" and its recurrence entry).
+The FIRST Deploy attempt again ran `docker compose down` then `up`; Redis and Meilisearch came up,
+but the Postgres container never passed its healthcheck (`dependency failed to start: container
+…postgres…1 is unhealthy`), so the migrator, api, web and caddy never started — the site was down,
+no automatic rollback. Resolved the same way: a **full server reboot** followed by re-running the
+Deploy job, after which all five jobs went green and migrations `0077`–`0079` applied. Lint/Test/
+E2E/Build were green throughout — not a code failure. **Cause UNESTABLISHED both times** — the
+Postgres container logs were not read on either occasion, so do not record one. **Two deploys in a
+row (`6b08414`, `8b4191a`) have now needed manual intervention; a deploy currently cannot complete
+unattended.**_
 
-_This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6); it rides
-origin with the next code change, so local `main` reads one commit ahead of origin —
-deliberate, not drift._
+_This "2026-08-11" exit-point refresh is left **UNCOMMITTED** (working-tree changes, not a commit),
+per instruction; it rides the next code change. origin/main and local `main` are both at `8b4191a`
+(`git rev-list --left-right --count origin/main...HEAD` = `0  0`). Earlier refreshes were kept as a
+local unpushed commit per rule 6; this one is deliberately left uncommitted._
 
-_Prior validated deploys (all superseded): `62b0349` (three statutory fixes: 50% PF wage-base
+_Prior validated deploys (all superseded): `6b08414` (statutory-filing loop closed + salary-structure
+resolver unified; its Deploy also failed first on unhealthy Postgres, reboot + re-run fixed it) CI
+`31367753313`; `62b0349` (three statutory fixes: 50% PF wage-base
 clamp; leaver flag; resilient payslip write) CI `31298132260`; `cbed818` (pay probation &
 on_leave; incomplete-row flag) CI `31295210801`; `3b7b83f` (dead-link repairs + route-integrity
 guard) CI `31268782618`; `7a76624` (doc corrections + taxRegime column) CI `31265258768`;

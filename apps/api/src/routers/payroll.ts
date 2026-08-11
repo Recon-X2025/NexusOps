@@ -1022,20 +1022,28 @@ const salaryStructuresRouter = router({
 
   upsert: permissionProcedure("payroll", "write")
     .input(
-      z.object({
-        id: z.string().uuid().optional(),
-        structureName: z.string().min(1).max(200),
-        ctcAnnual: z.coerce.number().nonnegative(),
-        basicPercent: z.coerce.number().min(0).max(100).default(40),
-        daPercent: z.coerce.number().min(0).max(100).default(0),
-        hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
-        ltaAnnual: z.coerce.number().nonnegative().default(0),
-        medicalAllowanceAnnual: z.coerce.number().nonnegative().default(15000),
-        conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(19200),
-        bonusAnnual: z.coerce.number().nonnegative().default(0),
-        effectiveFrom: z.coerce.date(),
-        effectiveTo: z.coerce.date().nullish(),
-      }),
+      z
+        .object({
+          id: z.string().uuid().optional(),
+          structureName: z.string().min(1).max(200),
+          ctcAnnual: z.coerce.number().nonnegative(),
+          basicPercent: z.coerce.number().min(0).max(100).default(50),
+          daPercent: z.coerce.number().min(0).max(100).default(0),
+          hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
+          ltaAnnual: z.coerce.number().nonnegative().default(0),
+          medicalAllowanceAnnual: z.coerce.number().nonnegative().default(0),
+          conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(0),
+          bonusAnnual: z.coerce.number().nonnegative().default(0),
+          effectiveFrom: z.coerce.date(),
+          effectiveTo: z.coerce.date().nullish(),
+        })
+        // Composition guard (server-side, not only the form): Basic + DA is the statutory 50%
+        // wage-base core, so Basic % + DA % must equal 50. The form derives Basic = 50 − DA and
+        // renders it read-only; this refine is the backstop for any direct tRPC caller.
+        .refine((d) => Math.abs(d.basicPercent + d.daPercent - 50) < 0.001, {
+          message: "Basic % + DA % must equal 50 (Basic is derived as 50 − DA).",
+          path: ["basicPercent"],
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -1092,19 +1100,25 @@ const salaryStructuresRouter = router({
   // versions of a family can never be live at once.
   newVersion: permissionProcedure("payroll", "write")
     .input(
-      z.object({
-        familyId: z.string().uuid(),
-        structureName: z.string().min(1).max(200),
-        ctcAnnual: z.coerce.number().nonnegative(),
-        basicPercent: z.coerce.number().min(0).max(100).default(40),
-        daPercent: z.coerce.number().min(0).max(100).default(0),
-        hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
-        ltaAnnual: z.coerce.number().nonnegative().default(0),
-        medicalAllowanceAnnual: z.coerce.number().nonnegative().default(15000),
-        conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(19200),
-        bonusAnnual: z.coerce.number().nonnegative().default(0),
-        effectiveFrom: z.coerce.date(),
-      }),
+      z
+        .object({
+          familyId: z.string().uuid(),
+          structureName: z.string().min(1).max(200),
+          ctcAnnual: z.coerce.number().nonnegative(),
+          basicPercent: z.coerce.number().min(0).max(100).default(50),
+          daPercent: z.coerce.number().min(0).max(100).default(0),
+          hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
+          ltaAnnual: z.coerce.number().nonnegative().default(0),
+          medicalAllowanceAnnual: z.coerce.number().nonnegative().default(0),
+          conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(0),
+          bonusAnnual: z.coerce.number().nonnegative().default(0),
+          effectiveFrom: z.coerce.date(),
+        })
+        // Same composition guard as upsert — Basic % + DA % must equal 50.
+        .refine((d) => Math.abs(d.basicPercent + d.daPercent - 50) < 0.001, {
+          message: "Basic % + DA % must equal 50 (Basic is derived as 50 − DA).",
+          path: ["basicPercent"],
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;

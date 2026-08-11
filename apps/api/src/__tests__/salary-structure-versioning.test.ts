@@ -123,7 +123,7 @@ describe("M-05: salary-structure family versioning", () => {
     const created = await caller.salaryStructures.upsert({
       structureName: `Auto-${nanoid(4)}`,
       ctcAnnual: 1_200_000,
-      basicPercent: 40,
+      basicPercent: 50, // Basic + DA = 50 (composition guard); this test is about versioning, not composition.
       effectiveFrom: FY25_FROM,
     });
     expect(created.familyId).toBe(created.id); // origin
@@ -186,7 +186,7 @@ describe("M-05: salary-structure family versioning", () => {
         id: v1.id,
         structureName: v1.structureName,
         ctcAnnual: 1_500_000,
-        basicPercent: 45,
+        basicPercent: 50, // valid composition, so the refusal comes from the payslip guard (the test's point), not the 50-guard
         effectiveFrom: FY25_FROM,
       }),
     ).rejects.toThrow(/payslips|arrears/i);

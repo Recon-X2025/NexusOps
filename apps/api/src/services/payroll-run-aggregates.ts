@@ -195,14 +195,15 @@ export function buildEmployeePayrollInput(
   const basicMonthly = (ctc * basicPct) / 12;
   const daMonthly = (ctc * daPct) / 12;
   const hraMonthly = basicMonthly * hraPctOfBasic;
-  // PT1: special allowance is the residual of monthly CTC after basic + DA + HRA. The bare
-  // `- 2500` previously subtracted here was the ANNUAL Maharashtra PT cap (₹2,500/year)
-  // applied MONTHLY — 12× too large, in the wrong place, and never added back — so it
-  // silently shaved ₹30,000/year off every employee's gross (and therefore off the TDS
-  // base). PT is deducted separately as a statutory deduction; it does not belong in the
-  // earnings residual. Removed so the run taxes the actual paid components in full.
-  const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - daMonthly - hraMonthly);
   const ltaAnnual = Number(struct.ltaAnnual || 0);
+  const ltaMonthly = ltaAnnual / 12;
+  // PT1: special allowance is the residual of monthly Base Pay after basic + DA + HRA + LTA.
+  // Every named component (DA and LTA, like Basic and HRA) is carved OUT of this residual and
+  // sits INSIDE Base Pay, so gross stays Base Pay/12 — LTA no longer inflates gross on top of it.
+  // (The `- 2500` once subtracted here was the ANNUAL Maharashtra PT cap applied MONTHLY — 12× too
+  // large, in the wrong place, never added back; removed. PT is a separate statutory deduction and
+  // does not belong in the earnings residual.)
+  const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - daMonthly - hraMonthly - ltaMonthly);
   const daysInMonth = new Date(year, month, 0).getDate();
   // G8: LOP derived from attendance. Absent a record, treat as a full paid month.
   const daysWorked = attendance ? attendance.daysWorked : daysInMonth;

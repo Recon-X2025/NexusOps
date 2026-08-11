@@ -5436,6 +5436,101 @@ What this creates instead:
 No customer input is required to start any of these; they are product configuration. C4 and WAGE-DA move
 from "gated / verify-with-customer" to "build."
 
+## BASE-PAY UNIT — 2026-08-11 (built, UNCOMMITTED — do not commit without the owner's go + snapshot)
+
+Full specification and provenance in `docs/COMPONENT_BASE_MATRIX.md`. No migration in this unit;
+every DB column already exists. Cold lint 9/9; full suite green (before this addendum's re-run).
+
+**Ten changes shipped (C1–C5, C7, C9, C10, C11, plus the leave-encashment DA fix):**
+- **C1** — the structure form's `CTC` field is relabelled **Base Pay (₹/yr)** (label only; the column/identifier `ctc` stays).
+- **C2** — the percentage fields are relabelled to show the mixed bases: **Basic % of Base Pay**, **DA % of Base Pay** (HRA % of Basic unchanged).
+- **C3** — **composition enforced at Basic % + DA % = 50**: DA is the input, Basic is derived `50 − DA` (read-only), and a server-side `.refine` on both `upsert` and `newVersion` rejects any direct caller with a non-50 sum. New default is basic 50 / da 0.
+- **C4** — the **Bonus field is removed from the form** (DB column kept). The run zero-feeds bonus, so removing it changes no computed output — asserted by a test.
+- **C5** — **Medical and Conveyance removed from the form** (DB columns kept). Closes **ALLOW**. They were read nowhere and hardcoded to "0" on the payslip (`payroll.ts:531-532`) — inert at any value, so a field that pays nothing was the same class as the Documents-toast / ESI-hardcoded-₹0 defects. The residual absorbs the amount, so nobody is worse off.
+- **C7** — **LTA is carved out of the special-allowance residual** (`payroll-run-aggregates.ts:204`, the DA pattern exactly), so gross stays Base Pay/12 instead of inflating; LTA stays a term in the seven-term exclusion bucket, so the wage base drops correct-ward. Reachability check first: LTA was non-zero on 0 of 14 structures and 0 of 48 payslips (dev), so it is inert against current data.
+- **C9** — the **Base Pay definition** is on the form helper: annual fixed pay; includes the employee's own PF, excludes employer PF/gratuity/bonus; = Gross Earnings on the current payslip × 12.
+- **C10** — the over-allocation warning is **re-scoped**: Basic + DA can no longer over-allocate (fixed at 50), but HRA above 100% of Basic (and/or LTA) still can — the check now sums Basic+DA+HRA+LTA against Base Pay.
+- **C11** — the **gratuity base now includes DA** (`gratuity.ts` `monthlyBasicPlusDA`, `(ctc × (basicPercent + daPercent))/12`) — it previously read `basicPercent` only, understating a statutory payout by the DA share (reachable via `GratuityTab.tsx:23` → `settlement.settle`).
+- **(tenth) leave-encashment base now includes DA** (`leave-accrual.ts:58` `monthlyBasicPlusDA`, the same `(ctc × (basicPercent + daPercent))/12` one-liner as C11, in a second payout path) — reachable via `encash.run` `:570` → `computeLeaveEncashment` `:617` → rupee `amount`; web trigger `LeaveAccrualsTab.tsx:36`. Landed **after** the numbered C-list was drafted, so it is the tenth change; also cross-listed under DA-CONSUMER CLASS below.
+
+**C8 was NOT built, and its premise was wrong.** The employee importer (`ingest.ts` `EmployeeIngestRowSchema:141-180`) has **no CTC/base_pay column** — it links to a salary structure **by name** ("structures are never auto-created from CSV"), and the downloadable template (`csv-import-modal.tsx:177`) has no CTC column either. So there was nothing to relabel to `base_pay`. **Recorded as a documentation defect in the dangerous direction — a `file:line` premise asserted without reading the code.**
+
+**Reads that closed the open questions:**
+- **Q1 (DA reaches the PF core)** — closed: `coreWages = basicEarned + daEarned` (`payroll-cycle.ts`), and DA is carved from the residual.
+- **Q2 (Medical/Conveyance)** — read nowhere, payslip hardcodes "0" → inert; resolved by C5 removal.
+- **Q3 (`ctcAnnual` treated as cost?)** — no consumer treats it as cost (aggregates ÷12; gratuity/leave-accrual as a salary base; `contractedCtc`), so relabel is low-risk.
+- **Q9 (does `computeTax` exempt LTA?)** — **NO.** `tax-engine.ts:283` adds `profile.lta` into `grossSalary` with no `ltaExemption`. New regime (the default) taxes it fully — correct; old regime taxes it fully too (no claim path) — over-taxed, the safe direction. **No first-cycle TDS under-deduction; C6 dropped.**
+
+**GRATUITY-BASE — corrected.** It omits DA and understates the base by the DA share — NOT the earlier "uses full CTC, over-computes ~2×" reading, which was a grep of `:37` without reading the function (the function applies `basicPercent`). Fixed in C11.
+
+**DA-CONSUMER CLASS (standing item).** `basicPercent`-only money consumers, cause: WAGE-DA shipped 2026-08-11 after these were written.
+- `leave-accrual.ts:58` (encashment) — **reaches a payout** (`encash.run` `:570` → `computeLeaveEncashment` `:617` → rupee `amount`; web trigger `LeaveAccrualsTab.tsx:36` `encash.run`), so **FIXED in this unit** (same one-liner as C11, with a test).
+- `payroll.ts:167` (`contractedCtc` preview) — cosmetic preview, not a payout. Not fixed.
+- `payroll-run-aggregates.ts:189` — handles DA correctly (uses basicPct + daPct separately). No fix needed.
+
+**LTA-FABRICATION.** `payslip-tax.ts:44` fabricates a ₹30,000 LTA on the screen payslip + PDF. **Form 16 is clean** (`form16-aggregator.ts:108` calls `computeTax` directly), so this is **display-only**. It is one line of a wholesale placeholder — the declarations intake is hardcoded to 0 with `TODO(compliance)` at `:45-46`, whose stated condition (old-regime over-deduction) is now met since the pilot cohort will elect old regime. Not fixed (out of scope).
+
+**STRUCTURE-BULK (deferred).** There is **no bulk-import path for salary structures** — every structure for all seven pilots is hand-created through the form during onboarding week. A **throughput risk, not a correctness one.** Not built. Trigger to promote: onboarding-week structure volume proving unmanageable by hand.
+
+## STATUTORY-WEB-REACHABILITY — the wage config made reachable in the product — SHIPPED `8b4191a` (2026-08-11)
+
+**Status: SHIPPED & DEPLOYED — commit `8b4191a`, CI run `31453603778` (all five jobs green incl. terminal
+`Deploy to Vultr`, after the recurring reboot — see OUTAGE-2026-08-10 → RECURRENCE). Migrations `0077`–`0079`,
+head `0079_peaceful_caretaker`, 238 base tables.** Live on `connect.coheron.tech` (verified via
+`/api/health` → `version 8b4191a…`).
+
+The engine side (DA composition, voluntary PF, employer 12%/10% rate, Para 26(6), the ECR field-7 correction,
+the Basic + DA bonus gate) is in **PF-CONFIG** above. This entry is what made it **reachable**: none of it had
+a web form, and a completed-onboarding tenant could not set its ESI establishment number, PT registration
+number or PF rate anywhere — so a tenant owing ESI or professional tax could not reach a statutory output at
+all, and step 13's own error pointed to the read-only onboarding wizard.
+
+- **DA %** on the salary-structure form (create + edit), with an over-allocation warning when Basic% + DA%
+  exceed 100% of CTC.
+- **Voluntary PF + Para 26(6)** on the employee form (create + edit) — VPF freely editable; the approval
+  reference framed as what makes uncapped PF lawful; the backend's clearing-an-approved-election warning is
+  now surfaced (was swallowed).
+- **Organisation Settings → Statutory Identity** — a new admin-console tab (`/app/admin?tab=org_statutory`)
+  that sets and edits EPF code, ESI establishment number, PT registration number and PF rate (12%/10% with
+  the reduced-rate reason) AFTER onboarding, via a new `onboarding.updateStatutoryIdentity` mutation
+  (PT registration had no writer at all before). Both the wizard's "Edit in Settings" and the account menu's
+  "Organisation Settings" now lead there, and step 13's three refusal messages (EPF/ESI/PT) plus the
+  ECR-filing refusal name this screen instead of the wizard.
+- **Resolver empty-contract fix** (`resolveStatutoryCeilings`, from the codebase check): the PF-rate read was
+  unconditional and populated `{ pfContributionRate: 0.12 }` for every org, breaking the
+  "empty-when-nothing-configured" contract (byte-identical in effect, but a real failing test). Now emitted
+  only for a non-default rate.
+
+**Verified through the interface — two UI walks (`docs/audits/`):**
+- `ui-runtime-walk_statutory-payroll_2026-08-11_run-063424.md` — established that everything built over two
+  passes was unreachable through the product; one cause, the backend was wired and the web forms were not.
+- `ui-runtime-walk_statutory-fix-verify_2026-08-11_run-075248.md` — established the fix from the interface:
+  refusal → remedy → retry → records; DA on a payslip without gross inflating; voluntary PF raising the
+  employee side only; the base uncapping only with an approval reference present.
+
+**New findings — RECORDED, NOT FIXED (out of scope of this deploy):**
+- **Readiness panel points to the wrong place, and is stale.** The payroll run's "Errors" readiness panel is
+  a separate code path from the step-13 refusal that was corrected; it still names the India setup wizard and
+  does not recompute after the ESI number is set. Same wrong-destination problem, second code path.
+- **Payroll Compliance cards show produced records as ₹0.** The TDS/ECR cards read the deposited / per-
+  component fields (`total_tds_deposited`, EPS/EDLI/admin breakdown) that `generateStatutory` does not
+  populate; the real totals are correct in the DB and on the run-detail aggregates. Pre-existing display path.
+- **EPS membership is not tracked.** A member above superannuation age, or a post-01.09.2014 joiner earning
+  above the ceiling, is not an EPS member and the ECR spec permits zero EPS wages for them — we always emit a
+  positive figure. Wrong on a return for that class of employee, and pilots will have people over 58.
+
+**Form-validation findings — UI probes during the two 11-Aug walks (RECORDED, NOT FIXED; observed through the
+interface, not yet traced to `file:line`):**
+- **Leave: an end-date before the start-date is accepted.** The leave-request form takes an end date earlier
+  than the start date without rejecting it — no client- or server-side date-order guard observed.
+- **Employee: a future date-of-birth is accepted.** The employee create/edit form accepts a DOB in the future
+  — no upper-bound (not-after-today) check. Feeds age-derived logic (PT Tier-1 age exemption, EPS age).
+- **DOB / PAN — mandatory vs. readiness (open question, not a defect).** DOB and PAN are not mandatory at
+  employee-create; whether they should be hard-required on the form or enforced through the payroll-readiness
+  gate is undecided. Statutory outputs (PT age-exemption, TDS, ECR) depend on both.
+- **State dropdown is unsorted.** The employee/org state selector is not in alphabetical order — usability,
+  not correctness. (Distinct from the 2026-08-06 state-dropdown data work above; this is ordering only.)
+
 ## STATUTORY-FILING-LOOP + ONE RESOLVER — SHIPPED `6b08414` (2026-08-10, later)
 
 **Status: SHIPPED & DEPLOYED — commit `6b08414`, CI run `31367753313` (all five jobs green incl. terminal
@@ -5488,7 +5583,21 @@ Build were green throughout — this was not a code failure.
 - The healthcheck gate did its job (dependents did not start against an unhealthy DB), but without rollback
   the result is an outage rather than a safe no-op deploy.
 
-## PF-CONFIG — ECR spec conformance, VPF, employer rate, Para 26(6), bonus gate (2026-08-10, UNCOMMITTED)
+**RECURRENCE (2026-08-11, deploy of `8b4191a`).** The same failure repeated: the first `Deploy to Vultr`
+attempt again left the **Postgres container unable to pass its healthcheck** (`dependency failed to start:
+container …postgres…1 is unhealthy`), so the migrator, api, web and caddy never started — site down, no
+rollback. Resolved the same way: a **full server reboot + Deploy re-run** (all five jobs then green,
+migrations `0077`–`0079` applied). **Two deploys in a row (`6b08414`, `8b4191a`) have now required manual
+intervention.** This is a **recurring deploy failure** with an **established workaround (reboot + re-run)**
+and an **UNESTABLISHED cause** — the Postgres container logs were not read on either occasion, so still do
+not record one. Operationally: **a deploy currently cannot complete unattended**; reading the Postgres logs
+on the next occurrence is the obvious first move.
+
+## PF-CONFIG — ECR spec conformance, VPF, employer rate, Para 26(6), bonus gate — SHIPPED `8b4191a` (2026-08-11)
+
+_**Status: SHIPPED & DEPLOYED as part of `8b4191a`** (CI `31453603778`, migrations `0077`–`0079`). This
+section (originally written UNCOMMITTED on 2026-08-10) is the engine side; the web-form + settings-screen
+reachability that shipped alongside it is in the STATUTORY-WEB-REACHABILITY entry below._
 
 Built against the EPFO ECR 2.0 specification (Introduction_ECR2.0.pdf — primary source; where our
 own docs disagreed, the spec won). All uncommitted; do not commit without the owner's go.
