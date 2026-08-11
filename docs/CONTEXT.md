@@ -38,36 +38,35 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `8b4191a`** — migration head
-  **`0079_peaceful_caretaker`**, 238 base tables — verified through the terminal **`Deploy
-  to Vultr` job of CI run `31453603778`** (all five jobs green — but the first Deploy attempt
-  again failed on an unhealthy Postgres container on the host; a server reboot + Deploy re-run
-  fixed it. This is the **second deploy in a row** to fail that way — see the recurring-failure
-  note at the exit point). `8b4191a` **made the India statutory wage config expressible and
-  reachable**: DA composition, voluntary PF, the employer contribution rate and Para 26(6) —
-  each previously computable but with no web form — plus a new **Organisation Settings →
-  Statutory Identity** screen so a completed-onboarding tenant can set ESI/PT/PF-rate at all;
-  and it corrected the ECR field-7 invariant (see the "2026-08-11" section below). It includes
-  `6b08414` (statutory-filing loop), `9f2f07c` (payroll-readiness + data-driven PT) and
-  `3bf2bf7` (payroll-approval) as ancestors.
+- **LIVE on `connect.coheron.tech` = `origin/main` = `adeb2be`** — migration head
+  **`0079_peaceful_caretaker`**, 238 base tables (no migration in this unit) — verified through the
+  terminal **`Deploy to Vultr` job of CI run `31474830285`** (`success` — but only on the **4th**
+  attempt: two distinct deploy failures occurred and are recorded separately — see the exit-point
+  deploy-history note and `reports/fix-plan.md`). `adeb2be` is the **Base Pay composition** unit
+  (Basic % + DA % = 50 enforced; LTA carved from the residual; Bonus/Medical/Conveyance removed as
+  inert; **DA folded into the gratuity + leave-encashment bases**). It includes `8b4191a` (statutory
+  wage config expressible + reachable), `6b08414` (statutory-filing loop), `9f2f07c`
+  (payroll-readiness + data-driven PT) and `3bf2bf7` (payroll-approval) as ancestors.
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **This "2026-08-11" exit-point refresh is UNCOMMITTED working-tree changes, not a commit.**
-  origin/main and local `main` are both at `8b4191a` (`git rev-list --left-right --count
-  origin/main...HEAD` reads `0  0`). This docs-only refresh is left uncommitted and rides the
-  next code change — do **not** commit or push it on its own. (Earlier refreshes were kept as
-  a local unpushed commit per rule 6; this one is deliberately left uncommitted, per instruction.)
-- **The statutory web-forms + Statutory-Identity-screen change is now LIVE (`8b4191a`).** The
-  working tree carries only this uncommitted docs refresh — see the "2026-08-11" section for
-  detail. `6b08414` (the statutory-filing loop) is an ancestor and also live.
+- **Working tree (as of this writing): the DEPLOY-HARDENING unit, UNCOMMITTED** — infra only
+  (`scripts/vultr-remote-deploy.sh`, `docker-compose.vultr-test.yml`) plus this docs correction.
+  `origin/main` and local `main` are both at `adeb2be`. Do **not** commit or push without the owner's
+  go + snapshot; a push to `main` is a deploy, and this unit changes the deploy itself.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
   a manual fallback only). "What is live" = the `Deploy to Vultr` JOB inside the latest
-  `main` CI run: `gh run view <ci-run-id> --json jobs`. Migrations auto-apply in prod
-  via the `migrator` service before `api` starts.
+  `main` CI run — specifically its **latest attempt**: a run can go green on a re-run
+  after earlier attempts failed (as `31474830285` did — green on attempt 4), so read the
+  **latest attempt's** terminal `Deploy to Vultr` job, not the run's first attempt or its
+  overall status: `gh run view <ci-run-id> --json jobs`. Migrations auto-apply on the
+  deployed stack **via the api container itself** (`node dist/migrate.mjs && node
+  dist/index.mjs`, `apps/api/Dockerfile:62` → drizzle programmatic `migrate()` before the
+  server accepts traffic); the Vultr deploy uses `docker-compose.vultr-test.yml` +
+  `docker-compose.vultr.images.yml`, **not** `docker-compose.prod.yml`'s `migrator` service.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0079`).
 
@@ -161,8 +160,9 @@ Vultr`; migration `0076_lean_puppet_master`, 238 base tables). Per-item detail i
   start is built local-time; safe only because prod is UTC. A `TZ=Asia/Kolkata` deploy would leave
   every 1st-of-month structure unpaid. Owner's call to shape (touches every period comparison).
 - **Deploy note — production OUTAGE (cause UNESTABLISHED):** the first Deploy attempt took the whole
-  stack down (`compose down`/`up`) and Postgres never passed its healthcheck, so migrator/api/web/caddy
-  never started and there was no auto-rollback. Logs were never read (host unreachable via SSH + browser
+  stack down (`compose down`/`up`) and Postgres never passed its healthcheck, so api/web/caddy never
+  started (the api self-migrates on boot, so migrations never ran either — there is no separate migrator
+  on this deployed stack) and there was no auto-rollback. Logs were never read (host unreachable via SSH + browser
   console); resolved by a full server reboot, then a green Deploy re-run. Not a code failure. Recorded as
   `OUTAGE-2026-08-10` in `reports/fix-plan.md`.
 
@@ -668,36 +668,31 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31453603778` — commit `8b4191a` (India statutory wage config made expressible and
-reachable: DA composition, voluntary PF, the employer contribution rate and Para 26(6) — each
-previously computable but with no web form — plus a new Organisation Settings → Statutory Identity
-screen so a completed-onboarding tenant can set ESI/PT/PF-rate, and the step-13 refusal messages
-corrected to name it; the ECR field-7 invariant corrected against the EPFO ECR 2.0 spec; the bonus
-gate reads Basic + DA; the ceiling-resolver empty-contract restored; migrations `0077`–`0079`) —
-terminal `Deploy to Vultr` job `success` — 2026-08-11 — migration head `0079_peaceful_caretaker`,
-238 base tables (0077–0079 add columns + one enum, no new table).** Verified via `gh run view
-31453603778 --json jobs` (all five jobs green: Lint & Type Check · Unit & Integration Tests · E2E
-(Playwright) · Build Docker Images · Deploy to Vultr) and `curl connect.coheron.tech/api/health`
-returning `version: 8b4191a…`. This is what is LIVE on `connect.coheron.tech`. `8b4191a` includes
-`6b08414` (statutory-filing loop), `9f2f07c` (payroll-readiness + data-driven PT) and `3bf2bf7`
-(payroll-approval) as ancestors.
+**CI run `31474830285` — commit `adeb2be` (Base Pay composition: the structure `CTC` field relabelled
+**Base Pay**; **Basic % + DA % = 50** enforced server-side; **LTA carved from the special-allowance
+residual** so gross stays Base Pay/12; Bonus, Medical and Conveyance removed from the form as inert; and
+**DA folded into the gratuity and leave-encashment bases**) — terminal `Deploy to Vultr` job `success`
+**(on the 4th attempt — see the deploy history below)** — 2026-08-11 — migration head
+`0079_peaceful_caretaker`, 238 base tables (no migration in this unit).** Verified via `gh run view
+31474830285 --json jobs` (terminal `Deploy to Vultr` = `success`) and `curl connect.coheron.tech/api/health`
+returning `version: adeb2be…`. This is what is LIVE on `connect.coheron.tech`. `adeb2be` includes `8b4191a`
+(statutory wage config made expressible + reachable), `6b08414` (statutory-filing loop), `9f2f07c`
+(payroll-readiness + data-driven PT) and `3bf2bf7` (payroll-approval) as ancestors.
 
-_Deploy history for this run — the OUTAGE pattern of `6b08414` **RECURRED**, so it is now a
-**recurring failure** (see `reports/fix-plan.md` → "OUTAGE-2026-08-10" and its recurrence entry).
-The FIRST Deploy attempt again ran `docker compose down` then `up`; Redis and Meilisearch came up,
-but the Postgres container never passed its healthcheck (`dependency failed to start: container
-…postgres…1 is unhealthy`), so the migrator, api, web and caddy never started — the site was down,
-no automatic rollback. Resolved the same way: a **full server reboot** followed by re-running the
-Deploy job, after which all five jobs went green and migrations `0077`–`0079` applied. Lint/Test/
-E2E/Build were green throughout — not a code failure. **Cause UNESTABLISHED both times** — the
-Postgres container logs were not read on either occasion, so do not record one. **Two deploys in a
-row (`6b08414`, `8b4191a`) have now needed manual intervention; a deploy currently cannot complete
-unattended.**_
+_Deploy history for this run — the Deploy-to-Vultr job needed **four attempts**, and they were **two
+different failures, recorded separately** (do NOT merge — see `reports/fix-plan.md` → the "THIRD OCCURRENCE
++ a SECOND, DISTINCT failure" note). Attempts **1–2** failed on the recurring compose-recreate symptom
+(`dependency failed to start: container …postgres…1 is unhealthy`) — the **third** occurrence of that family
+(`6b08414`, `8b4191a`, `adeb2be`). Attempt **3** failed at a **different** step, `Trust host key`
+(`ci.yml:287-293`, `ssh-keyscan` exit 1) — the runner could not reach the host; the owner also saw the Vultr
+console reject login. Attempt **4** went green. **Both causes UNESTABLISHED — neither recorded.** In
+response, the **DEPLOY-HARDENING** unit is built (Change A: capture Postgres logs + health to
+`/var/log/coheron/` before recreate, so evidence survives the reboot; Change B: stop tearing Postgres down;
+Change C: Postgres start/stop grace) — infra only, uncommitted at the time of writing._
 
-_This "2026-08-11" exit-point refresh is left **UNCOMMITTED** (working-tree changes, not a commit),
-per instruction; it rides the next code change. origin/main and local `main` are both at `8b4191a`
-(`git rev-list --left-right --count origin/main...HEAD` = `0  0`). Earlier refreshes were kept as a
-local unpushed commit per rule 6; this one is deliberately left uncommitted._
+_This line will be re-stamped by the next code change. **Read the live SHA from the terminal `Deploy to
+Vultr` job of the latest `main` CI run and `/api/health`, never from a SHA quoted in prose** — this line has
+drifted to a stale SHA before._
 
 _Prior validated deploys (all superseded): `6b08414` (statutory-filing loop closed + salary-structure
 resolver unified; its Deploy also failed first on unhealthy Postgres, reboot + re-run fixed it) CI

@@ -190,7 +190,14 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
   `scripts/push-to-vultr.sh`), idle since 2026-07-15. Do **not** read the live deploy
   state off it — the automatic CI `deploy` job is the real route. (Mistaking the two led
   a session to wrongly conclude "not deployed since Jul 15"; it was, via CI.)
-- Migrations auto-apply in prod via the `migrator` service in `docker-compose.prod.yml` (`node -e require('./dist/migrate.js')`); `api` waits for `migrator: service_completed_successfully`.
+- Migrations auto-apply on the deployed Vultr stack **via the api container itself** — its image `CMD` is
+  `node dist/migrate.mjs && node dist/index.mjs` (`apps/api/Dockerfile:62`), so drizzle-orm's programmatic
+  `migrate()` (`apps/api/src/migrate.ts`, folder `packages/db/drizzle`) applies pending migrations **before**
+  the server starts, and the `&&` stops the server booting if a migration fails. **The Vultr deploy uses
+  `docker-compose.vultr-test.yml` + `docker-compose.vultr.images.yml`, NOT `docker-compose.prod.yml`** —
+  `prod.yml` defines a separate `migrator` service (`node -e require('./dist/migrate.js')` +
+  `service_completed_successfully`), but that compose file is **not** the live path, so do not read it as a
+  description of production (same trap as the orphaned MinIO definition).
 - **Always take a backup/snapshot before deploying.** Snapshots and deploy triggers require the user's cloud credentials — Claude cannot perform them. Because a `main` push auto-deploys, **treat pushing `main` as a deploy trigger** (get the user's go + snapshot first).
 
 ## Conventions & guardrails
@@ -204,8 +211,9 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 - **Operational — the dev DB is not auto-migrated.** A fresh local session must confirm the dev
   database is at the journal head (`packages/db/drizzle/meta/_journal.json`) and run `pnpm db:migrate`
   if not. Nothing brings a local DB to head and nothing checks; it was found **14 migrations behind**
-  on 2026-08-09 (login 500'd on a missing column). Prod is safe — it auto-applies via the `migrator`
-  service. (Closed item; see `reports/fix-plan.md` "DEV-DB-14-BEHIND".)
+  on 2026-08-09 (login 500'd on a missing column). Prod is safe — the deployed api container self-migrates
+  on boot (`node dist/migrate.mjs` before the server; see the Deploy section). (Closed item; see
+  `reports/fix-plan.md` "DEV-DB-14-BEHIND".)
 
 ### Operating rules for investigation & recording (learned 2026-08-09)
 

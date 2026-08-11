@@ -92,6 +92,11 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Give Postgres time to flush and shut down cleanly instead of being SIGKILLed
+    # after the 10s default — an unclean stop forces crash recovery on next start,
+    # which is what a short healthcheck window then trips over. Mitigation, not a
+    # diagnosis of the (still unestablished) recreate failures.
+    stop_grace_period: 60s
     environment:
       POSTGRES_USER: coheronconnect
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -105,6 +110,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      # Startup grace: checks that fail during boot / crash recovery don't count
+      # toward `retries`, so the container isn't flipped to unhealthy prematurely.
+      start_period: 30s
 
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:

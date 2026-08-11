@@ -5593,6 +5593,62 @@ and an **UNESTABLISHED cause** — the Postgres container logs were not read on 
 not record one. Operationally: **a deploy currently cannot complete unattended**; reading the Postgres logs
 on the next occurrence is the obvious first move.
 
+**THIRD OCCURRENCE + a SECOND, DISTINCT failure (2026-08-11, deploy of `adeb2be`).** CI run `31474830285`
+took **four `Deploy to Vultr` attempts**. Established from `gh` (not prose):
+- Attempts **1 and 2** failed at the **Deploy step** on the same compose-recreate symptom
+  (`dependency failed to start: container …postgres…1 is unhealthy`) — the recurring family, now its
+  **third** occurrence (`6b08414`, `8b4191a`, `adeb2be`). Cause still **UNESTABLISHED** — the container logs
+  were again not captured before recovery (which is exactly what DEPLOY-HARDENING → Change A fixes).
+- Attempt **3** failed at a **different step**, `Trust host key` (`ci.yml:287-293`,
+  `ssh-keyscan -H "$VULTR_HOST"` exit 1): the runner could not reach the host at all. The owner also observed
+  the **Vultr console rejecting login** during this window.
+- Attempt **4** went green → `adeb2be` live (`/api/health` → `adeb2be…`).
+
+**These are two different failures and must not be merged.** The `ssh-keyscan`/host-unreachable failure is a
+**host-reachability incident**, not an instance of the Postgres-recreate family; folding it into the Postgres
+"cause unestablished" register would record a symptom as an instance of a cause that is still not established.
+**Both causes remain UNESTABLISHED**, and no cause is recorded for either. The response is DEPLOY-HARDENING
+(below), which makes the evidence survive and removes the recreate race — without claiming a diagnosis.
+
+## DEPLOY-HARDENING — 2026-08-11 (built, UNCOMMITTED — infra only; no app code, no migration)
+
+Response to three consecutive reboot-needing deploys. It records **no cause** for the healthcheck failures;
+it makes the evidence survive a reboot and removes the failure mode. Files: `scripts/vultr-remote-deploy.sh`,
+`docker-compose.vultr-test.yml`.
+
+- **Change A — evidence survives.** Before any recreate, dump the Postgres container's `docker logs` +
+  `docker inspect .State.Health` + `df -h` + `free -m` to `/var/log/coheron/pg-predeploy-<ts>.log`. Never
+  fails the deploy (mkdir/dump errors are logged and skipped); keeps the newest ~20 files so it can't fill
+  the disk. The health JSON — the single most useful artefact, never once captured across three incidents —
+  is now written every deploy, **outside any container**, so it survives the recovery reboot.
+- **Change B — stop tearing Postgres down.** Replaced the blanket `compose down`/`up` with a
+  **service-scoped recreate**: postgres/redis/meilisearch are left running (`up -d`, no-op if unchanged),
+  Postgres health is waited on, then only web/api/caddy/dpdp-sweeper are recreated with the new images
+  (`--no-deps`). **Safe — established by READING the api startup path, not inferred from the absent
+  migrator:** the api image `CMD` is `node dist/migrate.mjs && node dist/index.mjs` (`apps/api/Dockerfile:62`),
+  and `apps/api/src/migrate.ts` runs drizzle-orm's programmatic `migrate(db, { migrationsFolder:
+  packages/db/drizzle })` and `process.exit(1)` on failure — so migrations apply on every api boot, **before**
+  the server accepts traffic, against whatever Postgres is running (recreated or not). (`docker-compose.prod.yml`'s
+  `migrator`/`service_completed_successfully` is a different, unused compose file.) If Postgres is never
+  stopped, the recreate race cannot occur — the failure mode disappears **without the cause being
+  established**, stated plainly rather than implying a diagnosis. Nothing uses `-v`.
+  - **Known consequence (trade accepted):** because Postgres is no longer recreated on a normal deploy, the
+    deploy **stops exercising Postgres's own startup path**. A latent problem there (the still-unestablished
+    healthcheck cause among them) will now surface only on a **host reboot**, at whatever moment that happens,
+    rather than on the next deploy. Change A's capture runs before every recreate regardless, and Change C
+    widens the startup/shutdown window, but the startup path itself is exercised less often — a known
+    consequence, recorded here rather than left as a later surprise.
+- **Change C — healthcheck headroom (mitigation, not diagnosis).** Postgres had **no `start_period` and no
+  `stop_grace_period`** (interval 10s / timeout 5s / retries 5). Added `stop_grace_period: 60s` (clean
+  shutdown instead of SIGKILL after 10s → no crash recovery on next start) and `healthcheck.start_period:
+  30s` (boot / crash-recovery checks don't count toward `retries`).
+
+**Verified without deploying:** `bash -n` clean on both scripts; the compose YAML parses and the postgres
+block carries both new keys; every service Change B names exists in the compose. **`docker compose config`
+could not run locally** — each service's `env_file: .env.production` is a host-only secret, absent here; that
+limit is stated, not papered over. **The real test is the deploy.** Gate: **cold lint 9/9** (0 cached, 13.2s),
+**full suite 177 files / 1593 tests, 0 failures**. **Not committed; not pushed.**
+
 ## PF-CONFIG — ECR spec conformance, VPF, employer rate, Para 26(6), bonus gate — SHIPPED `8b4191a` (2026-08-11)
 
 _**Status: SHIPPED & DEPLOYED as part of `8b4191a`** (CI `31453603778`, migrations `0077`–`0079`). This

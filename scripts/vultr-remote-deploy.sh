@@ -70,15 +70,65 @@ else
   exit 1
 fi
 
-echo "── docker compose down (remove orphans) ──"
-"${COMPOSE[@]}" down --remove-orphans || true
+# ── Change A: capture Postgres evidence BEFORE any recreate ───────────────────
+# The healthcheck failure that has needed a manual reboot three times destroys its
+# own evidence: a `compose down` removes the container (and its logs) and the
+# recovery reboot follows immediately. Dump logs + health + host resources to a
+# durable file on the host first. This must NEVER fail the deploy.
+capture_postgres_evidence() {
+  local dir="/var/log/coheron" ts f cid
+  ts="$(date +%Y%m%dT%H%M%S)"
+  if ! mkdir -p "$dir" 2>/dev/null; then
+    echo "⚠ capture: cannot create $dir — skipping (deploy continues)"; return 0
+  fi
+  cid="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null || true)"
+  f="$dir/pg-predeploy-$ts.log"
+  {
+    echo "=== pg-predeploy $ts  (container=${cid:-<none>}) ==="
+    if [[ -n "$cid" ]]; then
+      echo "--- docker inspect .State.Health (the failing check + recent results) ---"
+      docker inspect "$cid" --format '{{json .State.Health}}' 2>&1 || true
+      echo; echo "--- docker logs postgres ---"
+      docker logs "$cid" 2>&1 || true
+    else
+      echo "(no postgres container present)"
+    fi
+    echo; echo "--- df -h ---";  df -h  2>&1 || true
+    echo; echo "--- free -m ---"; free -m 2>&1 || true
+  } >"$f" 2>&1 || echo "⚠ capture: writing $f errored — continuing"
+  echo "✓ captured Postgres evidence → $f"
+  # Keep the newest ~20 captures so this can never fill the disk.
+  ls -1t "$dir"/pg-predeploy-*.log 2>/dev/null | tail -n +21 | while read -r old; do
+    rm -f "$old" 2>/dev/null || true
+  done
+  return 0
+}
+capture_postgres_evidence || true
 
-echo "── docker compose up ──"
+# ── Change B: recreate the application tier only — Postgres stays up ───────────
+# A blanket `compose down` used to stop Postgres too, and the recreate then raced
+# its healthcheck; three deploys in a row needed a manual host reboot. Postgres
+# (and Redis/Meilisearch) data does not change between deploys, so they are never
+# stopped here — only web/api/caddy/dpdp-sweeper are recreated with the new images.
+# The api self-migrates on boot against the already-running Postgres (this compose
+# file has no migrator service). NEVER pass -v to anything below.
+echo "── data services: ensure up (no teardown, no recreate if unchanged) ──"
+"${COMPOSE[@]}" up -d --no-build postgres redis meilisearch
+
+echo "── wait for Postgres health before recreating the app tier ──"
+for _ in $(seq 1 30); do
+  if "${COMPOSE[@]}" exec -T postgres pg_isready -U coheronconnect >/dev/null 2>&1; then
+    echo "✓ Postgres ready"; break
+  fi
+  sleep 2
+done
+
+echo "── recreate application services (postgres/redis/meilisearch untouched) ──"
 if [[ "$DEPLOY_MODE" == "pull" ]]; then
   # Base compose still defines `build:`; pulled images must be used without rebuilding on VPS.
-  "${COMPOSE[@]}" up -d --no-build
+  "${COMPOSE[@]}" up -d --no-build --no-deps web api caddy dpdp-sweeper
 else
-  "${COMPOSE[@]}" up -d
+  "${COMPOSE[@]}" up -d --no-deps web api caddy dpdp-sweeper
 fi
 
 # Compose handle for exec/ps — same file set as the up/pull above. The api port
