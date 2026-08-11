@@ -23,6 +23,7 @@
 import {
   statutoryCeilings,
   professionalTaxSlabs,
+  organizations,
   eq,
   and,
   or,
@@ -293,6 +294,18 @@ export async function resolveStatutoryCeilings(
     hasPtTable = true;
   }
   if (hasPtTable) overrides.ptSlabs = ptFromTable;
+
+  // Establishment PF contribution rate (org-level; 10% for small/sick, else 12%). Resolved here
+  // so both run paths (totals + payslip write) pick it up via the same overrides object. Only
+  // emit the override when the establishment is on a NON-default rate: at 12% the engine's
+  // built-in rate already applies, and emitting nothing preserves the resolver's "empty when
+  // nothing configured" contract (a bare org resolves to {}). 10% → 0.10 override.
+  const [orgRow] = await db
+    .select({ pfContributionRate: organizations.pfContributionRate })
+    .from(organizations)
+    .where(eq(organizations.id, orgId));
+  const pfRatePct = Number(orgRow?.pfContributionRate ?? 12);
+  if (pfRatePct > 0 && pfRatePct !== 12) overrides.pfContributionRate = pfRatePct / 100;
 
   return overrides;
 }

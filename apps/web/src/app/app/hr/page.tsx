@@ -149,6 +149,13 @@ export default function HRPage() {
     previousEmployerIncome: "",
     previousEmployerTds: "",
     rentPaidAnnual: "",
+    // Voluntary PF: extra EMPLOYEE rate above the statutory 12% (percentage). Employee's own choice.
+    voluntaryPfRate: "",
+    // EPFO Para 26(6): PF on the full basic (uncapped) — lawful only with an approval reference.
+    para266JointRequest: false,
+    para266EmployerUndertaking: false,
+    para266ApprovalReference: "",
+    para266EffectiveFrom: "",
   });
   const [editEmpForm, setEditEmpForm] = useState({
     department: "",
@@ -176,6 +183,11 @@ export default function HRPage() {
     previousEmployerIncome: "",
     previousEmployerTds: "",
     rentPaidAnnual: "",
+    voluntaryPfRate: "",
+    para266JointRequest: false,
+    para266EmployerUndertaking: false,
+    para266ApprovalReference: "",
+    para266EffectiveFrom: "",
   });
 
   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
@@ -221,14 +233,21 @@ export default function HRPage() {
         previousEmployerIncome: "",
         previousEmployerTds: "",
         rentPaidAnnual: "",
+        voluntaryPfRate: "",
+        para266JointRequest: false,
+        para266EmployerUndertaking: false,
+        para266ApprovalReference: "",
+        para266EffectiveFrom: "",
       });
     },
     onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not create employee"),
   });
 
   const updateEmployee = trpc.hr.employees.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (data?: { warnings?: string[] }) => {
       toast.success("Employee updated");
+      // Surface any backend warnings (e.g. clearing an approved Para 26(6) election) — do not swallow.
+      for (const w of data?.warnings ?? []) toast.warning(w, { duration: 12000 });
       utils.hr.employees.list.invalidate();
       setEditingEmployee(null);
     },
@@ -1385,6 +1404,55 @@ export default function HRPage() {
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, rentPaidAnnual: e.target.value }))}
                 />
               </div>
+
+              {/* ── Provident fund: voluntary top-up + Para 26(6) uncapped election ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Provident fund — voluntary &amp; Para 26(6)</p>
+                <p className="text-[10px] text-muted-foreground">VPF is the employee&rsquo;s own top-up above the statutory 12% (the employer contribution is unchanged). Para 26(6) contributes on the full basic above ₹15,000 — lawful only once an approval reference is on record.</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Voluntary PF rate (% above 12)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={88}
+                  step="0.01"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.voluntaryPfRate}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, voluntaryPfRate: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={addEmpForm.para266JointRequest} onChange={(e) => setAddEmpForm((f) => ({ ...f, para266JointRequest: e.target.checked }))} />
+                  Para 26(6) joint request received
+                </label>
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={addEmpForm.para266EmployerUndertaking} onChange={(e) => setAddEmpForm((f) => ({ ...f, para266EmployerUndertaking: e.target.checked }))} />
+                  Employer undertaking given
+                </label>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">EPFO approval reference <span className="text-primary">— this is what makes uncapped PF lawful</span></label>
+                <input
+                  type="text"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.para266ApprovalReference}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, para266ApprovalReference: e.target.value }))}
+                  placeholder="e.g. EPFO/JD/2026/12345"
+                />
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">Without this reference the ₹15,000 ceiling applies, whatever else is recorded here.</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Effective from</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.para266EffectiveFrom}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, para266EffectiveFrom: e.target.value }))}
+                />
+              </div>
             </div>
             </div>
             <div className="flex gap-2 p-5 pt-3 border-t border-border shrink-0">
@@ -1433,6 +1501,15 @@ export default function HRPage() {
                       : undefined,
                     rentPaidAnnual: addEmpForm.rentPaidAnnual
                       ? Number(addEmpForm.rentPaidAnnual)
+                      : undefined,
+                    voluntaryPfRate: addEmpForm.voluntaryPfRate
+                      ? Number(addEmpForm.voluntaryPfRate)
+                      : undefined,
+                    para266JointRequest: addEmpForm.para266JointRequest,
+                    para266EmployerUndertaking: addEmpForm.para266EmployerUndertaking,
+                    para266ApprovalReference: addEmpForm.para266ApprovalReference.trim() || undefined,
+                    para266EffectiveFrom: addEmpForm.para266EffectiveFrom
+                      ? new Date(`${addEmpForm.para266EffectiveFrom}T12:00:00`)
                       : undefined,
                   });
                 }}
@@ -1758,6 +1835,55 @@ export default function HRPage() {
                   onChange={(e) => setEditEmpForm((f) => ({ ...f, rentPaidAnnual: e.target.value }))}
                 />
               </div>
+
+              {/* ── Provident fund: voluntary top-up + Para 26(6) uncapped election ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Provident fund — voluntary &amp; Para 26(6)</p>
+                <p className="text-[10px] text-muted-foreground">VPF is the employee&rsquo;s own top-up above 12% (employer unchanged), changeable at will. Para 26(6) uncaps PF only with an approval reference; clearing an approved election is warned, not blocked.</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Voluntary PF rate (% above 12)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={88}
+                  step="0.01"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.voluntaryPfRate}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, voluntaryPfRate: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={editEmpForm.para266JointRequest} onChange={(e) => setEditEmpForm((f) => ({ ...f, para266JointRequest: e.target.checked }))} />
+                  Para 26(6) joint request received
+                </label>
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={editEmpForm.para266EmployerUndertaking} onChange={(e) => setEditEmpForm((f) => ({ ...f, para266EmployerUndertaking: e.target.checked }))} />
+                  Employer undertaking given
+                </label>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">EPFO approval reference <span className="text-primary">— this is what makes uncapped PF lawful</span></label>
+                <input
+                  type="text"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.para266ApprovalReference}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, para266ApprovalReference: e.target.value }))}
+                  placeholder="e.g. EPFO/JD/2026/12345"
+                />
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">Clearing this on an approved election reverts PF to the ₹15,000 ceiling; the change is accepted with a warning.</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Effective from</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.para266EffectiveFrom}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, para266EffectiveFrom: e.target.value }))}
+                />
+              </div>
             </div>
             </div>
             <div className="flex gap-2 p-5 pt-3 border-t border-border shrink-0">
@@ -1800,6 +1926,17 @@ export default function HRPage() {
                       : undefined,
                     rentPaidAnnual: editEmpForm.rentPaidAnnual
                       ? Number(editEmpForm.rentPaidAnnual)
+                      : undefined,
+                    // VPF is freely editable — an empty field means the employee removed it (0).
+                    voluntaryPfRate:
+                      editEmpForm.voluntaryPfRate === "" ? 0 : Number(editEmpForm.voluntaryPfRate),
+                    para266JointRequest: editEmpForm.para266JointRequest,
+                    para266EmployerUndertaking: editEmpForm.para266EmployerUndertaking,
+                    // Send the raw (possibly empty) reference so the backend can detect + warn on
+                    // clearing an approved election rather than silently ignoring it.
+                    para266ApprovalReference: editEmpForm.para266ApprovalReference.trim(),
+                    para266EffectiveFrom: editEmpForm.para266EffectiveFrom
+                      ? new Date(`${editEmpForm.para266EffectiveFrom}T12:00:00`)
                       : undefined,
                   });
                 }}
@@ -1995,6 +2132,16 @@ export default function HRPage() {
                                     emp.previousEmployerTds != null ? String(emp.previousEmployerTds) : "",
                                   rentPaidAnnual:
                                     emp.rentPaidAnnual != null ? String(emp.rentPaidAnnual) : "",
+                                  voluntaryPfRate:
+                                    emp.voluntaryPfRate != null && Number(emp.voluntaryPfRate) > 0
+                                      ? String(Number(emp.voluntaryPfRate))
+                                      : "",
+                                  para266JointRequest: Boolean(emp.para266JointRequest),
+                                  para266EmployerUndertaking: Boolean(emp.para266EmployerUndertaking),
+                                  para266ApprovalReference: String(emp.para266ApprovalReference ?? ""),
+                                  para266EffectiveFrom: emp.para266EffectiveFrom
+                                    ? String(emp.para266EffectiveFrom).slice(0, 10)
+                                    : "",
                                 });
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"

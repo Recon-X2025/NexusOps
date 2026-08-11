@@ -202,7 +202,13 @@ describe("statutory generation — close the loop + ECR/ESI defect fixes", () =>
     expect(Number(slip.pfWageBase)).not.toBe(Number(slip.basic)); // ≠ raw basic (₹10k)
 
     const line = buildEcrLine(slip, { uan: "U1", memberName: "Asha Rao" });
-    expect(Math.round(line.epfWages * 0.12)).toBe(line.employeeEpf); // the EPFO reconciliation
+    // EPFO ECR 2.0 field-7 rule: EE share remitted ≤ gross wages, whole number. (There is NO
+    // epfWages×12% equality check in the spec.) The stored 12% × ₹15,000 = ₹1,800 for this
+    // clamp-bit employee; epfWages is the wage the dues were paid on (₹15,000).
+    expect(line.employeeEpf).toBeLessThanOrEqual(line.grossWages);
+    expect(Number.isInteger(line.employeeEpf)).toBe(true);
+    expect(line.employeeEpf).toBe(1800);
+    expect(line.epfWages).toBe(15000);
   });
 
   it("ECR: employerEps + employerEpf is the run's 12% employer PF, EPS counted once (not the total)", async () => {
@@ -223,7 +229,7 @@ describe("statutory generation — close the loop + ECR/ESI defect fixes", () =>
 
   it("ECR: member name is the person's name and NCP is the payslip's LOP days (buildEcrLine)", async () => {
     const line = buildEcrLine(
-      { grossEarnings: "40000", pfWageBase: "15000", pfEmployee: "1800", pfEmployerEps: "1250", pfEmployerEpf: "551", lopDays: "3.0" },
+      { grossEarnings: "40000", pfWageBase: "15000", pfEmployee: "1800", pfEmployerEps: "1250", pfEmployerEpf: "551", lopDays: "3.0", month: 4, year: 2026 },
       { uan: "U1", memberName: "Asha Rao" },
     );
     expect(line.memberName).toBe("Asha Rao"); // not an employee code

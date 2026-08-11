@@ -105,6 +105,11 @@ export const salaryStructures = pgTable(
     ctcAnnual: decimal("ctc_annual", { precision: 14, scale: 2 }).notNull(),
     basicPercent: decimal("basic_percent", { precision: 5, scale: 2 }).notNull().default("40"),
     hraPercentOfBasic: decimal("hra_percent_of_basic", { precision: 5, scale: 2 }).notNull().default("50"),
+    // Dearness Allowance as a % of monthly CTC. The employer elects the wage-base composition:
+    // basic alone, or basic + DA. DA is part of "wages" (Code on Wages s.2(y) core) — it joins
+    // basic in the PF/ESI wage base and is carved OUT of the special-allowance residual, so it
+    // does not fall into the excluded allowances. Default 0 = basic-alone composition (unchanged).
+    daPercent: decimal("da_percent", { precision: 5, scale: 2 }).notNull().default("0"),
     ltaAnnual: decimal("lta_annual", { precision: 12, scale: 2 }).notNull().default("0"),
     medicalAllowanceAnnual: decimal("medical_allowance_annual", { precision: 12, scale: 2 }).notNull().default("15000"),
     conveyanceAllowanceAnnual: decimal("conveyance_allowance_annual", { precision: 12, scale: 2 }).notNull().default("19200"),
@@ -165,6 +170,20 @@ export const employees = pgTable(
     aadhaarMaskedDisplay: text("aadhaar_masked_display"),
     uan: text("uan"),
     esiIpNumber: text("esi_ip_number"),
+    // Voluntary Provident Fund: an EXTRA employee PF rate above the statutory 12% (a percentage,
+    // e.g. 8.00 = 12% + 8%). Employee-only — the employer's statutory 12% is unchanged (the EPF
+    // scheme does not oblige the employer to match VPF). Default 0 = no VPF (unchanged).
+    voluntaryPfRate: decimal("voluntary_pf_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+    // EPFO Para 26(6): a joint declaration lets PF be contributed on the FULL basic (uncapped),
+    // above the ₹15,000 ceiling. The uncapped base is computed ONLY where an approval reference
+    // exists AND the effective date has been reached — no reference = the ceiling applies. Record
+    // the request, the employer undertaking, the approval reference, and when it takes effect.
+    // Unlike VPF, this is not the employee's to change at will; revocation is warned, not refused
+    // (irrevocability is EPFO administrative convention, not statute).
+    para266JointRequest: boolean("para266_joint_request").notNull().default(false),
+    para266EmployerUndertaking: boolean("para266_employer_undertaking").notNull().default(false),
+    para266ApprovalReference: text("para266_approval_reference"),
+    para266EffectiveFrom: timestamp("para266_effective_from", { withTimezone: true }),
     /**
      * ESI membership for the CURRENT contribution period (Apr–Sep or Oct–Mar).
      * ESI eligibility is not a month-by-month gross test: membership is assessed at
@@ -510,6 +529,9 @@ export const payslips = pgTable(
     /** G8: attendance basis of this payslip's gross (paid days vs loss-of-pay days). */
     paidDays: decimal("paid_days", { precision: 5, scale: 1 }).notNull().default("0"),
     lopDays: decimal("lop_days", { precision: 5, scale: 1 }).notNull().default("0"),
+    // Dearness Allowance earned this month (its own earnings line). Part of gross, carved from
+    // the special-allowance residual; feeds the PF/ESI wage base as basic+DA. Default 0.
+    da: decimal("da", { precision: 12, scale: 2 }).notNull().default("0"),
     basic: decimal("basic", { precision: 12, scale: 2 }).notNull().default("0"),
     hra: decimal("hra", { precision: 12, scale: 2 }).notNull().default("0"),
     specialAllowance: decimal("special_allowance", { precision: 12, scale: 2 }).notNull().default("0"),

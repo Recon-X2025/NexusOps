@@ -120,6 +120,7 @@ export interface EmployeePayslip {
   lopDays: number;
   // Earnings
   basicEarned: number;
+  daEarned: number; // Dearness Allowance earned (own line); part of gross and the PF/ESI wage base
   hraEarned: number;
   specialAllowance: number;
   lta: number;
@@ -206,6 +207,10 @@ export interface EmployeePayrollInput {
   ptPeriodMissingMonths?: number[];
   // Salary structure
   basicMonthly: number;
+  /** Dearness Allowance (monthly). Part of the Code-on-Wages core: it joins basic in the PF/ESI
+   *  wage base and is a distinct earnings line. Optional; absent/0 = basic-alone composition
+   *  (byte-identical to before DA existed). Does NOT enter the HRA-exemption salary base. */
+  daMonthly?: number;
   hraMonthly: number;
   specialAllowance: number;
   ltaAnnual: number;
@@ -231,6 +236,9 @@ export interface EmployeePayrollInput {
   otherDeductions: number;
   // PF
   isVoluntaryHigherPF: boolean;
+  /** Voluntary PF: EXTRA employee rate above the statutory 12% (fraction, e.g. 0.08 = +8%).
+   *  Employee-only; the employer contribution is unchanged. Optional; absent/0 = no VPF. */
+  voluntaryPfRate?: number;
   /** ESI membership held for the current contribution period (from the employee
    *  record); null/undefined = unknown. Drives the six-month membership rule so a
    *  member is not dropped mid-period and a non-member does not join mid-period. */
@@ -253,6 +261,7 @@ export interface EmployeePayrollInput {
  */
 export function computeGross(emp: EmployeePayrollInput): {
   basicEarned: number;
+  daEarned: number;
   hraEarned: number;
   specialAllowanceEarned: number;
   ltaEarned: number;
@@ -262,12 +271,16 @@ export function computeGross(emp: EmployeePayrollInput): {
     emp.lopDays > 0 ? (emp.daysWorked / emp.daysInMonth) : 1;
 
   const basicEarned = Math.round(emp.basicMonthly * lopFactor);
+  // DA is carved out of the special-allowance residual by the caller, so adding it here as its
+  // own line keeps gross total unchanged (basic-alone: daMonthly = 0 ⇒ daEarned = 0).
+  const daEarned = Math.round((emp.daMonthly ?? 0) * lopFactor);
   const hraEarned = Math.round(emp.hraMonthly * lopFactor);
   const specialAllowanceEarned = Math.round(emp.specialAllowance * lopFactor);
   const ltaEarned = Math.round((emp.ltaAnnual / 12) * lopFactor);
 
   const grossEarnings =
     basicEarned +
+    daEarned +
     hraEarned +
     specialAllowanceEarned +
     ltaEarned +
@@ -276,7 +289,7 @@ export function computeGross(emp: EmployeePayrollInput): {
     emp.bonus +
     emp.otherEarnings;
 
-  return { basicEarned, hraEarned, specialAllowanceEarned, ltaEarned, grossEarnings };
+  return { basicEarned, daEarned, hraEarned, specialAllowanceEarned, ltaEarned, grossEarnings };
 }
 
 /**
@@ -300,17 +313,27 @@ export function computeEmployeePayslip(
   // is the contractual wage tested for eligibility. Ineligible ⇒ statutory bonus
   // is not payable, so it is removed from gross.
   const bonusEligible = labourCodesInForce
-    ? computeStatutoryBonusEligibility(emp.basicMonthly, ceilings.bonusEligibilityCeiling)
-        .isEligible
+    ? computeStatutoryBonusEligibility(
+        // Payment of Bonus Act reads "salary or wage" as Basic + DA (not basic alone). For a
+        // DA employee near the ₹21,000 ceiling, basic alone under-counts and wrongly keeps them
+        // eligible. daMonthly = 0 for a basic-alone composition, so this is byte-identical there.
+        emp.basicMonthly + (emp.daMonthly ?? 0),
+        ceilings.bonusEligibilityCeiling,
+      ).isEligible
     : true;
   const effectiveBonus = bonusEligible ? emp.bonus : 0;
 
   // Step 2: Gross (recomputed with the eligibility-gated bonus).
-  const { basicEarned, hraEarned, specialAllowanceEarned, ltaEarned, grossEarnings } = computeGross({
+  const { basicEarned, daEarned, hraEarned, specialAllowanceEarned, ltaEarned, grossEarnings } = computeGross({
     ...emp,
     bonus: effectiveBonus,
   });
 
+  // Core "wages" for the PF/ESI base = basic + DA (Code on Wages s.2(y)); DA is NOT an excluded
+  // allowance. `excludedAllowances` is everything else. The 50% clamp then resolves to half of
+  // total regardless of how the core is split between basic and DA — so a Basic+DA composition
+  // and an all-Basic composition summing to the same core yield the same wage base.
+  const coreWages = basicEarned + daEarned;
   const excludedAllowances =
     hraEarned +
     specialAllowanceEarned +
@@ -320,8 +343,8 @@ export function computeEmployeePayslip(
     effectiveBonus +
     emp.otherEarnings;
   const wageBase = labourCodesInForce
-    ? calculateLabourCodeWageBase(basicEarned, excludedAllowances).statutoryWageBase
-    : basicEarned;
+    ? calculateLabourCodeWageBase(coreWages, excludedAllowances).statutoryWageBase
+    : coreWages;
 
   // Resolve the PT context: gender (Maharashtra bracket selection) and the composite
   // Tier-1 exemption. Age > 65 is derived from DOB as of the pay period; the other three
@@ -351,10 +374,12 @@ export function computeEmployeePayslip(
     ceilings,
     ptContext,
     emp.esiMemberAtPeriodStart,
-    // ESI eligibility threshold uses the FULL-MONTH pay scale (basic + HRA + special),
+    // ESI eligibility threshold uses the FULL-MONTH pay scale (basic + DA + HRA + special),
     // excluding overtime and NOT prorated — so a part-month joiner is tested on their
     // scale, not a fragment. The contribution itself is on actual earned gross.
-    emp.basicMonthly + emp.hraMonthly + emp.specialAllowance,
+    emp.basicMonthly + (emp.daMonthly ?? 0) + emp.hraMonthly + emp.specialAllowance,
+    // VPF: extra employee PF rate above 12% (employee-only).
+    emp.voluntaryPfRate ?? 0,
   );
 
   // Step 7: TDS
@@ -490,6 +515,7 @@ export function computeEmployeePayslip(
     lopDays: emp.lopDays,
     // Earnings
     basicEarned,
+    daEarned,
     hraEarned,
     specialAllowance: specialAllowanceEarned,
     lta: ltaEarned,

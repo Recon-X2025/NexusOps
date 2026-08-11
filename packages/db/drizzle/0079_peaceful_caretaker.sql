@@ -1,0 +1,2 @@
+CREATE TYPE "public"."pf_reduced_rate_reason" AS ENUM('bidi', 'brick', 'coir', 'jute', 'guar_gum', 'under_20_employees', 'sick_establishment');--> statement-breakpoint
+ALTER TABLE "organizations" ADD COLUMN "pf_reduced_rate_reason" "pf_reduced_rate_reason";

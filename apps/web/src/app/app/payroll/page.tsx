@@ -77,6 +77,7 @@ interface StructureFormState {
   structureName: string;
   ctcAnnual: string;
   basicPercent: string;
+  daPercent: string;
   hraPercentOfBasic: string;
   ltaAnnual: string;
   medicalAllowanceAnnual: string;
@@ -91,6 +92,7 @@ function emptyStructureForm(): StructureFormState {
     structureName: "",
     ctcAnnual: "",
     basicPercent: "40",
+    daPercent: "0",
     hraPercentOfBasic: "50",
     ltaAnnual: "0",
     medicalAllowanceAnnual: "15000",
@@ -108,6 +110,7 @@ function structureToForm(s: Record<string, any>): StructureFormState {
     structureName: s.structureName ?? "",
     ctcAnnual: String(s.ctcAnnual ?? ""),
     basicPercent: String(s.basicPercent ?? "40"),
+    daPercent: String(s.daPercent ?? "0"),
     hraPercentOfBasic: String(s.hraPercentOfBasic ?? "50"),
     ltaAnnual: String(s.ltaAnnual ?? "0"),
     medicalAllowanceAnnual: String(s.medicalAllowanceAnnual ?? "15000"),
@@ -745,6 +748,7 @@ export default function PayrollPage() {
                   structureName: structureEditor.structureName,
                   ctcAnnual: Number(structureEditor.ctcAnnual),
                   basicPercent: Number(structureEditor.basicPercent),
+                  daPercent: Number(structureEditor.daPercent),
                   hraPercentOfBasic: Number(structureEditor.hraPercentOfBasic),
                   ltaAnnual: Number(structureEditor.ltaAnnual),
                   medicalAllowanceAnnual: Number(structureEditor.medicalAllowanceAnnual),
@@ -770,6 +774,7 @@ export default function PayrollPage() {
                 {([
                   ["ctcAnnual", "Annual CTC (₹)"],
                   ["basicPercent", "Basic %"],
+                  ["daPercent", "DA %"],
                   ["hraPercentOfBasic", "HRA % of Basic"],
                   ["ltaAnnual", "LTA (₹/yr)"],
                   ["medicalAllowanceAnnual", "Medical (₹/yr)"],
@@ -790,6 +795,17 @@ export default function PayrollPage() {
                   </label>
                 ))}
               </div>
+              <p className="text-caption text-gray-500 dark:text-gray-400 -mt-1">
+                DA joins Basic in the PF/ESI wage base (the statutory &ldquo;Basic + DA&rdquo; core). Leave 0 for a
+                basic-alone composition; DA is carved out of the special-allowance residual, so gross is unchanged.
+              </p>
+              {Number(structureEditor.basicPercent || 0) + Number(structureEditor.daPercent || 0) > 100 && (
+                <div className="text-body-sm text-amber-600 dark:text-amber-500">
+                  Basic % + DA % is{" "}
+                  {Number(structureEditor.basicPercent || 0) + Number(structureEditor.daPercent || 0)}% — over 100% of
+                  CTC. The special-allowance residual will clamp to zero and gross may exceed CTC. Check the composition.
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Effective from</span>

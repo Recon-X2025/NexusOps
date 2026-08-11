@@ -82,7 +82,10 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   `employees.esi_member`/`esi_member_period_start` (C3 six-month rule), `0074`
   `organizations.esi_establishment_number` (C6 payslip identity). `0075_clever_sleepwalker` adds the
   `professional_tax_slabs` table (data-driven PT: 36 states seeded, provenance + levies fact, RLS-walled)
-  — the +1 that took base tables 237→238. **Live head is `0075`; base tables 238.**
+  — the +1 that took base tables 237→238. `0076_lean_puppet_master` persists the PF wage base +
+  employer EPS/EPF split on `payslips`, adds `organizations.pt_registration_number`, and a unique index
+  on `tds_challan_records(org,month,year)` — columns + index only, no new table. **Live head is `0076`;
+  base tables 238.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -110,6 +113,21 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 - **GST**: `computeGST()` in `apps/api/src/lib/india/gst-engine.ts` — intra-state = CGST+SGST (50/50), inter-state = IGST.
 - **TDS / income tax**: `computeTax()` in `apps/api/src/lib/india-tax-engine.ts`.
 - **3-way match**: `apps/api/src/lib/invoice-po-match.ts` — invoice ≈ PO ≈ GRN within tolerance.
+
+## Standing decisions — India payroll
+
+- **PF composition, VPF, and Para 26(6) are CONFIGURATION, not customer questions** (decided
+  2026-08-10). Do **not** treat any of them as a fact to gather from a customer before building —
+  they are inputs the product must support. Specifically:
+  - **Wage composition (Basic alone vs Basic+DA):** a **DA component must exist** so a customer
+    electing Basic+DA can express it; PF/ESI/gratuity bases then read Basic+DA. (Today DA ≡ 0 and no
+    component exists — that is a build, tracked as WAGE-DA / C4 in `reports/fix-plan.md`.)
+  - **Voluntary PF (VPF, above 12%):** a per-employee input added on top of the 12%, employee side
+    only, capped so 12%+VPF ≤ 100% of the wage base; the employer never matches it.
+  - **Para 26(6) (contribution on the uncapped base above ₹15,000):** computes on the uncapped base
+    **only where an EPFO approval reference is recorded** — no reference, no uncapping.
+  This retires the old "three customer questions" gating: C4 and WAGE-DA are **builds**, not
+  gated-on-a-customer-letter items (see `reports/fix-plan.md` → C4-CONFIG-DECISION).
 
 ## Common commands
 
@@ -278,29 +296,19 @@ _Snapshot — dated content below. For the live migration head always read
 `packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
 do not trust a commit SHA or head number quoted here._
 
-**As of 2026-08-10 (latest):** active branch is **`main`**. **Last VALIDATED deploy = `9f2f07c`**
-— the **payroll-readiness signal + data-driven professional tax** change (a Command Center panel that
-tells a customer what stands between them and their first payroll; PT moved from an 8-state in-code
-table to a seeded 36-state `professional_tax_slabs` table — 22 levying, 14 recorded as explicitly
-not-levying — with per-rate secondary-source provenance) — verified via CI run `31348702370`'s terminal
-**`Deploy to Vultr`** job (all five jobs green); migration head **`0075_clever_sleepwalker`**;
-**238 base tables** (verify: `pgTable` count in `packages/db/src/schema/*.ts`). `origin/main` ==
-`9f2f07c` (includes the prior `3bf2bf7` payroll-approval fix as an ancestor). _(Prior deploy: `3bf2bf7`,
-payroll approval-chain fix, CI `31317164831`.)_ **This deploy-state refresh — this block, the
-`docs/CONTEXT.md` exit-point line, and `CLAUDE.md`'s head/table count — is a docs-only LOCAL commit kept
-unpushed per rule 6; it rides the next code change, so local `main` reads one commit ahead of origin
-(deliberate, not drift).** **For the live hand-off read `docs/CONTEXT.md`; the source of truth for
-done/pending/blocked is `reports/fix-plan.md`.**
+**The live deploy SHA / CI run / migration head are deliberately NOT recorded here** — this block
+twice carried a stale SHA, which is exactly why per-commit state does not belong in CLAUDE.md. Read
+each at its source, never from a value quoted in this file:
+- **What is live** — the "Last validated deployment (exit point)" line in `docs/CONTEXT.md` (the
+  terminal `Deploy to Vultr` job of the latest `main` CI run: `gh run view <id> --json jobs`).
+- **Migration head** — the last entry in `packages/db/drizzle/meta/_journal.json`.
+- **Branch / HEAD / ahead-behind** — `git status` / `git rev-list --left-right --count origin/main...HEAD`.
+- **Per-item done/pending/blocked, dated shipped records, and incidents** — `reports/fix-plan.md`.
+- **Recent work + its evidence** (payroll-readiness, data-driven PT, the statutory-filing loop, the
+  2026-08-10 outage) — the dated sections of `docs/CONTEXT.md` and `reports/fix-plan.md`.
 
-**Shipped in `9f2f07c` (this session):** the payroll-readiness signal (+ `onboarding-payroll-readiness.test.ts`)
-and the data-driven PT table (mig `0075`, + `professional-tax-slabs.test.ts`), plus the reference file
-`docs/reference/professional-tax-slabs.json` and the locked `docs/audits/web-runtime-pass_stage6/stage7`
-files. **Every PT rate is SECONDARY-sourced (unverified against any act); adopting the file changed the
-live Kerala and Tamil Nadu rates, and five levying states (Bihar/Manipur annual, Jharkhand/Sikkim
-quarterly, Puducherry half-yearly) are recorded but cannot yet compute** (engine knows only monthly +
-Kerala/TN half-yearly cadences). The first push `d831441` failed CI on the untyped-jsonb guard and never
-deployed; `9f2f07c` is the corrected amend + force-push. Read audit files by filename; do not copy their
-conclusions here.
+A deploy-state refresh is a docs-only LOCAL commit kept unpushed (rule 6); it rides the next code
+change, so local `main` can read one commit ahead of origin (deliberate, not drift).
 
 > **Structural note on this block (anti-drift).** The SHAs, migration head, and "238 base tables" above
 > are a **snapshot to verify, not a source of truth** — this file drifted to a stale live SHA more than

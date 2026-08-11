@@ -738,7 +738,7 @@ export const indiaComplianceRouter = router({
             code: "BAD_REQUEST",
             message:
               "Cannot file the EPF ECR: the organisation has no EPF establishment code. " +
-              "Set the EPF code in the India setup wizard before filing.",
+              "Set the EPF code in Organisation Settings → Statutory Identity before filing.",
           });
         }
 

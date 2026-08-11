@@ -38,14 +38,14 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `9f2f07c`** — migration head
-  **`0075_clever_sleepwalker`**, 238 base tables — verified through the terminal **`Deploy
-  to Vultr` job of CI run `31348702370`** (all five jobs green: Lint · Unit & Integration ·
-  E2E · Build Docker Images · Deploy to Vultr). `9f2f07c` is the **payroll-readiness signal
-  + data-driven professional tax (36 states, provenance)** change (see the "2026-08-10"
-  section below); it includes the prior `3bf2bf7` payroll-approval fix as an ancestor. (The
-  first push `d831441` failed CI on the untyped-jsonb guard and never deployed; `9f2f07c` is
-  the corrected amend + force-push.)
+- **LIVE on `connect.coheron.tech` = `origin/main` = `6b08414`** — migration head
+  **`0076_lean_puppet_master`**, 238 base tables — verified through the terminal **`Deploy
+  to Vultr` job of CI run `31367753313`** (all five jobs green; the first Deploy attempt failed
+  on an unhealthy Postgres container on the host — a server restart + Deploy re-run fixed it,
+  see the exit-point note). `6b08414` **closed the statutory-filing loop** (generateStatutory now
+  creates the ECR/ESI/PT/TDS records) + **unified the salary-structure resolver** + fixed six ECR/ESI
+  filing defects (see the "2026-08-10 (later)" section below). It includes `9f2f07c` (payroll-readiness
+  + data-driven PT) and `3bf2bf7` (payroll-approval) as ancestors.
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale `3b7b83f` before
@@ -54,11 +54,11 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   "fix" it.** Local `main` carries one extra commit, a **docs-only exit-point refresh**
   kept local per standing rule 6 (no docs-only deploy). It rides origin with the next
   code change. So `git rev-list --left-right --count origin/main...HEAD` reads `0  1` —
-  origin records `9f2f07c`, local reads the docs-only refresh — both describe the same
+  origin records `6b08414`, local reads the docs-only refresh — both describe the same
   live code. A previous session nearly looped "correcting" this; it is intentional.
-- **The payroll-readiness + professional-tax change is now LIVE (`9f2f07c`).** The working
-  tree may still carry UNCOMMITTED files plus this docs refresh — see the "2026-08-10"
-  section for status.
+- **The statutory-filing-loop + salary-structure-resolver change is now LIVE (`6b08414`).** The
+  working tree may still carry UNCOMMITTED files plus this docs refresh — see the "2026-08-10
+  (later)" section for status.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -67,6 +67,40 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   via the `migrator` service before `api` starts.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0075`).
+
+## 2026-08-10 (later) — statutory-filing loop closed + salary-structure resolver unified SHIPPED
+
+_Shipped & deployed as `6b08414` (CI `31367753313`, all five jobs green incl. terminal `Deploy to
+Vultr`; migration `0076_lean_puppet_master`, 238 base tables). Per-item detail in `reports/fix-plan.md`._
+
+- **✅ One salary-structure resolver.** Lock (`computePayrollRunTotals`) inner-joined on
+  `salaryStructureId` with no effective-date test, so it counted an employee whose structure wasn't
+  yet effective; payslip generation resolved via the effective-window resolver and dropped that
+  employee with a bare `continue` — a run reported employees/totals at lock, then produced fewer/no
+  payslips with an EMPTY errors array. Both paths now use `resolveSalaryStructureForPeriod`; an
+  excluded employee is named by employee code in the run's errors. **This was the same cause as the
+  earlier 12→11 headcount drop — one item, two sightings** (the drop was this resolver mismatch, not
+  a separate bug).
+- **✅ Step 13 now produces records.** `generateStatutory` creates, from a CFO-approved run's own
+  payslips, the EPFO ECR + ESI challan (members only) + one PT challan per state + salary-TDS (24Q,
+  §192) challan — idempotent (upsert per unique key), refusing with a named field where org identity
+  (epfCode / esiEstablishmentNumber / ptRegistrationNumber) is missing, never fabricating. Run-scoped
+  `runs.statutoryOutputs` + new `esiChallans`/`ptChallans` list procedures make the records visible.
+- **✅ Six ECR/ESI filing defects fixed** (epfWages = the wage the dues were paid on — NOT raw basic;
+  member name, NCP, fabricated establishment id, ESI non-members, double-counted EPS). The payslip now
+  persists the PF wage base + employer EPS/EPF split (mig `0076`) — what made the first and last fixable.
+  **Correction (2026-08-10, per the EPFO ECR 2.0 spec):** there is **no `epfWages × 12% == employeeEpf`
+  equality** on the ECR — field 7 (EE share remitted) may carry VPF and the spec's only rule is
+  **≤ gross wages**, whole number. The old equality claim (repo docs + `buildEcrLine` + a test) was
+  wrong and has been removed; see `PF-CONFIG` items and `ecr-spec.test.ts`.
+- **⚠️ Recorded hazard, not fixed:** `PERIOD-START-TZ-BOUNDARY` (reports/fix-plan.md) — the period
+  start is built local-time; safe only because prod is UTC. A `TZ=Asia/Kolkata` deploy would leave
+  every 1st-of-month structure unpaid. Owner's call to shape (touches every period comparison).
+- **Deploy note — production OUTAGE (cause UNESTABLISHED):** the first Deploy attempt took the whole
+  stack down (`compose down`/`up`) and Postgres never passed its healthcheck, so migrator/api/web/caddy
+  never started and there was no auto-rollback. Logs were never read (host unreachable via SSH + browser
+  console); resolved by a full server reboot, then a green Deploy re-run. Not a code failure. Recorded as
+  `OUTAGE-2026-08-10` in `reports/fix-plan.md`.
 
 ## 2026-08-10 — payroll-readiness signal + data-driven professional tax SHIPPED
 
@@ -84,12 +118,15 @@ _Shipped & deployed as `9f2f07c` (CI `31348702370`, all five jobs green incl. te
   8-state in-code table to a seeded 36-state table: **22 levying, 14 recorded as explicitly
   NOT levying** (a recorded nil, distinct from an unknown/absent state). `resolveStatutoryCeilings`
   projects it into `overrides.ptSlabs`; no payroll-math change. Test: `professional-tax-slabs.test.ts`.
-- **⚠️ Every rate is SECONDARY-sourced** (`docs/reference/professional-tax-slabs.json`;
-  `sourceType='secondary'`, `verifiedOn=NULL`) — verified against no state's own act yet.
-  Adopting the file **changed the live Kerala and Tamil Nadu rates** (both differed from the
-  in-code slabs). **Five levying states are recorded but cannot yet compute** — Bihar/Manipur
-  (annual), Jharkhand/Sikkim (quarterly), Puducherry (half-yearly, timing unwired) — because the
-  engine knows only monthly and Kerala/TN half-yearly cadences; they are stored + flagged, not projected.
+- **⚠️ Every rate is SECONDARY-sourced from a single aggregator** (`docs/reference/professional-tax-slabs.json`;
+  `sourceType='secondary'`, `verifiedOn=NULL`) — verified against NO state's own act yet. **Verify the
+  pilot cohort first: Karnataka, Kerala, Tamil Nadu, Delhi.**
+- **⚠️ Adopting the file CHANGED live pilot-state rates.** Kerala's top band went **₹600 → ₹1,250 a
+  half**; Tamil Nadu's middle bands rose. KL and TN are live pilot states — real employees are now
+  deducted differently, on a secondary source.
+- **⚠️ Five levying states are recorded but CANNOT compute** — Bihar & Manipur (annual), Jharkhand &
+  Sikkim (quarterly), Puducherry (half-yearly, timing unwired). The engine knows only monthly and
+  half-yearly cadences, so they **flag rather than compute a wrong amount** (stored + provenance, not projected).
 - **Note:** the first push `d831441` failed CI on the untyped-jsonb schema guard (three new jsonb
   columns lacked `.$type<…>()`) and never deployed; fixed by amend + force-push → `9f2f07c`.
 
@@ -567,18 +604,27 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31348702370` — commit `9f2f07c` (payroll-readiness signal on the Command Center +
-professional tax moved from an 8-state in-code table to a seeded 36-state table — 22 levying,
-14 recorded as explicitly not-levying — with per-rate secondary-source provenance; migration
-`0075_clever_sleepwalker`) — terminal `Deploy to Vultr` job `success` — 2026-08-10 — migration
-head `0075_clever_sleepwalker`, 238 base tables.** Verified via `gh run view 31348702370 --json
-jobs` (all five jobs green: Lint & Type Check · Unit & Integration Tests · E2E (Playwright) ·
-Build Docker Images · Deploy to Vultr). This is what is LIVE on `connect.coheron.tech`.
-`9f2f07c` includes the prior `3bf2bf7` payroll-approval fix as an ancestor.
+**CI run `31367753313` — commit `6b08414` (statutory-filing loop closed: `generateStatutory`
+now creates the EPFO ECR + ESI + per-state PT + salary-TDS records from a CFO-approved run's
+own payslips, refusing on missing org identity; six ECR/ESI filing defects fixed; lock and
+payslip generation unified on the effective-window resolver; migration `0076_lean_puppet_master`
+persists the PF wage base + employer EPS/EPF split, adds `organizations.pt_registration_number`
+and a unique index on `tds_challan_records`) — terminal `Deploy to Vultr` job `success` —
+2026-08-10 — migration head `0076_lean_puppet_master`, 238 base tables (0076 adds columns/index,
+no new table).** Verified via `gh run view 31367753313 --json jobs` (all five jobs green: Lint &
+Type Check · Unit & Integration Tests · E2E (Playwright) · Build Docker Images · Deploy to Vultr).
+This is what is LIVE on `connect.coheron.tech`. `6b08414` includes `9f2f07c` (payroll-readiness +
+data-driven PT) as an ancestor.
 
-_The corrected `9f2f07c` replaced a first push `d831441` whose CI failed on the untyped-jsonb
-schema guard (three jsonb columns on the new table lacked `.$type<…>()`); that never deployed
-(Deploy skipped), was fixed by amend + force-push, and CI `31348702370` then went green._
+_Deploy history for this run — a production OUTAGE (see `reports/fix-plan.md` → "OUTAGE-2026-08-10").
+The FIRST Deploy attempt ran `docker compose down` then `up`; Redis and Meilisearch came up, but the
+Postgres container never passed its healthcheck, so the migrator, api, web and caddy never started, and
+there was **no automatic rollback** — the site was down. **Cause UNESTABLISHED**: the Postgres container
+logs were never read (the host was unreachable via SSH and the browser console throughout), so do not
+record one. Resolved by a **full server reboot** (the first since the instance was created), after which
+the Deploy job was re-run, all five jobs went green, and migration 0076 applied. Lint/Test/E2E/Build were
+green throughout — this was not a code failure. What it exposed: a deploy that takes the whole stack down
+has no fallback, and recovery depended on host access that was not available._
 
 _This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6); it rides
 origin with the next code change, so local `main` reads one commit ahead of origin —

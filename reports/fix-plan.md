@@ -89,7 +89,7 @@ it is the summary; the item is the source of truth.
 | C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking**. **Scope corrected (2026-08-05):** the **investment-declaration intake** (table + UI + effective-dated read path + Feb/March lapse spread) is a **prerequisite** and the **larger half** — shipping the election without it is actively harmful (OLD with zero declarations is taxed worse than NEW). See "Two records (2026-08-05)". |
 | C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates); **gender/DOB/Tier-1-exemption ingestion ✅ done** (mig `0066`, read by `computePT`); **half-yearly levy period ✅ shipped for the pilot** (Kerala added + Tamil Nadu converted + full-period-or-flag guard — see "C2-STRUCT half-yearly PT (2026-08-07)"). **C2-STRUCT still pending** (non-pilot / deferred): month-specific **March** rates, full state population + explicit-nil, per-employee **YTD-PT cap ledger**. See C2 scope |
 | C3 — ESI six-month contribution-period rule | New — Payroll | **DONE — shipped & deployed (`9960fc9`, mig `0073`; CI run `31137358633` `Deploy to Vultr` green).** ASYMMETRIC: entry assessed EVERY month (non-member joins the month wages drop to/under ₹21k), exit only at the 1-Apr/1-Oct boundary (member retained on actual gross). Grossed-up eligibility for part-month joiners. Membership state on `employees`. First build wrongly assumed symmetry — see "C3 correction (2026-08-06)" + the looks-symmetric-isn't pattern. |
-| C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | **Cap VERIFIED correct** (₹1,800 = 12% × ₹15,000, both employee + employer sides; basis Basic+DA — but DA is effectively 0, no DA component exists). **VPF is ABSENT** (no per-employee top-up) and **Para-26(6) joint-declaration has no ingestion** (an `isVoluntaryHigherPF` flag exists but is hardcoded false, and it uncaps rather than adds) — those are a BUILD, not an "extend". Payroll-blocking only for a pilot who actually holds a VPF/JD election (a customer question). See the CHECK 3 scoping. |
+| C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | **Cap VERIFIED correct** (₹1,800 = 12% × ₹15,000, both employee + employer sides; basis Basic+DA — but DA is effectively 0, no DA component exists). **VPF is ABSENT** (no per-employee top-up) and **Para-26(6) joint-declaration has no ingestion** (an `isVoluntaryHigherPF` flag exists but is hardcoded false, and it uncaps rather than adds) — those are a BUILD, not an "extend". **VPF, composition (Basic vs Basic+DA) and Para-26(6) are CONFIGURATION the product must support — NOT customer questions to gather first (decision 2026-08-10, see C4-CONFIG-DECISION).** So C4 is a build, not a gated item. See the CHECK 3 scoping. |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | **DONE — shipped & deployed (`d979038`, mig `0074`).** Shared payslip-view builder feeds PDF + portal; ESI-reconciliation defect fixed (both renderers hardcoded ESI→₹0 while the total included it); tenant identity (TAN/EPF/CIN + new ESI establishment number) + paid/LOP days + ESI IP number render from stored values; ESI-member missing-identity run warning. Open (CA/customers): DA (PF-basis), B17 full address, ESI format, half-yearly PT note. See "C6 … (2026-08-08)". |
 | C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (`0069`), C7-2 B2CL Table 5 ₹1L (`0070`), C7-3 credit/debit notes Table 9 parts 1–4 (`0071`) + **part 5 credit-note ledger (contra-revenue reversal) + s.34 time-limit/value-cap/rate-in-force** (`0072`). **Debit-note ledger SHIPPED (`e74bfca`, CA-ruled, seed acct 4140) — the earlier "out of scope" note was stale.** POS no work (validation caveat); Table 11 advances + multi-invoice/inventory out-of-scope. See "C7 build log (2026-08-06)" + "Debit-note ledger…(2026-08-06)". |
@@ -5197,7 +5197,9 @@ it is, where, why deferred. Add to this rather than letting a deferral live only
 - **ECR-TEST** — `india-payroll-engine.test.ts:617` pins the delimiter on the **DEAD** `|` generator;
   nothing tests the live `#~#` path. Rides ECR-FIELD.
 - **WAGE-DA** — no DA component exists, so the basic-plus-DA composition the mandate allows **cannot be
-  expressed**. Blocking if any pilot pays DA. Gated on the customer questions.
+  expressed**. This is a BUILD, not a gated item: composition is CONFIGURATION the product must support,
+  not a customer question (decision 2026-08-10, see C4-CONFIG-DECISION). The DA component must exist so a
+  customer electing Basic+DA can express it.
 - **WAGE-CFG** — the 50% mandate is enforced at **compute time only**. A client can configure a
   non-compliant structure (`basicPercent` has no floor/cap — `hr.ts:106`, `payroll.ts:776/844`), see it
   on a payslip, and never be told.
@@ -5414,3 +5416,95 @@ compare date-only (calendar month), applied consistently to the resolver AND eve
 comparison (ceilings, half-yearly PT windows, ESI period, LOP). Because it touches every statutory
 computation, the shape is the owner's call. Until then: keep prod on UTC, and do not store
 `effectiveFrom` with a local offset.
+
+## C4-CONFIG-DECISION — the three customer questions withdrawn (2026-08-10, standing decision)
+
+The three "customer questions" that were treated as gating — **(a) wage composition (Basic alone vs
+Basic+DA), (b) voluntary PF above 12%, (c) Para 26(6) above-ceiling contribution** — are **WITHDRAWN as
+questions**. They are **CONFIGURATION the product must support**, not facts to gather from a customer
+before building. Any record that treated the (unsent) customer letter as gating C4 / WAGE-DA is corrected:
+those are **builds, not gated items** (see the C4 row and WAGE-DA above).
+
+What this creates instead:
+- **A DA component must exist** so a customer electing **Basic+DA** can express that composition (WAGE-DA
+  becomes a build). PF/ESI/gratuity bases then read Basic+DA rather than Basic-with-DA≡0.
+- **VPF** (voluntary employee top-up above 12%) is a per-employee configuration input: added on top of the
+  12%, employee side only, capped so 12%+VPF ≤ 100% of the wage base; employer never matches it.
+- **Para 26(6)** (contribution on the **uncapped** base above the ₹15,000 ceiling) computes on the uncapped
+  base **only where an EPFO approval reference is recorded** — no approval reference, no uncapping.
+
+No customer input is required to start any of these; they are product configuration. C4 and WAGE-DA move
+from "gated / verify-with-customer" to "build."
+
+## STATUTORY-FILING-LOOP + ONE RESOLVER — SHIPPED `6b08414` (2026-08-10, later)
+
+**Status: SHIPPED & DEPLOYED — commit `6b08414`, CI run `31367753313` (all five jobs green incl. terminal
+`Deploy to Vultr`; after an outage + reboot, see OUTAGE-2026-08-10). Migration `0076_lean_puppet_master`;
+238 base tables (0076 adds columns + an index, no new table).** Live on `connect.coheron.tech`.
+
+- **One salary-structure resolver.** Lock (`computePayrollRunTotals`) inner-joined on `salaryStructureId`
+  with no effective-date test, so it counted an employee whose structure was not yet effective; payslip
+  generation used the effective-window resolver and dropped that employee with a bare `continue` — the run
+  reported employees + totals at lock, then produced fewer/no payslips with an EMPTY errors array. Both
+  paths now use `resolveSalaryStructureForPeriod`; an employee excluded for want of an effective structure
+  is named by **employee code** in the run's errors. **Same cause as the earlier 12→11 headcount drop —
+  one item, two sightings** (that drop was this resolver mismatch, not a separate defect).
+- **Step 13 now creates records.** `generateStatutory` builds the EPFO ECR + ESI (members only) + one PT
+  challan **per state** + salary-TDS (24Q, §192) from the CFO-approved run's own payslips — idempotent
+  (upsert per unique key), **refusing with a named field** where org identity (epfCode /
+  esiEstablishmentNumber / ptRegistrationNumber) is missing, never fabricating. Run-scoped
+  `runs.statutoryOutputs` + new `esiChallans`/`ptChallans` lists make the records visible. Previously no
+  runtime path created these records — only test files inserted them.
+- **Six filing-rebuild defects fixed:** EPF wages taken from raw basic instead of the wage the dues were
+  actually paid on (the resolved/clamped base); employee code in the member-name field; NCP hardcoded 0;
+  a fabricated establishment id; an ESI challan covering non-members; and the total employer PF in the EPF
+  slot so EPS was counted twice. **Correction (2026-08-10):** this record originally described defect 1 as
+  an `epfWages × 12% == employeeEpf` "agreement" — that equality is NOT in the EPFO ECR 2.0 spec (field 7's
+  only rule is ≤ gross wages, and it legitimately carries VPF). The fix — epfWages = the wage the dues were
+  paid on — is correct; the equality framing was not, and has been removed (see `PF-CONFIG` below).
+  The payslip now **persists the resolved PF wage base + the employer EPS/EPF split** (mig `0076`) — which is
+  what made the first and last of those fixable.
+
+## OUTAGE-2026-08-10 — production down during deploy; cause UNESTABLISHED
+
+**Incident.** Deploying `6b08414` to Vultr, the pipeline ran `docker compose down` then `up`. Redis and
+Meilisearch came up; the **Postgres container never passed its healthcheck**, so the migrator, api, web and
+caddy never started. There was **no automatic rollback** — the previous stack had already been torn down —
+so the site was **down**.
+
+**Cause: UNESTABLISHED — do not record one.** The Postgres container's logs were never read: the host was
+**unreachable via SSH and via the browser console throughout** the incident. We do not know why Postgres
+failed its healthcheck.
+
+**Resolution.** A **full server reboot** (the first since the instance was created) brought Postgres
+healthy; the Deploy job was re-run and all five jobs went green; migration `0076` applied. Lint/Test/E2E/
+Build were green throughout — this was not a code failure.
+
+**What it exposed (the finding, independent of the unknown cause):**
+- A deploy that takes the **whole stack down** (`compose down` then `up`) has **no fallback** — if the new
+  stack does not come healthy, there is no previous stack to serve and no automatic rollback.
+- **Recovery depended on host access that was not available** (SSH + browser console both unreachable); the
+  only lever left was a full reboot.
+- The healthcheck gate did its job (dependents did not start against an unhealthy DB), but without rollback
+  the result is an outage rather than a safe no-op deploy.
+
+## PF-CONFIG — ECR spec conformance, VPF, employer rate, Para 26(6), bonus gate (2026-08-10, UNCOMMITTED)
+
+Built against the EPFO ECR 2.0 specification (Introduction_ECR2.0.pdf — primary source; where our
+own docs disagreed, the spec won). All uncommitted; do not commit without the owner's go.
+
+- **ECR reconciliation is NOT an equality.** The repo asserted `epfWages × 12% == employeeEpf` in
+  `buildEcrLine`'s contract, a test, and the docs. The spec's field-7 (EE Share Remitted) rule is only
+  "cannot be more than the gross wages", whole number — no 12% equality. Removed the invariant; added
+  the actual constraints to `buildEcrLine`: every numeric field rounded (no decimals); field 7 refused
+  if it exceeds gross; NCP full-days-only and = days-in-month when declared wages are 0; EPF/EPS/EDLI
+  wages per the spec (EPS/EDLI = min(EPF wages, 15,000)). Test: `ecr-spec.test.ts`.
+- **VPF stays folded into field 7** (the total remitted, incl. voluntary). Correct under the spec — the
+  earlier plan to split it out is withdrawn (there is no VPF field in the 11-column ECR).
+- **Employer rate 10% vs 12%** — org-level `pfContributionRate`, both sides, EPS stays 8.33% capped.
+  A reduced rate now carries an **enumerated EPFO ground** (`pfReducedRateReason`: bidi/brick/coir/jute/
+  guar_gum/under_20_employees/sick_establishment) — required below 12%, cleared at 12% (mig `0079`).
+- **Para 26(6)** — uncapped PF only with an approval reference + reached effective date; EPS capped;
+  revocation warns (convention, not statute). **Bonus gate** now reads Basic+DA. (Built earlier this day.)
+- Migrations `0077` (DA/VPF), `0078` (employer rate + Para 26(6) fields), `0079` (reduced-rate reason) —
+  each validated against a throwaway prod-shaped schema, applied to dev + test only.

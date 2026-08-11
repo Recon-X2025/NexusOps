@@ -540,6 +540,27 @@
       "when": 1786345514981,
       "tag": "0076_lean_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1786353591341,
+      "tag": "0077_mean_wong",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1786361428765,
+      "tag": "0078_slimy_nocturne",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1786374778973,
+      "tag": "0079_peaceful_caretaker",
+      "breakpoints": true
     }
   ]
 }

@@ -24,7 +24,8 @@
 export interface PFComputation {
   basicPlusDA: number;
   pfWageBase: number; // Min(basic+DA, 15000) for statutory
-  employeePF: number; // 12% of pfWageBase
+  employeePF: number; // TOTAL employee contribution = statutory 12% + any VPF
+  employeeVoluntaryPF: number; // the VPF portion of employeePF (0 when no VPF)
   employerEPF: number; // 3.67% of pfWageBase
   employerEPS: number; // 8.33% of min(pfWageBase, 15000)
   employerEDLI: number; // 0.50% of min(pfWageBase, 15000)
@@ -186,6 +187,9 @@ export interface TaxConfigOverride {
  */
 export interface StatutoryCeilingOverrides {
   pfWageCeiling?: number;
+  /** Establishment PF contribution rate as a FRACTION (0.10 or 0.12). Applies to both the
+   *  employee statutory contribution and the employer EPF share. Absent ⇒ computePF's 12% default. */
+  pfContributionRate?: number;
   esiWageCeiling?: number;
   ptSlabs?: Record<string, { slabs: PTSlab[]; annualCap: number; levyPeriod?: PtLevyPeriod }>;
   lwfRates?: Record<
@@ -219,19 +223,32 @@ const PF_ADMIN_RATE = 0.005;
 export function computePF(
   basicPlusDA: number,
   isVoluntaryHigherPF: boolean = false,
-  wageCeiling: number = PF_STATUTORY_WAGE_CEILING
+  wageCeiling: number = PF_STATUTORY_WAGE_CEILING,
+  // VPF: an EXTRA employee rate above the statutory rate (fraction, e.g. 0.08 = +8%). Applied to
+  // the same PF wage base; EMPLOYEE-ONLY — it never changes the employer contribution.
+  voluntaryPfRate: number = 0,
+  // Establishment PF contribution rate (fraction). 0.12 is the norm; 0.10 for a small/sick
+  // establishment. Applies to BOTH sides: the employee's statutory contribution AND the employer's
+  // EPF share (= rate − EPS 8.33%). EPS, EDLI and admin are unaffected. Default 0.12 = unchanged.
+  pfRate: number = PF_EMPLOYEE_RATE,
 ): PFComputation {
   // Statutory: PF on min(basic+DA, ceiling). Many employers contribute on actual basic.
   const pfWageBase = isVoluntaryHigherPF
     ? basicPlusDA
     : Math.min(basicPlusDA, wageCeiling);
 
-  const employeePF = Math.round(pfWageBase * PF_EMPLOYEE_RATE);
+  const employeeStatutoryPF = Math.round(pfWageBase * pfRate);
+  // VPF adds to the employee side only. The employer's split (EPS/EPF/EDLI/admin) below is
+  // untouched by VPF, per the EPF scheme.
+  const employeeVoluntaryPF = Math.round(pfWageBase * Math.max(0, voluntaryPfRate));
+  const employeePF = employeeStatutoryPF + employeeVoluntaryPF;
 
-  // EPS is always capped at the statutory ceiling base
+  // EPS is always 8.33% of the CEILING-capped base — unchanged by the 10% reduced rate.
   const epsBase = Math.min(basicPlusDA, wageCeiling);
   const employerEPS = Math.round(epsBase * PF_EMPLOYER_EPS_RATE);
-  const employerEPF = Math.round(pfWageBase * PF_EMPLOYER_EPF_RATE);
+  // Employer EPF is the remainder of the employer's rate after EPS: (rate − 8.33%). At 12% that is
+  // 3.67% (byte-identical); at 10% it is 1.67%.
+  const employerEPF = Math.round(pfWageBase * (pfRate - PF_EMPLOYER_EPS_RATE));
   const employerEDLI = Math.round(epsBase * PF_EDLI_RATE);
   const adminCharges = Math.round(pfWageBase * PF_ADMIN_RATE);
 
@@ -239,6 +256,7 @@ export function computePF(
     basicPlusDA,
     pfWageBase,
     employeePF,
+    employeeVoluntaryPF,
     employerEPF,
     employerEPS,
     employerEDLI,
@@ -719,8 +737,16 @@ export function computeMonthlyStatutory(
   ptContext?: PTContext,
   esiMemberAtPeriodStart?: boolean | null,
   esiEligibilityGross?: number,
+  voluntaryPfRate: number = 0,
 ): MonthlyStatutoryDeductions {
-  const pf = computePF(basicPlusDA, isVoluntaryHigherPF, overrides.pfWageCeiling);
+  const pf = computePF(
+    basicPlusDA,
+    isVoluntaryHigherPF,
+    overrides.pfWageCeiling,
+    voluntaryPfRate,
+    // Establishment PF rate (10% for small/sick, else 12%). Resolved by the caller from the org.
+    overrides.pfContributionRate,
+  );
   const esi = computeESI(grossMonthly, overrides.esiWageCeiling, {
     monthInFY,
     memberAtPeriodStart: esiMemberAtPeriodStart,

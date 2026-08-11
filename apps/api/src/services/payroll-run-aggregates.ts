@@ -188,15 +188,20 @@ export function buildEmployeePayrollInput(
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
   const hraPctOfBasic = Number(struct.hraPercentOfBasic ?? 50) / 100;
+  // Dearness Allowance as a % of monthly CTC (employer's composition election). DA joins basic
+  // in the PF/ESI wage base and is carved OUT of the special-allowance residual below, so gross
+  // total is unchanged — DA is just broken out of `special`. daPercent = 0 ⇒ basic-alone (unchanged).
+  const daPct = Number(struct.daPercent ?? 0) / 100;
   const basicMonthly = (ctc * basicPct) / 12;
+  const daMonthly = (ctc * daPct) / 12;
   const hraMonthly = basicMonthly * hraPctOfBasic;
-  // PT1: special allowance is the residual of monthly CTC after basic + HRA. The bare
+  // PT1: special allowance is the residual of monthly CTC after basic + DA + HRA. The bare
   // `- 2500` previously subtracted here was the ANNUAL Maharashtra PT cap (₹2,500/year)
   // applied MONTHLY — 12× too large, in the wrong place, and never added back — so it
   // silently shaved ₹30,000/year off every employee's gross (and therefore off the TDS
   // base). PT is deducted separately as a statutory deduction; it does not belong in the
   // earnings residual. Removed so the run taxes the actual paid components in full.
-  const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - hraMonthly);
+  const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - daMonthly - hraMonthly);
   const ltaAnnual = Number(struct.ltaAnnual || 0);
   const daysInMonth = new Date(year, month, 0).getDate();
   // G8: LOP derived from attendance. Absent a record, treat as a full paid month.
@@ -236,6 +241,7 @@ export function buildEmployeePayrollInput(
     ptExemptDisability: emp.ptExemptDisability ?? false,
     ptExemptDependentDisability: emp.ptExemptDependentDisability ?? false,
     basicMonthly,
+    daMonthly,
     hraMonthly,
     specialAllowance,
     ltaAnnual,
@@ -262,7 +268,17 @@ export function buildEmployeePayrollInput(
     bonus: 0,
     otherEarnings: 0,
     otherDeductions: 0,
-    isVoluntaryHigherPF: false,
+    // EPFO Para 26(6): contribute on the UNCAPPED base only where an approval reference exists AND
+    // the effective date has been reached. No reference ⇒ the ₹15,000 ceiling applies regardless of
+    // what else is recorded (that reference is what makes the uncapped contribution lawful). Reuses
+    // the engine's isVoluntaryHigherPF uncap path.
+    isVoluntaryHigherPF:
+      !!emp.para266ApprovalReference?.trim() &&
+      !!emp.para266EffectiveFrom &&
+      new Date(emp.para266EffectiveFrom) <= new Date(year, month - 1, 1),
+    // Voluntary PF: extra employee rate above 12% (percentage on the employee record → fraction).
+    // Employee-only; employer contribution unchanged. Default 0 = no VPF (byte-identical).
+    voluntaryPfRate: Number(emp.voluntaryPfRate ?? 0) / 100,
     // PT4: feed the engine the Form 12B prior-employer figures declared on the employee
     // record. The rolling s.192 calc already nets `previousEmployerTDS` against the annual
     // liability; these were hardcoded to 0, so any prior-employer income/TDS was ignored.

@@ -306,6 +306,15 @@ export const hrRouter = router({
           previousEmployerTds: z.number().min(0).optional(),
           // HRA — declared annual rent for the s.10(13A) exemption (old regime). 0 = none.
           rentPaidAnnual: z.number().min(0).optional(),
+          // Voluntary PF: extra EMPLOYEE PF rate above the statutory 12% (percentage, e.g. 8 = +8%).
+          // Employee-only; the employer's 12% is unchanged. 0/absent = no VPF.
+          voluntaryPfRate: z.number().min(0).max(88).optional(),
+          // EPFO Para 26(6): PF on the full basic (above ₹15,000). Uncapped ONLY where an approval
+          // reference exists and the effective date is reached. Record request, undertaking, ref, date.
+          para266JointRequest: z.boolean().optional(),
+          para266EmployerUndertaking: z.boolean().optional(),
+          para266ApprovalReference: z.string().optional(),
+          para266EffectiveFrom: z.coerce.date().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -399,6 +408,12 @@ export const hrRouter = router({
               input.previousEmployerTds !== undefined ? String(input.previousEmployerTds) : undefined,
             rentPaidAnnual:
               input.rentPaidAnnual !== undefined ? String(input.rentPaidAnnual) : undefined,
+            voluntaryPfRate:
+              input.voluntaryPfRate !== undefined ? String(input.voluntaryPfRate) : undefined,
+            para266JointRequest: input.para266JointRequest,
+            para266EmployerUndertaking: input.para266EmployerUndertaking,
+            para266ApprovalReference: input.para266ApprovalReference,
+            para266EffectiveFrom: input.para266EffectiveFrom,
             status: "active",
           })
           .returning();
@@ -448,10 +463,31 @@ export const hrRouter = router({
         previousEmployerTds: z.number().min(0).optional(),
         // HRA — declared annual rent for the s.10(13A) exemption (old regime). 0 = none.
         rentPaidAnnual: z.number().min(0).optional(),
+        // Voluntary PF: extra employee PF rate above 12% (percentage). Employee-only.
+        voluntaryPfRate: z.number().min(0).max(88).optional(),
+        // EPFO Para 26(6) — recorded, not the employee's to change at will. Uncapped PF only with
+        // an approval reference + reached effective date. Clearing an approved election is WARNED.
+        para266JointRequest: z.boolean().optional(),
+        para266EmployerUndertaking: z.boolean().optional(),
+        para266ApprovalReference: z.string().optional(),
+        para266EffectiveFrom: z.coerce.date().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, pan, previousEmployerIncome, previousEmployerTds, rentPaidAnnual, ...rest } = input;
+        const { id, pan, previousEmployerIncome, previousEmployerTds, rentPaidAnnual, voluntaryPfRate, ...rest } = input;
+        // Para 26(6) revocation: irrevocability is EPFO administrative convention, not statute, so
+        // we WARN rather than refuse. Detect clearing an approved election — a reference was on
+        // record and this update blanks it — by reading the prior value before the write.
+        const clearingPara266 =
+          "para266ApprovalReference" in input && !input.para266ApprovalReference?.trim();
+        let existingHadApproval = false;
+        if (clearingPara266) {
+          const [prev] = await db
+            .select({ ref: employees.para266ApprovalReference })
+            .from(employees)
+            .where(and(eq(employees.id, id), eq(employees.orgId, org!.id)));
+          existingHadApproval = !!prev?.ref?.trim();
+        }
         // DPDP: never write the PAN in plaintext. `panColumnsTolerant` returns the encrypted raw
         // + match-hash + masked display when a PAN is supplied, `{}` when it is omitted (so a
         // partial update leaves the columns untouched), and encrypted-raw for a malformed value.
@@ -470,6 +506,9 @@ export const hrRouter = router({
           ...(rentPaidAnnual !== undefined
             ? { rentPaidAnnual: String(rentPaidAnnual) }
             : {}),
+          ...(voluntaryPfRate !== undefined
+            ? { voluntaryPfRate: String(voluntaryPfRate) }
+            : {}),
         };
         const [emp] = await db.update(employees)
           .set({ ...data, updatedAt: new Date() })
@@ -485,7 +524,15 @@ export const hrRouter = router({
         void runEntityBusinessRules(db, { orgId: org!.id, entityType: "employee", event: "updated", entity, changes });
         void emitDomainEvent(db, { orgId: org!.id, type: "employee_updated", payload: { employeeId: emp.id } });
 
-        return emp;
+        const warnings: string[] = [];
+        if (clearingPara266 && existingHadApproval) {
+          warnings.push(
+            "Para 26(6): you are clearing an approved joint-declaration election. This election is " +
+              "understood to be irrevocable for the duration of this employment. The change has been " +
+              "accepted, but confirm it is intended — PF will revert to the ₹15,000 ceiling.",
+          );
+        }
+        return { ...emp, warnings };
       }),
   }),
 

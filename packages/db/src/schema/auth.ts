@@ -22,6 +22,18 @@ export const orgPlanEnum = pgEnum("org_plan", [
   "enterprise",
 ]);
 
+// The EPFO-permitted grounds for the reduced 10% PF rate (ECR 2.0 spec upload options). Recorded
+// so the ground chosen at ECR upload is stored, not reconstructed. Set only when the rate is 10%.
+export const pfReducedRateReasonEnum = pgEnum("pf_reduced_rate_reason", [
+  "bidi",
+  "brick",
+  "coir",
+  "jute",
+  "guar_gum",
+  "under_20_employees",
+  "sick_establishment",
+]);
+
 export const userRoleEnum = pgEnum("user_role", [
   "owner",
   "admin",
@@ -63,6 +75,15 @@ export const organizations = pgTable(
     panMaskedDisplay: text("pan_masked_display"),
     tan: text("tan"),
     epfCode: text("epf_code"),
+    // EPF contribution rate for THIS establishment (percentage). 12 is the norm; the scheme
+    // permits 10 for small (< headcount threshold) or declared-sick establishments. Applies to
+    // BOTH the employee and employer sides, to every employee under this registration (org-level,
+    // not per-employee). The eligibility conditions are the employer's to assert — we record the
+    // rate they choose during setup, we do not verify it. Default 12 = unchanged.
+    pfContributionRate: decimal("pf_contribution_rate", { precision: 5, scale: 2 }).notNull().default("12"),
+    // The enumerated EPFO ground for a 10% rate (Bidi/Brick/Coir/Jute/Guar-Gum/<20 employees/sick).
+    // Required when the rate is 10%, null at 12% — this is the value that goes on the ECR upload.
+    pfReducedRateReason: pfReducedRateReasonEnum("pf_reduced_rate_reason"),
     /**
      * ESI (Employees' State Insurance) employer establishment code — the 17-digit code
      * ESIC issues to a registered employer. Mandatory on the payslip for any ESI-covered

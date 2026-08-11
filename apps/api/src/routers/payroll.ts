@@ -524,6 +524,7 @@ const runsRouter = router({
             paidDays: String(slip.daysWorked),
             lopDays: String(slip.lopDays),
             basic: String(slip.basicEarned),
+            da: String(slip.daEarned),
             hra: String(slip.hraEarned),
             specialAllowance: String(slip.specialAllowance),
             lta: String(slip.lta),
@@ -780,7 +781,7 @@ const runsRouter = router({
           code: "BAD_REQUEST",
           message:
             "Cannot generate the EPF ECR: the organisation has no EPF establishment code. " +
-            "Set the EPF code in the India setup wizard before generating statutory outputs.",
+            "Set the EPF code in Organisation Settings → Statutory Identity before generating statutory outputs.",
         });
       }
       if (esiOwed && !orgRow?.esiEstablishmentNumber?.trim()) {
@@ -788,7 +789,7 @@ const runsRouter = router({
           code: "BAD_REQUEST",
           message:
             "Cannot generate the ESI challan: the organisation has no ESI establishment number. " +
-            "Set the ESI establishment number in the India setup wizard before generating statutory outputs.",
+            "Set the ESI establishment number in Organisation Settings → Statutory Identity before generating statutory outputs.",
         });
       }
       if (ptOwed && !orgRow?.ptRegistrationNumber?.trim()) {
@@ -796,7 +797,7 @@ const runsRouter = router({
           code: "BAD_REQUEST",
           message:
             "Cannot generate the PT challan: the organisation has no professional-tax registration number. " +
-            "Set the PT registration number in the India setup wizard before generating statutory outputs.",
+            "Set the PT registration number in Organisation Settings → Statutory Identity before generating statutory outputs.",
         });
       }
 
@@ -1026,6 +1027,7 @@ const salaryStructuresRouter = router({
         structureName: z.string().min(1).max(200),
         ctcAnnual: z.coerce.number().nonnegative(),
         basicPercent: z.coerce.number().min(0).max(100).default(40),
+        daPercent: z.coerce.number().min(0).max(100).default(0),
         hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
         ltaAnnual: z.coerce.number().nonnegative().default(0),
         medicalAllowanceAnnual: z.coerce.number().nonnegative().default(15000),
@@ -1041,6 +1043,7 @@ const salaryStructuresRouter = router({
         structureName: input.structureName,
         ctcAnnual: input.ctcAnnual.toFixed(2),
         basicPercent: input.basicPercent.toFixed(2),
+        daPercent: input.daPercent.toFixed(2),
         hraPercentOfBasic: input.hraPercentOfBasic.toFixed(2),
         ltaAnnual: input.ltaAnnual.toFixed(2),
         medicalAllowanceAnnual: input.medicalAllowanceAnnual.toFixed(2),
@@ -1094,6 +1097,7 @@ const salaryStructuresRouter = router({
         structureName: z.string().min(1).max(200),
         ctcAnnual: z.coerce.number().nonnegative(),
         basicPercent: z.coerce.number().min(0).max(100).default(40),
+        daPercent: z.coerce.number().min(0).max(100).default(0),
         hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
         ltaAnnual: z.coerce.number().nonnegative().default(0),
         medicalAllowanceAnnual: z.coerce.number().nonnegative().default(15000),
@@ -1140,6 +1144,7 @@ const salaryStructuresRouter = router({
             structureName: input.structureName,
             ctcAnnual: input.ctcAnnual.toFixed(2),
             basicPercent: input.basicPercent.toFixed(2),
+            daPercent: input.daPercent.toFixed(2),
             hraPercentOfBasic: input.hraPercentOfBasic.toFixed(2),
             ltaAnnual: input.ltaAnnual.toFixed(2),
             medicalAllowanceAnnual: input.medicalAllowanceAnnual.toFixed(2),

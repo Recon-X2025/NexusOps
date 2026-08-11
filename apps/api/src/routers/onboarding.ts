@@ -39,6 +39,14 @@ export const indiaSchema = z.object({
   /** ESIC employer establishment code. Optional — not every org is ESI-registered
    *  (registration triggers at 10+ employees). Rendered on the payslip when present. */
   esi: z.string().min(1).optional(),
+  /** EPF contribution rate for this establishment (12 default, 10 for small/sick). Applies to
+   *  every employee under this registration. */
+  pfContributionRate: z.number().min(0).max(12).optional(),
+  /** EPFO ground for a reduced (<12%) rate — required when the rate is reduced (enforced in the
+   *  write path); this is the value the ECR upload carries. */
+  pfReducedRateReason: z
+    .enum(["bidi", "brick", "coir", "jute", "guar_gum", "under_20_employees", "sick_establishment"])
+    .optional(),
   stateCode: z.string().length(2),
   /** AATO in rupees — drives the GSTR-1 HSN digit rule. Optional at onboarding. */
   annualAggregateTurnover: z.number().nonnegative().optional(),
@@ -305,6 +313,55 @@ export const onboardingRouter = router({
     }),
 
   /**
+   * Update the organisation's India statutory identity AFTER onboarding is complete.
+   * PARTIAL: only the fields provided are written. This is the post-onboarding editor the
+   * wizard cannot offer (the wizard goes read-only once complete, and `saveWizardData` requires
+   * the full India schema). All columns already exist (schema/auth.ts) — no migration. The
+   * reduced-rate rule mirrors `writeWizardData`: below 12% requires an enumerated EPFO ground.
+   */
+  updateStatutoryIdentity: protectedProcedure
+    .input(
+      z.object({
+        epfCode: z.string().trim().max(64).optional(),
+        esiEstablishmentNumber: z.string().trim().max(32).optional(),
+        ptRegistrationNumber: z.string().trim().max(64).optional(),
+        pfContributionRate: z.number().min(0).max(12).optional(),
+        pfReducedRateReason: z
+          .enum(["bidi", "brick", "coir", "jute", "guar_gum", "under_20_employees", "sick_establishment"])
+          .nullable()
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const updateFields: Record<string, unknown> = {};
+      if (input.epfCode !== undefined) updateFields.epfCode = input.epfCode || null;
+      if (input.esiEstablishmentNumber !== undefined)
+        updateFields.esiEstablishmentNumber = input.esiEstablishmentNumber || null;
+      if (input.ptRegistrationNumber !== undefined)
+        updateFields.ptRegistrationNumber = input.ptRegistrationNumber || null;
+      if (input.pfContributionRate !== undefined) {
+        // A reduced (< 12%) rate MUST carry an enumerated EPFO ground — that ground is what goes
+        // on the ECR upload. At 12% the reason is cleared. Same rule as the onboarding wizard.
+        if (input.pfContributionRate < 12 && !input.pfReducedRateReason) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "A reduced PF contribution rate (below 12%) requires a reason — one of: Bidi, Brick, " +
+              "Coir, Jute, Guar Gum, fewer than 20 employees, or a sick establishment.",
+          });
+        }
+        updateFields.pfContributionRate = String(input.pfContributionRate);
+        updateFields.pfReducedRateReason =
+          input.pfContributionRate < 12 ? (input.pfReducedRateReason ?? null) : null;
+      }
+      if (Object.keys(updateFields).length > 0) {
+        await db.update(organizations).set(updateFields).where(eq(organizations.id, org!.id));
+      }
+      return { success: true };
+    }),
+
+  /**
    * Complete onboarding wizard.
    */
   completeWizard: protectedProcedure
@@ -374,6 +431,11 @@ export const onboardingRouter = router({
         tan: orgRow.tan ?? "",
         pf: orgRow.epfCode ?? "",
         esi: orgRow.esiEstablishmentNumber ?? "",
+        // Post-onboarding statutory identity (read by the Organisation Statutory settings screen).
+        ptRegistrationNumber: orgRow.ptRegistrationNumber ?? "",
+        pfContributionRate:
+          orgRow.pfContributionRate != null ? Number(orgRow.pfContributionRate) : 12,
+        pfReducedRateReason: orgRow.pfReducedRateReason ?? null,
         stateCode: orgRow.primaryStateCode ?? "",
         annualAggregateTurnover:
           orgRow.annualAggregateTurnover != null ? Number(orgRow.annualAggregateTurnover) : null,

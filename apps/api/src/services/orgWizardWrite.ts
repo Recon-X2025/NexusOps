@@ -34,6 +34,19 @@ export async function writeWizardData(
       tan?: string;
       pf?: string;
       esi?: string;
+      /** EPF contribution rate for this establishment (percentage: 12 or 10). Applies to every
+       *  employee under this registration. Absent leaves the current value (default 12). */
+      pfContributionRate?: number;
+      /** The EPFO ground for a 10% rate (one of the enumerated reasons). Required when the rate is
+       *  below 12; ignored/cleared at 12. */
+      pfReducedRateReason?:
+        | "bidi"
+        | "brick"
+        | "coir"
+        | "jute"
+        | "guar_gum"
+        | "under_20_employees"
+        | "sick_establishment";
       stateCode?: string;
       annualAggregateTurnover?: number;
     };
@@ -102,6 +115,19 @@ export async function writeWizardData(
       if (input.india.tan !== undefined) updateFields.tan = input.india.tan;
       if (input.india.pf !== undefined) updateFields.epfCode = input.india.pf;
       if (input.india.esi !== undefined) updateFields.esiEstablishmentNumber = input.india.esi;
+      if (input.india.pfContributionRate !== undefined) {
+        // A reduced (< 12%) rate MUST carry an enumerated EPFO ground — that ground is what goes on
+        // the ECR upload. At 12% the reason is cleared.
+        if (input.india.pfContributionRate < 12 && !input.india.pfReducedRateReason) {
+          throw new Error(
+            "A reduced PF contribution rate (below 12%) requires a reason — one of: Bidi, Brick, " +
+              "Coir, Jute, Guar Gum, fewer than 20 employees, or a sick establishment.",
+          );
+        }
+        updateFields.pfContributionRate = String(input.india.pfContributionRate);
+        updateFields.pfReducedRateReason =
+          input.india.pfContributionRate < 12 ? (input.india.pfReducedRateReason ?? null) : null;
+      }
       if (input.india.stateCode !== undefined) updateFields.primaryStateCode = input.india.stateCode;
       if (input.india.annualAggregateTurnover !== undefined) {
         updateFields.annualAggregateTurnover = String(input.india.annualAggregateTurnover);

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import Link from "next/link";
+import { StatutoryIdentityTab } from "./StatutoryIdentityTab";
 import {
   Settings, Users, Shield, Key, Bell, Database, Clock, FileText,
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
@@ -19,6 +20,7 @@ import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 
 const ADMIN_TABS = [
   { key: "overview", label: "Overview", icon: Settings, module: "admin" as const, action: "read" as const },
+  { key: "org_statutory", label: "Statutory Identity", icon: Landmark, module: "admin" as const, action: "admin" as const },
   { key: "users", label: "User Management", icon: Users, module: "users" as const, action: "read" as const },
   { key: "roles", label: "Role Library", icon: Shield, module: "roles" as const, action: "read" as const },
   { key: "rbac", label: "RBAC Matrix", icon: Key, module: "roles" as const, action: "admin" as const },
@@ -226,6 +228,17 @@ export default function AdminConsolePage() {
   const sysProps = propsQuery.data ?? [];
   const notifRules = nrQuery.data ?? [];
   const scheduledJobs = jobsQuery.data ?? [];
+
+  // Deep-link: `/app/admin?tab=<key>` opens that tab (used by the wizard's "Edit in Settings"
+  // and the account menu's "Organisation Settings"). Applied once, after RBAC has resolved the
+  // visible tabs so the target is not stripped by the reset effect below.
+  const urlTabApplied = useRef(false);
+  useEffect(() => {
+    if (urlTabApplied.current || visibleTabs.length === 0) return;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && visibleTabs.some((x) => x.key === t)) setTab(t);
+    urlTabApplied.current = true;
+  }, [visibleTabs]);
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -978,6 +991,7 @@ export default function AdminConsolePage() {
             )}
 
             {/* GROUPS */}
+            {tab === "org_statutory" && <StatutoryIdentityTab />}
             {tab === "groups" && <GroupsTab />}
 
             {/* SLA DEFINITIONS */}

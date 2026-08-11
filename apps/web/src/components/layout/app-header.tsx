@@ -454,7 +454,7 @@ function UserMenu() {
             </Link>
             {isAdmin() && (
               <Link
-                href="/app/admin"
+                href="/app/admin?tab=org_statutory"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 px-4 py-2 text-body-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
               >
