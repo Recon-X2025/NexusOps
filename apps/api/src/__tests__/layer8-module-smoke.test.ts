@@ -13,7 +13,7 @@ import {
   createSession,
   initTestEnvironment,
 } from "./helpers";
-import { securityIncidents, contracts, assetTypes } from "@coheronconnect/db";
+import { securityIncidents, contracts, assetTypes, salaryStructures } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
 
@@ -1340,12 +1340,18 @@ describe("Layer 8: Module Smoke Tests", () => {
     it("employee → case → resolve + leave request → approve", async () => {
       const adminCaller = await authedCaller(adminToken);
 
+      const [l8s1] = await testDb()
+        .insert(salaryStructures)
+        .values({ orgId: orgCtx.orgId, structureName: `L8-${nanoid(4)}`, ctcAnnual: "600000", basicPercent: "50", daPercent: "0", effectiveFrom: new Date("2020-01-01") })
+        .returning();
       const emp = (await adminCaller.hr.employees.create({
         userId: orgCtx.requesterId,
         department: "Engineering",
         title: "Engineer",
         employmentType: "full_time",
         state: "Karnataka", // required at the create boundary (drives PT slab)
+        salaryStructureId: l8s1!.id, // structure + regime now required at create
+        taxRegime: "new",
       })) as { id: string };
       expect(emp.id).toBeDefined();
 
@@ -1385,12 +1391,18 @@ describe("Layer 8: Module Smoke Tests", () => {
 
     it("Seq 15 depth: employees.get + employees.list", async () => {
       const adminCaller = await authedCaller(adminToken);
+      const [l8s2] = await testDb()
+        .insert(salaryStructures)
+        .values({ orgId: orgCtx.orgId, structureName: `L8-${nanoid(4)}`, ctcAnnual: "600000", basicPercent: "50", daPercent: "0", effectiveFrom: new Date("2020-01-01") })
+        .returning();
       const emp = (await adminCaller.hr.employees.create({
         userId: orgCtx.securityAnalystId,
         department: "QA",
         title: "List smoke",
         employmentType: "full_time",
         state: "Karnataka", // required at the create boundary (drives PT slab)
+        salaryStructureId: l8s2!.id, // structure + regime now required at create
+        taxRegime: "new",
       })) as { id: string };
       const got = (await adminCaller.hr.employees.get({ id: emp.id })) as {
         employee: { id: string };

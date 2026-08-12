@@ -165,8 +165,11 @@ function buildTaxProfileFromEmployee(args: {
   const contractedCtc = structure ? Number(structure.ctcAnnual || 0) : 0;
   const annualCTC = fyGross > 0 ? fyGross : contractedCtc > 0 ? contractedCtc : 1_200_000;
   const basicPct = structure ? Number(structure.basicPercent || 40) / 100 : 0.4;
+  // DA-CONSUMER: the projection's basic must include DA (Basic + DA), matching the gratuity /
+  // leave-encashment bases — the last member of that class read basicPercent alone.
+  const daPct = structure ? Number(structure.daPercent || 0) / 100 : 0;
   const hraPctOfBasic = structure ? Number(structure.hraPercentOfBasic || 50) / 100 : 0.5;
-  const basicMonthly = (annualCTC * basicPct) / 12;
+  const basicMonthly = (annualCTC * (basicPct + daPct)) / 12;
   const hraMonthly = basicMonthly * hraPctOfBasic;
   const specialMonthly = Math.max(0, annualCTC / 12 - basicMonthly - hraMonthly);
   const ltaAnnual = structure ? Number(structure.ltaAnnual || 0) : 30_000;

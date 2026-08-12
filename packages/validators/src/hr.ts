@@ -40,15 +40,8 @@ export const CreateEmployeeSchema = z.object({
 export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
 
 // ── Leave Request Schemas ─────────────────────────────────────────────────────
-
-export const CreateLeaveRequestSchema = z.object({
-  employeeId: z.string().uuid(),
-  leaveType: LeaveTypeEnum,
-  startDate: z.string().min(1, "Start date is required"),
-  endDate: z.string().min(1, "End date is required"),
-  reason: z.string().min(10, "Please provide a reason (min 10 characters)").max(500),
-}).refine(
-  (data) => new Date(data.endDate) >= new Date(data.startDate),
-  { message: "End date must be on or after start date", path: ["endDate"] },
-);
-export type CreateLeaveRequestInput = z.infer<typeof CreateLeaveRequestSchema>;
+// CreateLeaveRequestSchema is canonical in `@coheronconnect/types` (packages/types/src/hr.ts),
+// which is the copy `leave.create` actually imports. A duplicate lived here with a date-order
+// refine the live path never applied — removed to end the drift. Do NOT re-add a second copy;
+// extend the types one. (Note: `LeaveTypeEnum` still diverges across validators/types/db — a
+// separate consolidation, out of this change's scope.)

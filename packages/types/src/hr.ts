@@ -57,9 +57,17 @@ export const LeaveRequestSchema = z.object({
 
 export type LeaveRequest = z.infer<typeof LeaveRequestSchema>;
 
-export const CreateLeaveRequestSchema = z.object({
-  type: LeaveTypeEnum,
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date(),
-  reason: z.string().max(1000).optional(),
-});
+export const CreateLeaveRequestSchema = z
+  .object({
+    type: LeaveTypeEnum,
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    reason: z.string().max(1000).optional(),
+  })
+  // A reversed range makes `days` negative and moves the leave balance the wrong way
+  // (pendingDays += negative) at create time, before any approval. Guard it here, on the
+  // schema the live `leave.create` path actually imports (was only on an orphan copy).
+  .refine((data) => data.endDate.getTime() >= data.startDate.getTime(), {
+    message: "End date must be on or after the start date",
+    path: ["endDate"],
+  });

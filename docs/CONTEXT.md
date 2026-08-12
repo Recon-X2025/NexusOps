@@ -38,23 +38,22 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `adeb2be`** — migration head
-  **`0079_peaceful_caretaker`**, 238 base tables (no migration in this unit) — verified through the
-  terminal **`Deploy to Vultr` job of CI run `31474830285`** (`success` — but only on the **4th**
-  attempt: two distinct deploy failures occurred and are recorded separately — see the exit-point
-  deploy-history note and `reports/fix-plan.md`). `adeb2be` is the **Base Pay composition** unit
-  (Basic % + DA % = 50 enforced; LTA carved from the residual; Bonus/Medical/Conveyance removed as
-  inert; **DA folded into the gratuity + leave-encashment bases**). It includes `8b4191a` (statutory
-  wage config expressible + reachable), `6b08414` (statutory-filing loop), `9f2f07c`
-  (payroll-readiness + data-driven PT) and `3bf2bf7` (payroll-approval) as ancestors.
+- **LIVE on `connect.coheron.tech` = `origin/main` = `db37bb4`** — migration head
+  **`0079_peaceful_caretaker`**, 238 base tables (no migration since) — verified through the terminal
+  **`Deploy to Vultr` job of CI run `31552652138`** (`success` on **attempt 1 — the first unattended,
+  no-reboot deploy in four**, after the 2026-08-10 outage cause was established as a full disk and fixed).
+  `db37bb4` is the **PRUNE-PREFLIGHT** unit (auto-prune old Docker images + capped container logs, so the
+  root filesystem stops filling). It includes `807aa19` (DEPLOY-HARDENING: service-scoped recreate + evidence
+  capture), `adeb2be` (Base Pay composition), `8b4191a` (statutory wage config expressible + reachable),
+  `6b08414` (statutory-filing loop) and earlier as ancestors.
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **Working tree (as of this writing): the DEPLOY-HARDENING unit, UNCOMMITTED** — infra only
-  (`scripts/vultr-remote-deploy.sh`, `docker-compose.vultr-test.yml`) plus this docs correction.
-  `origin/main` and local `main` are both at `adeb2be`. Do **not** commit or push without the owner's
-  go + snapshot; a push to `main` is a deploy, and this unit changes the deploy itself.
+- **Working tree (as of this writing): docs-only deploy-state refresh, UNCOMMITTED** — this
+  update to `CLAUDE.md`, `docs/CONTEXT.md` and `reports/fix-plan.md` after `db37bb4` deployed.
+  `origin/main` is at `db37bb4`; per rule 6 a deploy-state refresh rides the next code change (or is a
+  local unpushed commit), so local `main` may read one commit ahead of origin — deliberate, not drift.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -668,35 +667,38 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31474830285` — commit `adeb2be` (Base Pay composition: the structure `CTC` field relabelled
-**Base Pay**; **Basic % + DA % = 50** enforced server-side; **LTA carved from the special-allowance
-residual** so gross stays Base Pay/12; Bonus, Medical and Conveyance removed from the form as inert; and
-**DA folded into the gratuity and leave-encashment bases**) — terminal `Deploy to Vultr` job `success`
-**(on the 4th attempt — see the deploy history below)** — 2026-08-11 — migration head
-`0079_peaceful_caretaker`, 238 base tables (no migration in this unit).** Verified via `gh run view
-31474830285 --json jobs` (terminal `Deploy to Vultr` = `success`) and `curl connect.coheron.tech/api/health`
-returning `version: adeb2be…`. This is what is LIVE on `connect.coheron.tech`. `adeb2be` includes `8b4191a`
-(statutory wage config made expressible + reachable), `6b08414` (statutory-filing loop), `9f2f07c`
-(payroll-readiness + data-driven PT) and `3bf2bf7` (payroll-approval) as ancestors.
+**CI run `31552652138` — commit `db37bb4` (PRUNE-PREFLIGHT: the deploy now auto-prunes old Docker images —
+pre-flight when free space on the docker device drops below 10GB, and a 168h-retention prune after a
+confirmed-good deploy — and caps per-service container logs, so the root filesystem stops filling; infra only,
+no app code / schema / migration) — terminal `Deploy to Vultr` job `success` on **attempt 1** — 2026-08-12 —
+migration head `0079_peaceful_caretaker`, 238 base tables.** Verified via `gh run view 31552652138 --json jobs`
+(terminal `Deploy to Vultr` = `success`) and `curl connect.coheron.tech/api/health` returning
+`version: db37bb4…`. This is what is LIVE on `connect.coheron.tech`. `db37bb4` includes `807aa19`
+(DEPLOY-HARDENING), `adeb2be` (Base Pay composition), `8b4191a` (statutory wage config expressible + reachable),
+`6b08414` (statutory-filing loop) and earlier as ancestors.
 
-_Deploy history for this run — the Deploy-to-Vultr job needed **four attempts**, and they were **two
-different failures, recorded separately** (do NOT merge — see `reports/fix-plan.md` → the "THIRD OCCURRENCE
-+ a SECOND, DISTINCT failure" note). Attempts **1–2** failed on the recurring compose-recreate symptom
-(`dependency failed to start: container …postgres…1 is unhealthy`) — the **third** occurrence of that family
-(`6b08414`, `8b4191a`, `adeb2be`). Attempt **3** failed at a **different** step, `Trust host key`
-(`ci.yml:287-293`, `ssh-keyscan` exit 1) — the runner could not reach the host; the owner also saw the Vultr
-console reject login. Attempt **4** went green. **Both causes UNESTABLISHED — neither recorded.** In
-response, the **DEPLOY-HARDENING** unit is built (Change A: capture Postgres logs + health to
-`/var/log/coheron/` before recreate, so evidence survives the reboot; Change B: stop tearing Postgres down;
-Change C: Postgres start/stop grace) — infra only, uncommitted at the time of writing._
+_**First unattended, first-attempt deploy in four — and the confirmation of the outage cause.** Change D
+recorded **47GB free ≥ 10GB, no prune needed** to `/var/log/coheron/` (the disk figure that was invisible from
+outside the box across four incidents — the Vultr graphs have no disk-space panel). Postgres was recreated this
+round (Change F changed its `logging:`) and came **healthy**, where the identical recreate on `807aa19` had
+timed out — the only variable changed being disk headroom, which is the causal confirmation._
 
-_This line will be re-stamped by the next code change. **Read the live SHA from the terminal `Deploy to
-Vultr` job of the latest `main` CI run and `/api/health`, never from a SHA quoted in prose** — this line has
-drifted to a stale SHA before._
+_The earlier deploy failures now have a cause. `adeb2be`'s deploy needed four attempts and `807aa19`'s failed
+first — recorded at the time as "cause UNESTABLISHED" and kept apart (correctly, while unknown). They are all
+**folded into `OUTAGE-2026-08-10` (CLOSED) as symptoms of the one full-disk cause** (Postgres can't write →
+can't answer `pg_isready`; login writes to disk → `ssh-keyscan` / console login refused; `pull` dies
+mid-layer). Do not re-open them as separate mysteries — see `reports/fix-plan.md` → `OUTAGE-2026-08-10` +
+`PRUNE-PREFLIGHT`._
 
-_Prior validated deploys (all superseded): `6b08414` (statutory-filing loop closed + salary-structure
-resolver unified; its Deploy also failed first on unhealthy Postgres, reboot + re-run fixed it) CI
-`31367753313`; `62b0349` (three statutory fixes: 50% PF wage-base
+_This line will be re-stamped by the next code change. **Read the live SHA from the terminal `Deploy to Vultr`
+job of the latest ATTEMPT of the latest `main` CI run and `/api/health`, never from a SHA quoted in prose** —
+this line has drifted to a stale SHA before, and a run can go green on a re-run after earlier attempts failed._
+
+_Prior validated deploys (all superseded): `807aa19` (DEPLOY-HARDENING: service-scoped recreate + pre-recreate
+evidence capture; its Deploy failed first — later explained by the full-disk cause) CI `31512789381`;
+`adeb2be` (Base Pay composition; Deploy green on attempt 4) CI `31474830285`; `6b08414` (statutory-filing loop
+closed + salary-structure resolver unified; its Deploy also failed first on unhealthy Postgres, reboot + re-run
+fixed it) CI `31367753313`; `62b0349` (three statutory fixes: 50% PF wage-base
 clamp; leaver flag; resilient payslip write) CI `31298132260`; `cbed818` (pay probation &
 on_leave; incomplete-row flag) CI `31295210801`; `3b7b83f` (dead-link repairs + route-integrity
 guard) CI `31268782618`; `7a76624` (doc corrections + taxRegime column) CI `31265258768`;

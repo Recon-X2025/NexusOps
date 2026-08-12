@@ -198,6 +198,18 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
   `prod.yml` defines a separate `migrator` service (`node -e require('./dist/migrate.js')` +
   `service_completed_successfully`), but that compose file is **not** the live path, so do not read it as a
   description of production (same trap as the orphaned MinIO definition).
+- **Deploy reliability (cause established 2026-08-12).** The "Postgres unhealthy after `compose down`/`up`"
+  deploy failures — three occurrences, plus a host-unreachable incident and a mid-layer `pull` failure that were
+  recorded separately — were **one cause: the root filesystem filled** because Docker images from every past
+  deploy were never pruned (the old `docker image prune -f` is dangling-only and never removes tagged images).
+  A full disk means Postgres can't write → can't answer `pg_isready` → never goes healthy; login writes to disk
+  too, which is why a valid root login and `ssh-keyscan` were also refused. The deploy now: (1) recreates only
+  the app tier, leaving Postgres/Redis/Meilisearch running (`vultr-remote-deploy.sh` Change B); (2) **pre-flight
+  prunes** old images when free space on the docker device drops below 10GB and **retention-prunes**
+  (`-af --until=168h`, a week kept for rollback) after a confirmed-good deploy (Changes D/E); (3) **caps
+  container logs** (`docker-compose.vultr-test.yml` per-service `logging:`, 250MB each, Postgres 500MB). Every
+  deploy writes `df` to `/var/log/coheron/` so free space is never invisible again (the Vultr graphs have **no
+  disk-space panel**). Full detail: `reports/fix-plan.md` → `OUTAGE-2026-08-10` (CLOSED) + `PRUNE-PREFLIGHT`.
 - **Always take a backup/snapshot before deploying.** Snapshots and deploy triggers require the user's cloud credentials — Claude cannot perform them. Because a `main` push auto-deploys, **treat pushing `main` as a deploy trigger** (get the user's go + snapshot first).
 
 ## Conventions & guardrails
@@ -346,8 +358,11 @@ each at its source, never from a value quoted in this file:
 - **Migration head** — the last entry in `packages/db/drizzle/meta/_journal.json`.
 - **Branch / HEAD / ahead-behind** — `git status` / `git rev-list --left-right --count origin/main...HEAD`.
 - **Per-item done/pending/blocked, dated shipped records, and incidents** — `reports/fix-plan.md`.
-- **Recent work + its evidence** (payroll-readiness, data-driven PT, the statutory-filing loop, the
-  2026-08-10 outage) — the dated sections of `docs/CONTEXT.md` and `reports/fix-plan.md`.
+- **Recent work + its evidence** (payroll-readiness, data-driven PT, the statutory-filing loop, the Base Pay
+  composition unit, and the deploy-reliability work — the **2026-08-10 outage is CLOSED**, cause established
+  12 Aug as a full root filesystem from un-pruned Docker images, fixed by the DEPLOY-HARDENING + PRUNE-PREFLIGHT
+  units; first unattended first-attempt deploy followed) — the dated sections of `docs/CONTEXT.md` and
+  `reports/fix-plan.md`.
 
 A deploy-state refresh is a docs-only LOCAL commit kept unpushed (rule 6); it rides the next code
 change, so local `main` can read one commit ahead of origin (deliberate, not drift).

@@ -174,13 +174,18 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
   onBack: () => void;
   loading?: boolean;
 }) {
-  const gstinValid = /^[A-Z0-9]{15}$/.test(data.gstin.trim().toUpperCase());
+  // GSTIN, CIN and EPF are CONDITIONAL in statute (turnover / entity-type / 20-employee triggers), and
+  // GSTIN plays no part in payroll at all — so they are OPTIONAL here: valid-if-present, never required to
+  // advance. Requiring them blocked payroll-only, non-company (LLP/proprietor/HUF), or sub-20-employee
+  // customers from completing onboarding for a reason that did not apply to them. What genuinely holds:
+  // PAN (every entity), TAN (any TDS deductor — i.e. anyone running payroll), and the primary state (PT).
+  // EPF is enforced later, at its point of use (ECR generation), where it actually matters.
+  const gstinOk = data.gstin.trim() === "" || /^[A-Z0-9]{15}$/.test(data.gstin.trim().toUpperCase());
   const panValid = /^[A-Z0-9]{10}$/.test(data.pan.trim().toUpperCase());
-  const cinValid = /^[A-Z0-9]{21}$/.test(data.cin.trim().toUpperCase());
+  const cinOk = data.cin.trim() === "" || /^[A-Z0-9]{21}$/.test(data.cin.trim().toUpperCase());
   const tanValid = /^[A-Z0-9]{10}$/.test(data.tan.trim().toUpperCase());
-  const pfValid = data.pf.trim().length > 0;
   const stateCodeValid = /^[A-Z0-9]{2}$/.test(data.stateCode.trim().toUpperCase());
-  const canNext = gstinValid && panValid && cinValid && tanValid && pfValid && stateCodeValid;
+  const canNext = panValid && tanValid && stateCodeValid && gstinOk && cinOk;
 
   const upperCaseFields = ["gstin", "pan", "cin", "tan", "stateCode"];
 
@@ -192,11 +197,11 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
       </div>
       <div className="grid grid-cols-2 gap-3">
         {[
-          { k: "gstin", l: "GSTIN *", ph: "29ABCDE1234F1Z5", hint: "15-character GST registration" },
+          { k: "gstin", l: "GSTIN", ph: "29ABCDE1234F1Z5", hint: "Optional — only if GST-registered (turnover-triggered). Not used by payroll." },
           { k: "pan",   l: "PAN *",   ph: "ABCDE1234F",      hint: "10-character PAN" },
-          { k: "cin",   l: "CIN *",   ph: "U74999KA2020PTC123456", hint: "21-char Company Identification Number" },
+          { k: "cin",   l: "CIN", ph: "U74999KA2020PTC123456", hint: "Optional — companies only. LLPs hold an LLPIN; proprietorships/partnerships/HUFs have none." },
           { k: "tan",   l: "TAN (TDS) *", ph: "BLRE12345A",  hint: "10-character TAN for TDS filing" },
-          { k: "pf",    l: "EPF Establishment Code *", ph: "KA/BNG/12345/000/0001", hint: "" },
+          { k: "pf",    l: "EPF Establishment Code", ph: "KA/BNG/12345/000/0001", hint: "Optional at setup; required before generating an EPF ECR (20+ employees, or voluntary)." },
           { k: "esi",   l: "ESI Establishment No.", ph: "12000123450000999", hint: "ESIC employer code — leave blank if not ESI-registered" },
           { k: "stateCode", l: "Primary State Code *", ph: "MH", hint: "2-letter ISO 3166-2:IN code" },
         ].map(f => (

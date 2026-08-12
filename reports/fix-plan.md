@@ -5684,7 +5684,14 @@ could not run locally** — each service's `env_file: .env.production` is a host
 limit is stated, not papered over. **The real test is the deploy.** Gate: **cold lint 9/9** (0 cached, 13.2s),
 **full suite 177 files / 1593 tests, 0 failures**. **Not committed; not pushed.**
 
-## PRUNE-PREFLIGHT — 2026-08-12 (built, UNCOMMITTED — infra only; no app code, no migration)
+## PRUNE-PREFLIGHT — SHIPPED & DEPLOYED `db37bb4` (2026-08-12) — infra only; no app code, no migration
+
+**Status: SHIPPED & DEPLOYED — commit `db37bb4`, CI run `31552652138`, `Deploy to Vultr` green on ATTEMPT 1 —
+the first unattended, no-reboot deploy in four.** Live on `connect.coheron.tech` (`/api/health` → `db37bb4…`).
+**Confirmed the cause:** Change D recorded **47GB free ≥ 10GB, no prune needed** to `/var/log/coheron/`; Postgres
+was recreated this round (Change F changed its `logging:`) and came **healthy** where the identical recreate on
+`807aa19` had timed out — only disk headroom changed. Deploy-log trace: `── preflight: 47GB free ≥ 10GB — no
+prune needed ──` → `✓ Postgres ready` → `✓ version verified` → `── retention prune … ──` → `DONE`.
 
 The fix for `OUTAGE-2026-08-10` now that its cause is established (full root filesystem from un-pruned Docker
 images). **Nothing on the box removed old images** — the deploy's only prune was `docker image prune -f`
@@ -5718,8 +5725,57 @@ images). **Nothing on the box removed old images** — the deploy's only prune w
 (postgres 100m, rest 50m); `DISK_FREE_MIN_GB`/`PRUNE_RETENTION` declared once and used in both blocks; prune
 filters syntactically valid; the `set -e` non-interaction traced (both blocks `|| true` + `return 0`).
 **`docker compose config` cannot run locally** (host-only `env_file`). Gate: **cold lint 9/9** (0 cached, 21.6s),
-**full suite api 177 files/1593 tests + web 6 files/97 tests, 0 failures**. **The real test is the deploy.**
-Not committed; not pushed.
+**full suite api 177 files/1593 tests + web 6 files/97 tests, 0 failures**. **The real test is the deploy —
+which passed:** green on attempt 1, no reboot (see the status line at the top of this entry).
+
+## INTAKE-BATCH — 2026-08-12 (built, UNCOMMITTED — no migration; the small batch, A cluster + B flags + two ride-alongs)
+
+Assessed first (Step-1 pass), then built only the migration-free, reachable set. **No migration.**
+
+- **A1 leave consolidation.** `CreateLeaveRequestSchema` was defined twice — a `validators` copy WITH a
+  date-order refine, and the `types` copy the live `leave.create` path actually imports WITHOUT it. A reversed
+  range was accepted → negative `days` → the leave balance moved the wrong way at CREATE time (before
+  approval), feeding LOP/encashment. **Fixed by consolidation, not a second refine:** the refine now lives on
+  the `types` schema (`packages/types/src/hr.ts:60`) and the orphan `validators` copy is deleted. Established
+  by a double self-correction (traced the balance move → found a refine → found it was on the wrong copy).
+- **A2 intake rules** (`hr.employees.create` + `.update`, server-side zod — a form-only rule is bypassable):
+  structure **required** (ADD-EMP-STRUCT); tax regime **required**, no silent default (TAX-REGIME-DEFAULT —
+  the importer already required it, this closes the weaker form path); **future / under-18 DOB** rejected
+  (18 is company POLICY, not statute); **state** validated against the canonical list via `normaliseStateToCode`
+  (STATE-UNKNOWN — a misspelling silently computed ₹0 PT); **duplicate PAN** rejected on `panMaskedHash`
+  (IDENTITY-UNIQUE, create + update-excluding-self). DOB/PAN stay OPTIONAL at create (a readiness gate, not a
+  creation gate).
+- **B — India Compliance Setup required flags.** Verified the `*` screen is the **onboarding wizard's India
+  Setup step** (`onboarding-wizard/page.tsx:190`), NOT the shipped Statutory Identity tab. GSTIN/CIN/EPF made
+  optional (valid-if-present), `*` dropped, `canNext` no longer blocks; PAN/TAN/state stay required. **Entity
+  type + CIN/LLPIN branching DEFERRED** (needs an `organizations.entity_type` column = migration).
+- **D1 LTA-FABRICATION.** `payslip-tax.ts:44` no longer invents a ₹30,000 LTA where the payslip's is 0
+  (display-only; Form 16 was already clean). **D2 DA-CONSUMER.** `payroll.ts:167` `contractedCtc` projection
+  now Basic+DA — the last member of the class (gratuity/leave-encashment already fixed).
+
+**Deferred/not built (assessed):** entity type + CIN/LLPIN (migration); **s.18(3)** (a cappable/non-cappable
+deduction split, not a one-line clamp → engine change); ARCHIVED-STRUCTURE-PAYS (leave as-is — archive =
+hide-from-picker, not payment-blocking); `EMPID-FORMAT`/`THRESHOLD-OPTIONAL`/`MIGRATE-REFERENCE`/`PT-16`
+(dropped — zero repo hits, older register). **Surfaces (C1–C4, D3) NOT built** — precise component unlocated;
+not guess-edited. **COMPLIANCE-CARDS is FIRST-CYCLE** (produced records show ₹0 — cards read
+`totalTdsDeposited`, written only at filing `india-compliance.ts:552`; `generateStatutory` writes
+`totalTdsDeducted` `payroll.ts:857`) and **READINESS-PANEL** (wrong destination during onboarding) — both for
+the next unit; only the card component / panel is unlocated, the cause is pinned.
+
+## SCHEMA-DRIFT (standing item, 2026-08-12) — types vs validators duplicate three enum names; LeaveTypeEnum diverges 3 ways
+
+Closing the leave-schema drift surfaced the class. **Three names are defined in BOTH `@coheronconnect/types`
+and `@coheronconnect/validators`:** `EmploymentTypeEnum`, `LeaveStatusEnum`, `LeaveTypeEnum` (plus the
+now-consolidated `CreateLeaveRequestSchema`). **`LeaveTypeEnum` diverges 3 ways:**
+- `types`: `vacation, sick, parental, bereavement, unpaid, other` (6)
+- `validators`: `annual, sick, casual, maternity, paternity, bereavement, compensatory, unpaid` (8)
+- `db` `leave_type`: `primary, annual, vacation, sick, parental, bereavement, unpaid, other` (8)
+All three are different SETS — the API boundary (`types`) even omits values the DB enum has (`annual`) and the
+`validators` copy carries values the DB rejects (`casual/maternity/…`). **Not fixed:** the taxonomy
+consolidation is **migration-gated** (changing the `leave_type` pgEnum needs `ALTER TYPE … ADD VALUE` in its own
+migration — same constraint as ONBOARD-BTN), so it lands WITH the leave-taxonomy migration batch. Consolidate
+to ONE source (drop the validators copies, extend the shared `types` enum) at that point. Recorded so it is
+not re-discovered as a new incident.
 
 ## PF-CONFIG — ECR spec conformance, VPF, employer rate, Para 26(6), bonus gate — SHIPPED `8b4191a` (2026-08-11)
 

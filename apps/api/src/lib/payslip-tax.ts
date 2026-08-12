@@ -41,7 +41,10 @@ export function computePayslipTaxFigures(
     basicMonthly: basicM,
     hraMonthly: hraM,
     specialAllowance: specM,
-    lta: Number(p.lta || 0) || 30_000,
+    // LTA-FABRICATION fix: use the payslip's actual LTA (0 if 0). The old `|| 30_000` invented an
+    // LTA on a payslip the employee holds, over-stating taxable income on the on-screen projection
+    // (Form 16 was clean — form16-aggregator calls computeTax directly — so this was display-only).
+    lta: Number(p.lta || 0),
     // TODO(compliance): Wire up actual employee tax declarations intake table.
     // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
     section80C: 0,

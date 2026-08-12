@@ -30,6 +30,7 @@ import {
   leaveStatusEnum,
   expenseStatusEnum,
   eq,
+  ne,
   and,
   desc,
   asc,
@@ -48,8 +49,34 @@ import { normaliseFeed, type RawAttendanceFeedRow } from "../lib/india/attendanc
 import { resolveShift, derivePunch, type ShiftDefinition } from "../lib/india/shift-schedule";
 import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
 import { CreateLeaveRequestSchema, LeaveTypeEnum } from "@coheronconnect/types";
+import { normaliseStateToCode } from "@coheronconnect/payroll-math";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
+
+// ── Employee intake guards (2a), reused by create + update ────────────────────
+// Server-side because a form-only rule is bypassable by any tRPC caller.
+const MIN_EMPLOYEE_AGE_YEARS = 18; // company POLICY, not a statutory minimum — see fix-plan.
+/** Reject a future DOB, and a DOB under the policy minimum age. No-op when absent. */
+function checkDob(d: Date | undefined, ctx: z.RefinementCtx): void {
+  if (d === undefined) return;
+  if (d.getTime() > Date.now()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Date of birth cannot be in the future.", path: ["dateOfBirth"] });
+    return;
+  }
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - MIN_EMPLOYEE_AGE_YEARS);
+  if (d.getTime() > cutoff.getTime()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Employee must be at least ${MIN_EMPLOYEE_AGE_YEARS} (company policy — not a statutory minimum).`,
+      path: ["dateOfBirth"],
+    });
+  }
+}
+/** STATE-UNKNOWN: a misspelled state silently computes ₹0 PT — reject anything not on the canonical list. */
+const isRecognisedState = (s: string): boolean => normaliseStateToCode(s) !== null;
+const STATE_UNKNOWN_MESSAGE =
+  "Unrecognised state — check the spelling. An unknown state silently computes ₹0 professional tax.";
 
 /**
  * Employee columns returned from read paths. Raw Aadhaar is no longer stored (dropped in
@@ -276,16 +303,24 @@ export const hrRouter = router({
           employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).default("full_time"),
           location: z.string().optional(),
           startDate: z.coerce.date().optional(),
-          salaryStructureId: z.string().uuid().nullable().optional(),
+          // ADD-EMP-STRUCT: a structure-less active employee cannot be paid — required at create.
+          salaryStructureId: z.string().uuid("A salary structure is required — an employee without one cannot be paid."),
           // ── Statutory ingestion (C2-STRUCT / C1 / C3) ──
           // Location: state is required at this boundary — it drives PT slab selection
           // and there is no safe silent default (the old Maharashtra fallback filed the
           // wrong PT). city/isMetroCity feed HRA metro (50% vs 40%).
-          state: z.string().trim().min(1, "State is required (drives professional-tax slab)."),
+          state: z
+            .string()
+            .trim()
+            .min(1, "State is required (drives professional-tax slab).")
+            .refine(isRecognisedState, { message: STATE_UNKNOWN_MESSAGE }),
           city: z.string().optional(),
           isMetroCity: z.boolean().optional(),
-          // Tax election: locked 12 months, defaults to new (CA ruling).
-          taxRegime: z.enum(["old", "new"]).optional(),
+          // Tax election: locked 12 months. TAX-REGIME-DEFAULT — no longer silently defaulted
+          // (the importer already requires it; this closes the weaker form path).
+          taxRegime: z.enum(["old", "new"], {
+            required_error: "Tax regime (old or new) must be chosen — it is no longer defaulted silently.",
+          }),
           // Statutory identity.
           pan: employeePanField,
           uan: z.string().optional(),
@@ -296,7 +331,9 @@ export const hrRouter = router({
           bankAccountName: z.string().optional(),
           // Maharashtra PT is gender-split; DOB is the sole source for the over-65 PT exemption.
           gender: z.enum(["male", "female", "other"]).optional(),
-          dateOfBirth: z.coerce.date().optional(),
+          // DOB stays OPTIONAL at create (a payroll-readiness gate, not a creation gate), but when
+          // supplied it must not be in the future and must meet the policy minimum age (checkDob).
+          dateOfBirth: z.coerce.date().optional().superRefine(checkDob),
           // CA Tier-1 PT exemptions (evidence required at declaration; storage is a later item).
           ptExemptArmedForces: z.boolean().optional(),
           ptExemptDisability: z.boolean().optional(),
@@ -371,6 +408,23 @@ export const hrRouter = router({
         // importVendors / update).
         const panCols = await panColumnsTolerant(input.pan);
 
+        // IDENTITY-UNIQUE: reject a duplicate PAN within the org. `panMaskedHash` is a deterministic
+        // per-tenant match key derived from the plaintext (lib/pan.ts), so we de-dup on it — the raw
+        // `pan` is encrypted non-deterministically and cannot be compared directly.
+        if ("panMaskedHash" in panCols && panCols.panMaskedHash) {
+          const [dupePan] = await db
+            .select({ id: employees.id })
+            .from(employees)
+            .where(and(eq(employees.orgId, org!.id), eq(employees.panMaskedHash, panCols.panMaskedHash)))
+            .limit(1);
+          if (dupePan) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "An employee with this PAN already exists in your organization.",
+            });
+          }
+        }
+
         const [employee] = await db
           .insert(employees)
           .values({
@@ -442,7 +496,12 @@ export const hrRouter = router({
         // ── Statutory ingestion (C2-STRUCT / C1 / C3) ──
         // Partial update: state stays optional here, but must be non-empty when supplied
         // (clearing it would re-open the null-state hole the create boundary closes).
-        state: z.string().trim().min(1, "State cannot be blank (drives professional-tax slab).").optional(),
+        state: z
+          .string()
+          .trim()
+          .min(1, "State cannot be blank (drives professional-tax slab).")
+          .refine(isRecognisedState, { message: STATE_UNKNOWN_MESSAGE })
+          .optional(),
         city: z.string().optional(),
         isMetroCity: z.boolean().optional(),
         taxRegime: z.enum(["old", "new"]).optional(),
@@ -454,7 +513,7 @@ export const hrRouter = router({
         bankName: z.string().optional(),
         bankAccountName: z.string().optional(),
         gender: z.enum(["male", "female", "other"]).optional(),
-        dateOfBirth: z.coerce.date().optional(),
+        dateOfBirth: z.coerce.date().optional().superRefine(checkDob),
         ptExemptArmedForces: z.boolean().optional(),
         ptExemptDisability: z.boolean().optional(),
         ptExemptDependentDisability: z.boolean().optional(),
@@ -492,6 +551,27 @@ export const hrRouter = router({
         // + match-hash + masked display when a PAN is supplied, `{}` when it is omitted (so a
         // partial update leaves the columns untouched), and encrypted-raw for a malformed value.
         const panCols = await panColumnsTolerant(pan);
+        // IDENTITY-UNIQUE (update): reject a PAN already held by ANOTHER employee in the org
+        // (exclude this employee's own row via `ne`). Matches on the deterministic hash.
+        if ("panMaskedHash" in panCols && panCols.panMaskedHash) {
+          const [dupePan] = await db
+            .select({ id: employees.id })
+            .from(employees)
+            .where(
+              and(
+                eq(employees.orgId, org!.id),
+                eq(employees.panMaskedHash, panCols.panMaskedHash),
+                ne(employees.id, id),
+              ),
+            )
+            .limit(1);
+          if (dupePan) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Another employee already has this PAN in your organization.",
+            });
+          }
+        }
         // Decimal columns take string values in Drizzle; convert only when supplied so an
         // omitted field is left untouched (spread would otherwise pass a number).
         const data = {

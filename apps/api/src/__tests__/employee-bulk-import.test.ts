@@ -312,16 +312,23 @@ describe("ingest.importEmployees — bulk employee import", () => {
     }
   });
 
-  it("hr.employees.create is UNAFFECTED — a form-created employee with no regime still defaults to new", async () => {
-    // The regime mandate is bulk-import only; a single admin choosing through the form keeps the
-    // existing NOT NULL DEFAULT 'new'. This guards against the change leaking into the create path.
+  it("hr.employees.create now REQUIRES a tax regime — the silent default is closed (TAX-REGIME-DEFAULT)", async () => {
+    // Previously the form path let an absent regime fall to the NOT NULL DEFAULT 'new'. The importer
+    // already required an explicit election; this closes the same silent default on the weaker create
+    // path (a form choice is a choice — it must be made, not defaulted).
     const hr = hrRouter.createCaller(makeContext(adminId, orgId));
-    const emp = await hr.employees.create({
-      userName: "Form User",
-      userEmail: `form-${nanoid(6)}@qa.coheronconnect.io`,
-      state: "Karnataka",
-    });
-    const [row] = await testDb().select().from(employees).where(eq(employees.id, emp.id));
-    expect(row!.taxRegime).toBe("new");
+    const [st] = await testDb()
+      .insert(salaryStructures)
+      .values({ orgId, structureName: `Form-${nanoid(4)}`, ctcAnnual: "600000", basicPercent: "50", daPercent: "0", effectiveFrom: new Date("2020-01-01") })
+      .returning();
+    await expect(
+      hr.employees.create({
+        userName: "Form User",
+        userEmail: `form-${nanoid(6)}@qa.coheronconnect.io`,
+        state: "Karnataka",
+        salaryStructureId: st!.id,
+        // taxRegime omitted on purpose — must now be rejected, not defaulted.
+      } as never),
+    ).rejects.toThrow(/regime/i);
   });
 });

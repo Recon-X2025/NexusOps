@@ -19,12 +19,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { makeContext, seedTestOrg, seedUser, testDb, cleanupOrg } from "./helpers";
 import { hrRouter } from "../routers/hr";
 import { decryptPan, panColumnsTolerant } from "../lib/pan";
-import { employees, eq } from "@coheronconnect/db";
+import { employees, salaryStructures, eq } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 
 describe("employee PAN encryption at rest", () => {
   let orgId: string;
   let caller: ReturnType<typeof hrRouter.createCaller>;
+  // A salary structure + tax regime are now required at create (ADD-EMP-STRUCT / TAX-REGIME-DEFAULT);
+  // this suite is about PAN, so every create just carries this structure and regime "new".
+  let structId: string;
 
   async function storedRow(id: string) {
     const [row] = await testDb().select().from(employees).where(eq(employees.id, id));
@@ -35,6 +38,11 @@ describe("employee PAN encryption at rest", () => {
     ({ orgId } = await seedTestOrg());
     const { userId: adminId } = await seedUser(orgId, { role: "admin", matrixRole: "admin" });
     caller = hrRouter.createCaller(makeContext(adminId, orgId));
+    const [st] = await testDb()
+      .insert(salaryStructures)
+      .values({ orgId, structureName: `PAN-${nanoid(4)}`, ctcAnnual: "600000", basicPercent: "50", daPercent: "0", effectiveFrom: new Date("2020-01-01") })
+      .returning();
+    structId = st!.id;
   });
   afterEach(async () => {
     await cleanupOrg(orgId);
@@ -45,6 +53,8 @@ describe("employee PAN encryption at rest", () => {
       userName: "Asha Rao",
       userEmail: `asha-${nanoid(6)}@qa.coheronconnect.io`,
       state: "Karnataka",
+      salaryStructureId: structId,
+      taxRegime: "new",
       pan: "ABCDE1234F",
     });
     const row = await storedRow(emp.id);
@@ -62,6 +72,8 @@ describe("employee PAN encryption at rest", () => {
       userName: "Ben Kurian",
       userEmail: `ben-${nanoid(6)}@qa.coheronconnect.io`,
       state: "Karnataka",
+      salaryStructureId: structId,
+      taxRegime: "new",
       pan: "ABCDE1234F",
     });
     await caller.employees.update({ id: emp.id, pan: "MNOPQ4321R" });
@@ -80,6 +92,8 @@ describe("employee PAN encryption at rest", () => {
         userName: "Cy Malformed",
         userEmail: `cy-${nanoid(6)}@qa.coheronconnect.io`,
         state: "Karnataka",
+        salaryStructureId: structId,
+        taxRegime: "new",
         pan: "NOTAPAN", // fails the PAN format rule
       }),
     ).rejects.toThrow(/PAN must be in the format/i);
@@ -90,6 +104,8 @@ describe("employee PAN encryption at rest", () => {
       userName: "Del Ok",
       userEmail: `del-${nanoid(6)}@qa.coheronconnect.io`,
       state: "Karnataka",
+      salaryStructureId: structId,
+      taxRegime: "new",
       pan: "ABCDE1234F",
     });
     await expect(caller.employees.update({ id: emp.id, pan: "12345678901" })).rejects.toThrow(
@@ -102,6 +118,8 @@ describe("employee PAN encryption at rest", () => {
       userName: "Eve Stable",
       userEmail: `eve-${nanoid(6)}@qa.coheronconnect.io`,
       state: "Karnataka",
+      salaryStructureId: structId,
+      taxRegime: "new",
       pan: "ABCDE1234F",
     });
     const before = (await storedRow(emp.id)).pan;
@@ -127,6 +145,8 @@ describe("employee PAN encryption at rest", () => {
       userName: "Fay Masked",
       userEmail: `fay-${nanoid(6)}@qa.coheronconnect.io`,
       state: "Karnataka",
+      salaryStructureId: structId,
+      taxRegime: "new",
       pan: "ABCDE1234F",
     });
     const list = await caller.employees.list({});
