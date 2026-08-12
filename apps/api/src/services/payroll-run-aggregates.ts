@@ -12,6 +12,7 @@ import {
 } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
 import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
+import { isMetroCity } from "@coheronconnect/payroll-math";
 
 /**
  * Employee statuses that count as EMPLOYED for a pay period, and so are selected by a payroll run.
@@ -184,6 +185,15 @@ export function buildEmployeePayrollInput(
   year: number,
   attendance?: { daysInMonth: number; daysWorked: number; lopDays: number },
   ptHalfYearly?: PtHalfYearlyContext,
+  // C1 Piece 1: old-regime declared deductions for this employee's fiscal year (raw ₹; computeTax
+  // caps them). Absent/lapsed ⇒ 0. Only affects OLD-regime tax; the engine ignores them for NEW.
+  declarations?: {
+    section80C: number;
+    section80D: number;
+    section80CCD1B: number;
+    section80TTA: number;
+    section24b: number;
+  },
 ): EmployeePayrollInput {
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
@@ -233,7 +243,10 @@ export function buildEmployeePayrollInput(
     designation: emp.title ?? "",
     department: emp.department ?? "",
     state,
-    isMetro: emp.isMetroCity ?? false,
+    // HRA metro leg (50%) applies ONLY to Mumbai/Delhi/Kolkata/Chennai — derive it from the city,
+    // not the free `isMetroCity` boolean (which let a Bangalore employee be flagged metro and
+    // over-exempted → under-deducted TDS). Unknown city → non-metro (safe, over-deducting).
+    isMetro: isMetroCity(emp.city),
     esiMemberAtPeriodStart: esiMemberForCurrentPeriod(emp, month, year),
     joiningDate: join,
     gender: emp.gender ?? null,
@@ -247,13 +260,13 @@ export function buildEmployeePayrollInput(
     specialAllowance,
     ltaAnnual,
     regime: emp.taxRegime === "old" ? "OLD" : "NEW",
-    // TODO(compliance): Wire up actual employee tax declarations intake table.
-    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
-    section80C: 0,
-    section80D: 0,
-    section80CCD1B: 0,
-    section80TTA: 0,
-    section24b: 0,
+    // C1 Piece 1: wired from `tax_declarations` (fetched per-employee for the run's FY by the caller).
+    // Absent/lapsed ⇒ 0. Stops the old-regime over-deduction; computeTax applies the statutory caps.
+    section80C: declarations?.section80C ?? 0,
+    section80D: declarations?.section80D ?? 0,
+    section80CCD1B: declarations?.section80CCD1B ?? 0,
+    section80TTA: declarations?.section80TTA ?? 0,
+    section24b: declarations?.section24b ?? 0,
     // hraExemption stays 0: the engine now COMPUTES it from rentPaid + isMetro + the
     // earned basic/HRA (s.10(13A) least-of-three), so this caller-supplied field is only
     // an explicit override. `rentPaid` is the declared annual rent (Form-12BB style); when

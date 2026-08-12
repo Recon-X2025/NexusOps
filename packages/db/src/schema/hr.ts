@@ -1071,3 +1071,43 @@ export const lifecycleEvents = pgTable(
     empIdx: index("lifecycle_events_emp_idx").on(t.employeeId),
   }),
 );
+
+// ── Tax declarations (C1 Piece 1) ──────────────────────────────────────────
+// Old-regime Chapter VI-A + 24(b) deductions an employee declares for a fiscal year. Per employee
+// per FY — declarations are annual and must not be overwritten across years: the CA's mechanism
+// (declared provisionally in April, physical proofs by January, else values zeroed with the extra
+// tax spread over February–March) needs per-year scoping + provenance. `ingest.ts:174` anticipated it.
+export const declarationProvenanceEnum = pgEnum("declaration_provenance", [
+  "provisional", // declared in April; proofs not yet furnished
+  "proven",      // physical proofs furnished (by January)
+  "lapsed",      // proofs not furnished — values zeroed, extra tax spread over Feb–Mar (later unit)
+]);
+
+export const taxDeclarations = pgTable(
+  "tax_declarations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    fiscalYear: integer("fiscal_year").notNull(), // FY start year, e.g. 2026 for FY 2026-27
+    // Old-regime deductions (₹). Caps are enforced in computeTax, not here (80C ₹1.5L, 80D ₹75k,
+    // 80CCD1B ₹50k, 80TTA ₹10k, 24b ₹2L) — this stores the raw declared value.
+    section80C: decimal("section_80c", { precision: 14, scale: 2 }).notNull().default("0"),
+    section80D: decimal("section_80d", { precision: 14, scale: 2 }).notNull().default("0"),
+    section80CCD1B: decimal("section_80ccd1b", { precision: 14, scale: 2 }).notNull().default("0"),
+    section80TTA: decimal("section_80tta", { precision: 14, scale: 2 }).notNull().default("0"),
+    section24B: decimal("section_24b", { precision: 14, scale: 2 }).notNull().default("0"),
+    provenance: declarationProvenanceEnum("provenance").notNull().default("provisional"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // One declaration per employee per fiscal year.
+    employeeFyIdx: uniqueIndex("tax_declarations_employee_fy_idx").on(t.employeeId, t.fiscalYear),
+    orgIdx: index("tax_declarations_org_idx").on(t.orgId),
+  }),
+);

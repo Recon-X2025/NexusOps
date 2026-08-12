@@ -29,6 +29,15 @@ export type PayslipTaxFigures = {
  */
 export function computePayslipTaxFigures(
   p: typeof payslips.$inferSelect,
+  // C1 Piece 1: old-regime declared deductions for this payslip's FY, so the on-screen/PDF annual
+  // tax projection matches the actual TDS the run deducted (which now also reads them). Absent ⇒ 0.
+  declarations?: {
+    section80C: number;
+    section80D: number;
+    section80CCD1B: number;
+    section80TTA: number;
+    section24b: number;
+  },
 ): PayslipTaxFigures {
   const grossM = Number(p.grossEarnings || 0);
   const basicM = Number(p.basic || 0) || Math.round(grossM * 0.4);
@@ -45,13 +54,12 @@ export function computePayslipTaxFigures(
     // LTA on a payslip the employee holds, over-stating taxable income on the on-screen projection
     // (Form 16 was clean — form16-aggregator calls computeTax directly — so this was display-only).
     lta: Number(p.lta || 0),
-    // TODO(compliance): Wire up actual employee tax declarations intake table.
-    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
-    section80C: 0,
-    section80D: 0,
-    section80CCD1B: 0,
-    section80TTA: 0,
-    section24b: 0,
+    // C1 Piece 1: wired from `tax_declarations` (passed by the caller for this employee's FY).
+    section80C: declarations?.section80C ?? 0,
+    section80D: declarations?.section80D ?? 0,
+    section80CCD1B: declarations?.section80CCD1B ?? 0,
+    section80TTA: declarations?.section80TTA ?? 0,
+    section24b: declarations?.section24b ?? 0,
     hraExemption: 0,
     otherExemptions: 0,
     employeePFMonthly: Number(p.pfEmployee || 0),

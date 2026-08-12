@@ -561,6 +561,13 @@
       "when": 1786374778973,
       "tag": "0079_peaceful_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1786520768265,
+      "tag": "0080_worried_firestar",
+      "breakpoints": true
     }
   ]
 }

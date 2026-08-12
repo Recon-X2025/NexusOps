@@ -235,6 +235,22 @@ function computeSlabTax(
 
 // ─── HRA EXEMPTION ─────────────────────────────────────────────────────────────
 
+// The FOUR cities that qualify for the 50% metro HRA leg under s.10(13A): Mumbai, Delhi, Kolkata,
+// Chennai — and only those. Bangalore/Bengaluru, Hyderabad and Pune are NON-metro (40%). Common
+// legacy/variant names are folded in. Deriving `isMetro` from the city name (not a free boolean)
+// stops a Bangalore employee being flagged metro and over-exempted → under-deducted TDS. An
+// unknown/empty city returns false — the safe, over-deducting direction.
+const METRO_CITIES = new Set([
+  "mumbai", "bombay",
+  "delhi", "new delhi",
+  "kolkata", "calcutta",
+  "chennai", "madras",
+]);
+export function isMetroCity(city: string | null | undefined): boolean {
+  if (!city) return false;
+  return METRO_CITIES.has(city.trim().toLowerCase());
+}
+
 export function computeHRAExemption(
   basicAnnual: number,
   hraReceived: number,

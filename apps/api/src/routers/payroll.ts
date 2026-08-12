@@ -20,6 +20,7 @@ import {
   esiChallanRecords,
   ptChallanRecords,
   tdsChallanRecords,
+  taxDeclarations,
   documents,
   documentVersions,
   eq,
@@ -472,6 +473,29 @@ const runsRouter = router({
       // resolved before the transaction (reads earlier months, untouched by this run's delete).
       const ptHalfYearlyMap = await buildPtHalfYearlyContext(db, org!.id, empRows, row.month, row.year);
 
+      // C1 Piece 1: old-regime declared deductions for the run's fiscal year (Apr–Mar). `lapsed`
+      // declarations are treated as 0 (values zeroed per the CA rule); provisional + proven count.
+      // Wiring these stops the old-regime over-deduction — computeTax applies the statutory caps.
+      const fyStartYear = row.month >= 4 ? row.year : row.year - 1;
+      const declRows = await db
+        .select()
+        .from(taxDeclarations)
+        .where(and(eq(taxDeclarations.orgId, org!.id), eq(taxDeclarations.fiscalYear, fyStartYear)));
+      const declMap = new Map(
+        declRows
+          .filter((d) => d.provenance !== "lapsed")
+          .map((d) => [
+            d.employeeId,
+            {
+              section80C: Number(d.section80C || 0),
+              section80D: Number(d.section80D || 0),
+              section80CCD1B: Number(d.section80CCD1B || 0),
+              section80TTA: Number(d.section80TTA || 0),
+              section24b: Number(d.section24B || 0),
+            },
+          ]),
+      );
+
       await db.transaction(async (tx) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
 
@@ -492,7 +516,7 @@ const runsRouter = router({
         for (const { emp, st } of empRows) {
           let slip: ReturnType<typeof computeEmployeePayslip>;
           try {
-            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id));
+            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), declMap.get(emp.id));
             slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
           } catch (e) {
             // One employee's bad data must NOT roll back the transaction and leave every

@@ -5684,6 +5684,35 @@ could not run locally** — each service's `env_file: .env.production` is a host
 limit is stated, not papered over. **The real test is the deploy.** Gate: **cold lint 9/9** (0 cached, 13.2s),
 **full suite 177 files / 1593 tests, 0 failures**. **Not committed; not pushed.**
 
+## C1-CORE — 2026-08-12 (built, UNCOMMITTED — the money-path half of the migration batch; migration 0080)
+
+Landed as its own gated deploy ahead of the rest of the migration batch: these three are the money and were
+done and sitting uncommitted. Splitting keeps a clean bisect (a migration + one helper + two wiring sites, not
+that plus two form sets and eight housekeeping items). **The second half stays in the unit, immediately after.**
+
+- **Migration `0080_worried_firestar` — ADDITIVE ONLY.** `organizations.entity_type` (8-value enum, nullable)
+  + `tax_declarations` (per employee per FY: section80C/80D/80CCD1B/80TTA/section24B + `provenance`
+  provisional|proven|lapsed, cascade FKs, unique (employee, fy), **RLS-walled** — ENABLE+FORCE+tenant_isolation
+  per 0052/0061; the gate's `rls-all-tables` test caught the missing wall on the first run). Journal in sync; validated from-empty
+  (0000→0080) AND against a seeded prod-shaped DB (see gate). `packages/db` dist rebuilt.
+- **HRA metro (live under-deduction, first-cycle).** `isMetroCity(city)` (`tax-engine.ts`) — the FOUR cities
+  Mumbai/Delhi/Kolkata/Chennai only (+ legacy variants); Bangalore/Hyderabad/Pune non-metro. The run derives
+  `isMetro` from `emp.city` (`payroll-run-aggregates.ts:236`), not the free `isMetroCity` boolean that let a
+  Bangalore employee be flagged metro → 50% leg → over-exemption → **under-deducted TDS** (unsafe, filing
+  liability). Unknown city ⇒ non-metro (safe). The `isMetroCity` boolean column/form field is now vestigial —
+  hide/remove in the second half.
+- **Declarations wired (stops the over-deduction).** The run (`payroll.ts` batch-fetches `tax_declarations`
+  for the FY → `buildEmployeePayrollInput`; `lapsed`⇒0) and the employee-facing PDF (`computePayslipTaxFigures`
+  gained a `declarations` param, `payroll-payslip-pdf.ts` passes them). `computeTax`'s old-regime caps already
+  existed (`tax-engine.ts:302-319`) — this only populates the parameters. Magnitude fixed: ~₹2,500/mo (80C
+  alone at 20%) to ₹8–12k/mo (full claim) per old-regime employee, from payslip one.
+
+**RESIDUAL — `mapPayslipRow` (display inconsistency, recorded not fixed in C1-CORE).** The screen payslip-LIST
+mapper (`payroll.ts:130-134`) still calls `computePayslipTaxFigures` WITHOUT declarations, so the list's annual
+tax-projection column ignores them. **The deducted TDS and the payslip PDF are correct**; only the list column
+is over-stated. It's a sync mapper (no db) so wiring it needs a batch-fetch threaded through the handler —
+folded into the second half. Named here so it isn't discovered as a fresh defect.
+
 ## PRUNE-PREFLIGHT — SHIPPED & DEPLOYED `db37bb4` (2026-08-12) — infra only; no app code, no migration
 
 **Status: SHIPPED & DEPLOYED — commit `db37bb4`, CI run `31552652138`, `Deploy to Vultr` green on ATTEMPT 1 —

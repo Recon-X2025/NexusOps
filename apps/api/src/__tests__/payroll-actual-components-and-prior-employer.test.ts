@@ -251,14 +251,14 @@ describe("PT4: prior-employer income + TDS thread from the employee record into 
   });
 
   // ── HRA ingestion ─────────────────────────────────────────────────────────────
-  // The declared annual rent (rentPaidAnnual) and the metro flag (isMetroCity) must
-  // reach the built payroll input as `rentPaid` / `isMetro`, so the engine can compute
-  // the s.10(13A) HRA exemption. Before this fix `rentPaid` was hardcoded to 0, so the
-  // exemption was always 0 for every old-regime renter (over-deducted TDS).
-  it("declared rent + metro flag thread from the employee record into the engine input", async () => {
+  // The declared annual rent (rentPaidAnnual) threads into the input as `rentPaid`, and the metro
+  // flag is now DERIVED from the employee's CITY against the four metros (Mumbai/Delhi/Kolkata/
+  // Chennai) — not the free `isMetroCity` boolean — so `isMetro` reaches the engine for the
+  // s.10(13A) HRA exemption. Before, `rentPaid` was hardcoded 0 (over-deducted every old-regime renter).
+  it("declared rent threads in, and metro is derived from a metro city, into the engine input", async () => {
     const { emp, struct } = await seedEmp({
       rentPaidAnnual: "300000",
-      isMetroCity: true,
+      city: "Mumbai", // a metro → isMetro derived true (the boolean is no longer consulted)
     });
     const input = buildEmployeePayrollInput(emp, struct, MONTH, YEAR);
     expect(input.rentPaid).toBe(300_000);

@@ -9,7 +9,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { and, eq, payslips, employees, users, organizations, legalEntities } from "@coheronconnect/db";
+import { and, eq, payslips, employees, users, organizations, legalEntities, taxDeclarations } from "@coheronconnect/db";
 import { createContext } from "../middleware/auth";
 import { generatePayslipPDF } from "../services/payslip-pdf";
 import { buildPayslipView, payslipViewToPdfInput } from "../lib/payslip-view";
@@ -63,8 +63,24 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
       const decryptedPan = await decryptPan(row.emp.pan);
 
       // PT2: annual tax figures from the same engine-backed helper the on-screen payslip uses,
-      // so the PDF and the screen agree.
-      const taxFigures = computePayslipTaxFigures(row.slip);
+      // so the PDF and the screen agree. C1: pass the employee's FY declarations so the annual tax
+      // projection matches the actual TDS the run deducted (lapsed ⇒ treated as 0).
+      const fyStartYear = row.slip.month >= 4 ? row.slip.year : row.slip.year - 1;
+      const [decl] = await db
+        .select()
+        .from(taxDeclarations)
+        .where(and(eq(taxDeclarations.employeeId, row.slip.employeeId), eq(taxDeclarations.fiscalYear, fyStartYear)));
+      const declarations =
+        decl && decl.provenance !== "lapsed"
+          ? {
+              section80C: Number(decl.section80C || 0),
+              section80D: Number(decl.section80D || 0),
+              section80CCD1B: Number(decl.section80CCD1B || 0),
+              section80TTA: Number(decl.section80TTA || 0),
+              section24b: Number(decl.section24B || 0),
+            }
+          : undefined;
+      const taxFigures = computePayslipTaxFigures(row.slip, declarations);
 
       const view = buildPayslipView({
         slip: row.slip,

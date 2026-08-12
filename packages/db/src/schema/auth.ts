@@ -47,6 +47,19 @@ export const userStatusEnum = pgEnum("user_status", [
   "disabled",
 ]);
 
+// Legal entity type. Drives which registration identifier the compliance form asks for: a CIN
+// (companies + Section 8), an LLPIN (LLP), or neither (partnership / proprietorship / HUF).
+export const entityTypeEnum = pgEnum("entity_type", [
+  "private_limited",
+  "public_limited",
+  "one_person_company",
+  "llp",
+  "partnership_firm",
+  "sole_proprietorship",
+  "huf",
+  "trust_society_section8",
+]);
+
 // ── Organizations ──────────────────────────────────────────────────────────
 export const organizations = pgTable(
   "organizations",
@@ -66,6 +79,8 @@ export const organizations = pgTable(
     website: text("website"),
     supportEmail: text("support_email"),
     // Compliance
+    // Legal entity type — nullable (existing orgs predate it). Drives CIN vs LLPIN vs neither.
+    entityType: entityTypeEnum("entity_type"),
     pan: text("pan"),
     /**
      * DPDP PAN match aids stored alongside raw `pan` (an entity PAN, retained for filing).
