@@ -48,7 +48,47 @@ if [[ -n "${GHCR_TOKEN:-}" ]]; then
   echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USERNAME:-oauth2}" --password-stdin
 fi
 
-docker image prune -f >/dev/null 2>&1 || true
+# ── Change D (PRUNE-PREFLIGHT): guarantee disk room BEFORE the pull/build ─────
+# 12 Aug 2026: the root filesystem hit 100% (Docker images from every past deploy
+# were never pruned — the old `docker image prune -f` here removed only *dangling*
+# layers, never the tagged per-deploy images), which made `compose pull` die
+# mid-layer and Postgres fail its healthcheck. Before pulling, read free space on
+# the device that actually backs /var/lib/docker (NOT blindly /), and if it is below
+# the threshold, prune old images first — then CONTINUE. Never abort: the goal is a
+# deploy that succeeds. Figures go to /var/log/coheron/. This block cannot fail the
+# deploy (guarded throughout, returns 0, called with `|| true`).
+DISK_FREE_MIN_GB=10       # prune when free space on the docker device is below this many GB
+PRUNE_RETENTION="168h"    # keep a week of images for rollback (used by Change D and Change E)
+preflight_disk_guard() {
+  local dir="/var/log/coheron" ts f docker_root avail_kb avail_gb
+  ts="$(date +%Y%m%dT%H%M%S)"
+  mkdir -p "$dir" 2>/dev/null || { echo "⚠ preflight: cannot create $dir — skipping (deploy continues)"; return 0; }
+  f="$dir/disk-preflight-$ts.log"
+  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  [[ -n "$docker_root" ]] || docker_root="/var/lib/docker"
+  # df -Pk → 1024-byte blocks (portable), 4th column is available space in KB.
+  avail_kb="$(df -Pk "$docker_root" 2>/dev/null | awk 'NR==2 {print $4}')"
+  {
+    echo "=== disk-preflight $ts  (docker root: $docker_root, threshold ${DISK_FREE_MIN_GB}GB) ==="
+    echo "--- df -h $docker_root (before) ---"; df -h "$docker_root" 2>&1 || true
+  } >"$f" 2>&1 || echo "⚠ preflight: writing $f errored — continuing"
+  if [[ -z "$avail_kb" ]]; then
+    echo "⚠ preflight: could not read free space for $docker_root — skipping prune, continuing" | tee -a "$f"
+    return 0
+  fi
+  avail_gb=$(( avail_kb / 1024 / 1024 ))
+  if (( avail_gb < DISK_FREE_MIN_GB )); then
+    echo "── preflight: ${avail_gb}GB free < ${DISK_FREE_MIN_GB}GB — pruning images older than ${PRUNE_RETENTION} ──" | tee -a "$f"
+    # -a removes unused tagged images too (dangling-only never freed the disk);
+    # in-use images (the running containers') are protected by Docker regardless.
+    docker image prune -af --filter "until=${PRUNE_RETENTION}" 2>&1 | tee -a "$f" || echo "⚠ preflight prune errored — continuing" | tee -a "$f"
+    { echo "--- df -h $docker_root (after prune) ---"; df -h "$docker_root" 2>&1 || true; } >>"$f" 2>&1 || true
+  else
+    echo "── preflight: ${avail_gb}GB free ≥ ${DISK_FREE_MIN_GB}GB — no prune needed ──" | tee -a "$f"
+  fi
+  return 0
+}
+preflight_disk_guard || true
 
 if [[ "$DEPLOY_MODE" == "pull" ]]; then
   : "${NEXUSOPS_WEB_IMAGE:?NEXUSOPS_WEB_IMAGE is required when DEPLOY_MODE=pull}"
@@ -167,6 +207,26 @@ if [[ "$EXPECT_VERSION" =~ ^[0-9a-f]{7,40}$ ]]; then
 else
   echo "⚠ EXPECT_VERSION='${EXPECT_VERSION}' is not an immutable SHA — skipping version assertion."
 fi
+
+# ── Change E (PRUNE-PREFLIGHT): retention prune AFTER a confirmed-good deploy ──
+# Only reached on the success path — the version-verify block above `exit 1`s on a
+# mismatch, so old images are removed only once the new containers are proven
+# running. Keeps a week (${PRUNE_RETENTION}) for rollback; NEVER touches volumes
+# (postgres_data); cannot fail the deploy (guarded, returns 0, called with `|| true`).
+prune_old_images() {
+  local dir="/var/log/coheron" f
+  # Append to this run's preflight file if present, else a post-deploy sibling.
+  f="$(ls -1t "$dir"/disk-preflight-*.log 2>/dev/null | head -1 || true)"
+  [[ -n "$f" ]] || f="$dir/disk-postdeploy-$(date +%Y%m%dT%H%M%S).log"
+  echo "── retention prune: removing images older than ${PRUNE_RETENTION} (a week kept for rollback) ──"
+  {
+    echo "=== retention-prune $(date +%Y%m%dT%H%M%S) ==="
+    docker image prune -af --filter "until=${PRUNE_RETENTION}" 2>&1 || echo "⚠ retention prune errored — continuing"
+    echo "--- df -h /var/lib/docker (after retention prune) ---"; df -h /var/lib/docker 2>&1 || true
+  } >>"$f" 2>&1 || true
+  return 0
+}
+prune_old_images || true
 
 echo "── seed (best-effort; API already runs migrate on start) ──"
 "${EXEC[@]}" exec -T api node -e "try{require('./dist/seed.js')}catch(e){console.error(e)}" 2>/dev/null || true

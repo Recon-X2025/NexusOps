@@ -6,6 +6,13 @@ services:
   # ── Web frontend (Next.js) ──────────────────────────────────────────────────
   web:
     image: coheronconnect/web:latest
+    # Change F: cap container logs. Docker's default json-file driver is uncapped and
+    # grows forever — a second, slower path to a full disk. 50m × 5 files = 250MB/service.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -33,6 +40,11 @@ services:
   # ── API (Fastify / tRPC) ────────────────────────────────────────────────────
   api:
     image: coheronconnect/api:latest
+    logging:                       # Change F: 250MB cap (see web)
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -74,6 +86,11 @@ services:
   # ── Caddy (Reverse Proxy) ───────────────────────────────────────────────────
   caddy:
     image: caddy:2-alpine
+    logging:                       # Change F: 250MB cap (see web)
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     restart: always
     ports:
       - "80:80"
@@ -91,6 +108,13 @@ services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
+    # Change F: Postgres logs are the evidence that matters on a recreate failure, so it
+    # gets a LARGER cap than the rest — 100m × 5 = 500MB.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
     restart: unless-stopped
     # Give Postgres time to flush and shut down cleanly instead of being SIGKILLed
     # after the 10s default — an unclean stop forces crash recovery on next start,
@@ -117,6 +141,11 @@ services:
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    logging:                       # Change F: 250MB cap (see web)
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     restart: unless-stopped
     command: >
       sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
@@ -144,6 +173,11 @@ services:
   # ── Meilisearch ─────────────────────────────────────────────────────────────
   meilisearch:
     image: getmeili/meilisearch:v1.10
+    logging:                       # Change F: 250MB cap (see web)
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_KEY}
@@ -167,6 +201,11 @@ services:
   # (default 3600 = 1h), matching the worker schedule default.
   dpdp-sweeper:
     image: curlimages/curl:8.11.1
+    logging:                       # Change F: 250MB cap (see web)
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     restart: unless-stopped
     environment:
       SWEEP_INTERVAL_SECONDS: ${DPDP_SWEEP_INTERVAL_SECONDS:-3600}

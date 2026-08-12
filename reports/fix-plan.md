@@ -5560,7 +5560,42 @@ interface, not yet traced to `file:line`):**
   The payslip now **persists the resolved PF wage base + the employer EPS/EPF split** (mig `0076`) — which is
   what made the first and last of those fixable.
 
-## OUTAGE-2026-08-10 — production down during deploy; cause UNESTABLISHED
+## OUTAGE-2026-08-10 — CLOSED. Cause established 12 Aug: the root filesystem was full (Docker image accumulation)
+
+**CLOSED — cause ESTABLISHED 2026-08-12 (~05:50, at the console).** `/dev/vda2` was at **100% — 115M free of
+75G**. `docker image prune -a -f` reclaimed **8.074GB**, taking it to **23G used / 49G free / 32%**. The images
+deleted were every image from every past deploy — `web:cbed818`, `web:6bfb7bf`, `web:29d92c5`, `api:26962fc`,
+`api:334cc4f`, `api:7a76624`, … — **never pruned** (the deploy's only prune was `docker image prune -f`,
+dangling-only, which never removes tagged images). **Confirmation:** the same Deploy job that had failed twice
+then **succeeded with nothing else changed**.
+
+**One cause explains four separately-recorded symptoms — folded in here** (they were correctly kept apart
+while the cause was unknown; keeping them apart now would misrepresent it):
+- **The three Postgres healthcheck failures** (`6b08414`, `8b4191a`, `adeb2be`) — a full disk means Postgres
+  cannot write, so it cannot answer `pg_isready`, so it never goes healthy. (See "THIRD OCCURRENCE" below.)
+- **`HOST-UNREACHABLE-2026-08-11`** (`ssh-keyscan` failing before connect; the Vultr console rejecting a valid
+  root login) — login writes to disk; a full root filesystem refuses valid credentials. **Not a separate
+  incident** — a symptom of the same full disk.
+- **The `docker compose pull` dying mid-layer at ~31MB** — no room to write the next layer.
+- **"A reboot appears to fix it, temporarily"** — a restart frees a little transient space, enough to limp
+  until the next deploy refills it.
+
+**False trail, so it is not re-walked:** GitHub masked **every hyphen** in the `ssh-keyscan` log (rendered as
+`***`) because a repository secret contains a hyphen — it read as a corrupted secret. **The secrets were
+untouched** (last updated two and four months ago); the masking was cosmetic.
+
+**What the Vultr graphs ruled out (and their blind spot):** vCPU flat ~2.5%, disk **operations** flat, network
+idle — so it was not CPU, IO throughput, or network. **The graphs have no disk-*space* panel**, which is why
+the one number that mattered (free bytes on `/dev/vda2`) was invisible from outside the box. The fix
+(`PRUNE-PREFLIGHT`, below) writes `df` into `/var/log/coheron/` every deploy so it is never invisible again.
+
+**Fix: `PRUNE-PREFLIGHT` (this unit) — automatic pre-flight + post-success image pruning + capped container
+logs.** See its entry below. The 8GB manual reclaim already happened; this makes it automatic before the disk
+refills during onboarding week.
+
+---
+
+_Original incident record (retained; cause is now the one above):_
 
 **Incident.** Deploying `6b08414` to Vultr, the pipeline ran `docker compose down` then `up`. Redis and
 Meilisearch came up; the **Postgres container never passed its healthcheck**, so the migrator, api, web and
@@ -5648,6 +5683,43 @@ block carries both new keys; every service Change B names exists in the compose.
 could not run locally** — each service's `env_file: .env.production` is a host-only secret, absent here; that
 limit is stated, not papered over. **The real test is the deploy.** Gate: **cold lint 9/9** (0 cached, 13.2s),
 **full suite 177 files / 1593 tests, 0 failures**. **Not committed; not pushed.**
+
+## PRUNE-PREFLIGHT — 2026-08-12 (built, UNCOMMITTED — infra only; no app code, no migration)
+
+The fix for `OUTAGE-2026-08-10` now that its cause is established (full root filesystem from un-pruned Docker
+images). **Nothing on the box removed old images** — the deploy's only prune was `docker image prune -f`
+(dangling-only), which never touches tagged per-deploy images. Files: `scripts/vultr-remote-deploy.sh`,
+`docker-compose.vultr-test.yml`. **Threshold: 10GB free; retention window: 168h (a week, for rollback).**
+
+- **Removed** the dangling-only `docker image prune -f` (superseded — it was proven insufficient).
+- **Change D — pre-flight guard (before the pull/build).** Reads free space on the device backing
+  `/var/lib/docker` (derived via `docker info` → `df -Pk`, **not** blindly `/`); if `< DISK_FREE_MIN_GB` (10),
+  prunes `docker image prune -af --filter until=168h` **then continues** (never aborts — the goal is a deploy
+  that succeeds). Logs before/action/after to `/var/log/coheron/disk-preflight-<ts>.log`. **Ordering note:**
+  Change A's capture runs *after* the pull (`:106`) and is shipped/untouchable, so Change D writes its own
+  sibling file in the same evidence dir rather than literally A's file.
+- **Change E — retention prune (after a confirmed-good deploy only).** Placed after the version-verify block
+  (which `exit 1`s on mismatch), so old images are removed only once the new containers are proven running;
+  `docker image prune -af --filter until=168h` keeps a week for rollback. Reclaimed figure logged.
+- **Both prunes are the SAFE form** — `-a` never removes images in use by a running container; `--filter
+  until=168h` never removes anything younger than a week. **Never `docker system prune --volumes`; nothing
+  touches `postgres_data`.** Both blocks cannot fail the deploy (functions `return 0`, called `|| true`, with
+  `set -e` suppressed inside a `|| true`-invoked function; internal `|| true`/`|| echo` guards throughout).
+- **`docker builder prune` NOT added** — CI deploys in **pull** mode (`ci.yml:299`), so no build cache
+  accumulates on the host from the automated path; it would only matter for manual build-mode deploys (out of
+  scope). Stated rather than added silently.
+- **Change F — capped container logs** (`docker-compose.vultr-test.yml`, per-service `logging:`). Docker's
+  default json-file driver is uncapped/forever — a second, slower path to the same full disk. `max-size: 50m` ×
+  `max-file: 5` = **250MB/service**; **Postgres gets 100m×5 = 500MB** (its logs are the recreate-failure
+  evidence). **Trade, stated:** this caps how far back Change A's `docker logs postgres` capture can reach —
+  500MB for Postgres, 250MB elsewhere, both large windows.
+
+**Verified without deploying:** `bash -n` clean; compose YAML parses and all 7 services carry `logging` keys
+(postgres 100m, rest 50m); `DISK_FREE_MIN_GB`/`PRUNE_RETENTION` declared once and used in both blocks; prune
+filters syntactically valid; the `set -e` non-interaction traced (both blocks `|| true` + `return 0`).
+**`docker compose config` cannot run locally** (host-only `env_file`). Gate: **cold lint 9/9** (0 cached, 21.6s),
+**full suite api 177 files/1593 tests + web 6 files/97 tests, 0 failures**. **The real test is the deploy.**
+Not committed; not pushed.
 
 ## PF-CONFIG — ECR spec conformance, VPF, employer rate, Para 26(6), bonus gate — SHIPPED `8b4191a` (2026-08-11)
 
