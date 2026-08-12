@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { downloadBankFile } from "@/lib/utils";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -95,6 +95,27 @@ function emptyStructureForm(): StructureFormState {
   };
 }
 
+// Current fiscal-year start year (India FY = Apr–Mar): months Apr(4)–Dec use this calendar year,
+// Jan–Mar use the previous. FY 2026-27 ⇒ 2026. Matches the run's fyStartYear derivation.
+function currentFyStartYear(): number {
+  const now = new Date();
+  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+}
+function fyLabel(startYear: number): string {
+  return `FY ${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
+}
+
+// Opt-in compliant STARTER templates. Adopting one just PREFILLS the new-structure form — the result
+// is an ordinary structure the customer edits and saves; nothing is auto-created and no tenant rows are
+// seeded (the removed demo-company seed stays removed). All satisfy Basic + DA = 50 (Basic is derived
+// as 50 − DA), which the form enforces and the server validates. Base Pay is left blank for the customer.
+const STARTER_STRUCTURES: { key: string; name: string; daPercent: string; hraPercentOfBasic: string }[] = [
+  { key: "services_it", name: "Services / IT", daPercent: "0", hraPercentOfBasic: "50" },
+  { key: "manufacturing", name: "Manufacturing", daPercent: "10", hraPercentOfBasic: "40" },
+  { key: "retail_hospitality", name: "Retail / Hospitality", daPercent: "0", hraPercentOfBasic: "40" },
+  { key: "sales", name: "Sales", daPercent: "0", hraPercentOfBasic: "50" },
+];
+
 function structureToForm(s: Record<string, any>): StructureFormState {
   const toDate = (d: any) => (d ? new Date(d).toISOString().slice(0, 10) : "");
   return {
@@ -130,9 +151,11 @@ export default function PayrollPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
   const [createYear, setCreateYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<"runs" | "structures" | "form16s">("runs");
+  const [activeTab, setActiveTab] = useState<"runs" | "structures" | "declarations" | "form16s">("runs");
   const [form16For, setForm16For] = useState<Record<string, unknown> | null>(null);
   const [structureEditor, setStructureEditor] = useState<StructureFormState | null>(null);
+  // C1 declaration capture: which employee's declaration is being edited, and the FY it targets.
+  const [declFor, setDeclFor] = useState<Record<string, unknown> | null>(null);
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -158,10 +181,10 @@ export default function PayrollPage() {
     },
   });
 
-  // Employees drive the Form 16 e-sign list under the Declarations tab.
+  // Employees drive both the Form 16 e-sign list and the investment-declaration capture tab.
   const employeesQuery = trpc.hr.employees.list.useQuery(
     { limit: 200 },
-    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "form16s" }),
+    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "form16s" || activeTab === "declarations" }),
   );
   const selectedRun = trpc.payroll.runs.get.useQuery(
     { id: selectedRunId! },
@@ -279,7 +302,7 @@ export default function PayrollPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-        {(["runs", "structures", "form16s"] as const).map((tab) => (
+        {(["runs", "structures", "declarations", "form16s"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -289,7 +312,7 @@ export default function PayrollPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
-            {tab === "runs" ? "Payroll runs" : tab === "structures" ? "Salary structures" : "Form 16 issuance"}
+            {tab === "runs" ? "Payroll runs" : tab === "structures" ? "Salary structures" : tab === "declarations" ? "Tax declarations" : "Form 16 issuance"}
           </button>
         ))}
       </div>
@@ -711,6 +734,67 @@ export default function PayrollPage() {
         </div>
       )}
 
+      {activeTab === "declarations" && (
+        <div className="space-y-3">
+          <p className="text-body-sm text-gray-500 dark:text-gray-400">
+            Capture each employee&apos;s old-regime investment declarations for <span className="font-medium text-gray-700 dark:text-gray-300">{fyLabel(currentFyStartYear())}</span>.
+            These feed the payroll run&apos;s TDS (statutory caps are applied automatically). Declarations
+            apply to the <span className="font-medium">old regime only</span> — a new-regime employee&apos;s entries have no tax effect.
+          </p>
+          {employeesQuery.isLoading && (
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">Loading employees…</div>
+          )}
+          {employeesQuery.data && employeesQuery.data.length === 0 && (
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">No employees found.</div>
+          )}
+          {employeesQuery.data && employeesQuery.data.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <table className="w-full text-body-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Employee</th>
+                    <th className="px-4 py-2 font-medium">Employee #</th>
+                    <th className="px-4 py-2 font-medium">Tax regime</th>
+                    <th className="px-4 py-2 font-medium text-right">Declaration</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {employeesQuery.data.map((emp) => (
+                    <tr key={emp.id as string} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{(emp.name as string) ?? "—"}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(emp.employeeNumber as string) ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        <span className={`status-badge capitalize ${((emp as any).taxRegime === "old") ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                          {((emp as any).taxRegime as string) ?? "new"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setDeclFor(emp as Record<string, unknown>)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-caption border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Edit declaration
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* C1 declaration capture modal */}
+      {declFor && (
+        <DeclarationModal
+          employee={declFor}
+          fiscalYear={currentFyStartYear()}
+          onClose={() => setDeclFor(null)}
+        />
+      )}
+
       {/* Salary structure editor modal */}
       {structureEditor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -728,6 +812,31 @@ export default function PayrollPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            {!structureEditor.id && (
+              <div className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2.5">
+                <p className="text-caption font-medium text-gray-600 dark:text-gray-300 mb-1.5">
+                  Start from a template <span className="font-normal text-gray-400">(optional — prefills the form; edit anything before saving)</span>
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {STARTER_STRUCTURES.map((s) => (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => setStructureEditor({
+                        ...structureEditor,
+                        structureName: structureEditor.structureName || s.name,
+                        daPercent: s.daPercent,
+                        hraPercentOfBasic: s.hraPercentOfBasic,
+                      })}
+                      className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2.5 py-1 text-caption text-gray-700 dark:text-gray-200 hover:border-primary hover:text-primary transition-colors"
+                      title={`Basic ${50 - Number(s.daPercent)}% · DA ${s.daPercent}% · HRA ${s.hraPercentOfBasic}% of basic`}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1005,6 +1114,128 @@ export default function PayrollPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// C1 declaration capture modal. Numeric inputs per section for one employee/FY, upserted with
+// provenance=provisional. The STATUTORY CAPS are NOT applied here — computeTax caps at run time; this
+// captures the raw declared amounts. Old-regime only: a new-regime employee is warned entries do nothing.
+function DeclarationModal({
+  employee,
+  fiscalYear,
+  onClose,
+}: {
+  employee: Record<string, unknown>;
+  fiscalYear: number;
+  onClose: () => void;
+}) {
+  const employeeId = employee.id as string;
+  const isOldRegime = (employee as any).taxRegime === "old";
+  const existing = trpc.payroll.taxDeclarations.get.useQuery(
+    { employeeId, fiscalYear },
+    { refetchOnWindowFocus: false },
+  );
+  const [form, setForm] = useState({
+    section80C: "0",
+    section80D: "0",
+    section80CCD1B: "0",
+    section80TTA: "0",
+    section24b: "0",
+  });
+  useEffect(() => {
+    const d = existing.data;
+    if (d) {
+      setForm({
+        section80C: String(d.section80C ?? "0"),
+        section80D: String(d.section80D ?? "0"),
+        section80CCD1B: String(d.section80CCD1B ?? "0"),
+        section80TTA: String(d.section80TTA ?? "0"),
+        section24b: String((d as any).section24B ?? "0"),
+      });
+    }
+  }, [existing.data]);
+
+  const upsert = trpc.payroll.taxDeclarations.upsert.useMutation({
+    onSuccess: () => {
+      toast.success("Declaration saved");
+      onClose();
+    },
+    onError: (e) => toast.error(e.message ?? "Failed to save declaration"),
+  });
+
+  // section key → { label, cap hint }. Caps are advisory here (enforced in the engine).
+  const FIELDS: { k: keyof typeof form; l: string; cap: string }[] = [
+    { k: "section80C", l: "Section 80C", cap: "cap ₹1,50,000 (PF, ELSS, life insurance, principal, etc.)" },
+    { k: "section80D", l: "Section 80D", cap: "cap ₹75,000 (medical insurance premium)" },
+    { k: "section80CCD1B", l: "Section 80CCD(1B)", cap: "cap ₹50,000 (NPS, over and above 80C)" },
+    { k: "section80TTA", l: "Section 80TTA", cap: "cap ₹10,000 (savings-account interest)" },
+    { k: "section24b", l: "Section 24(b)", cap: "cap ₹2,00,000 (home-loan interest)" },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-auto">
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-body-lg font-semibold text-gray-900 dark:text-gray-100">
+            Tax declaration — {(employee.name as string) ?? "Employee"}
+          </h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <p className="text-caption text-gray-500 dark:text-gray-400 mb-3">{fyLabel(fiscalYear)} · declared amounts (₹)</p>
+
+        {!isOldRegime && (
+          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-caption text-amber-800 dark:text-amber-300">
+            This employee is on the <span className="font-semibold">new regime</span>. These deductions apply only under the
+            old regime, so entering them will have <span className="font-semibold">no effect</span> on their tax until they switch.
+          </div>
+        )}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            upsert.mutate({
+              employeeId,
+              fiscalYear,
+              section80C: Number(form.section80C || 0),
+              section80D: Number(form.section80D || 0),
+              section80CCD1B: Number(form.section80CCD1B || 0),
+              section80TTA: Number(form.section80TTA || 0),
+              section24b: Number(form.section24b || 0),
+            });
+          }}
+          className="space-y-3"
+        >
+          {existing.isLoading ? (
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">Loading current declaration…</div>
+          ) : (
+            FIELDS.map((f) => (
+              <label key={f.k} className="block">
+                <span className="text-caption font-medium text-gray-500 dark:text-gray-400">{f.l}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form[f.k]}
+                  onChange={(e) => setForm((prev) => ({ ...prev, [f.k]: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm font-mono"
+                />
+                <span className="mt-0.5 block text-[10px] text-gray-400">{f.cap}</span>
+              </label>
+            ))
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="px-3 py-2 rounded-lg text-body-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
+              Cancel
+            </button>
+            <button type="submit" disabled={upsert.isPending || existing.isLoading} className="px-4 py-2 rounded-lg text-body-sm bg-primary text-white hover:bg-primary/90 disabled:opacity-50">
+              {upsert.isPending ? "Saving…" : "Save declaration"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

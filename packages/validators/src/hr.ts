@@ -4,23 +4,21 @@
  * Single source of truth for Human Resources validation.
  */
 import { z } from "zod";
+// Single source of truth: the HR enums live in `@coheronconnect/types` (which mirrors the db enums).
+// These used to be hand-maintained duplicates here and had drifted (EmploymentType "contract" vs the
+// db's "contractor"; a LeaveType set with casual/maternity/… the db rejects). Re-exported now so there
+// is exactly one definition. PayFrequencyEnum stays local — it has no `types`/db counterpart.
+import { EmploymentTypeEnum, LeaveTypeEnum, LeaveStatusEnum } from "@coheronconnect/types";
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
-export const EmploymentTypeEnum = z.enum(["full_time", "part_time", "contract", "intern"]);
+export { EmploymentTypeEnum, LeaveTypeEnum, LeaveStatusEnum };
 export type EmploymentType = z.infer<typeof EmploymentTypeEnum>;
+export type LeaveType = z.infer<typeof LeaveTypeEnum>;
+export type LeaveStatus = z.infer<typeof LeaveStatusEnum>;
 
 export const PayFrequencyEnum = z.enum(["monthly", "bi_weekly", "weekly", "daily"]);
 export type PayFrequency = z.infer<typeof PayFrequencyEnum>;
-
-export const LeaveTypeEnum = z.enum([
-  "annual", "sick", "casual", "maternity", "paternity",
-  "bereavement", "compensatory", "unpaid",
-]);
-export type LeaveType = z.infer<typeof LeaveTypeEnum>;
-
-export const LeaveStatusEnum = z.enum(["pending", "approved", "rejected", "cancelled"]);
-export type LeaveStatus = z.infer<typeof LeaveStatusEnum>;
 
 // ── Employee Schemas ──────────────────────────────────────────────────────────
 

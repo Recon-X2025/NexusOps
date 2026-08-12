@@ -30,27 +30,84 @@ export const profileSchema = z.object({
   supportEmail: z.string().email(),
 });
 
-export const indiaSchema = z.object({
-  gstin: z.string().length(15).regex(/^[0-9A-Z]{15}$/, "Invalid GSTIN format"),
-  pan: z.string().length(10).regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN"),
-  cin: z.string().length(21).regex(/^[L|U]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/, "Invalid CIN"),
-  tan: z.string().length(10).regex(/^[A-Z]{4}[0-9]{5}[A-Z]{1}$/, "Invalid TAN"),
-  pf: z.string().min(1),
-  /** ESIC employer establishment code. Optional — not every org is ESI-registered
-   *  (registration triggers at 10+ employees). Rendered on the payslip when present. */
-  esi: z.string().min(1).optional(),
-  /** EPF contribution rate for this establishment (12 default, 10 for small/sick). Applies to
-   *  every employee under this registration. */
-  pfContributionRate: z.number().min(0).max(12).optional(),
-  /** EPFO ground for a reduced (<12%) rate — required when the rate is reduced (enforced in the
-   *  write path); this is the value the ECR upload carries. */
-  pfReducedRateReason: z
-    .enum(["bidi", "brick", "coir", "jute", "guar_gum", "under_20_employees", "sick_establishment"])
-    .optional(),
-  stateCode: z.string().length(2),
-  /** AATO in rupees — drives the GSTR-1 HSN digit rule. Optional at onboarding. */
-  annualAggregateTurnover: z.number().nonnegative().optional(),
-});
+/** The 8 legal entity types (mirrors db `entityTypeEnum`, auth.ts). Drives which registration
+ *  identifier the compliance form asks for — see the superRefine below. */
+export const entityTypeValues = [
+  "private_limited",
+  "public_limited",
+  "one_person_company",
+  "llp",
+  "partnership_firm",
+  "sole_proprietorship",
+  "huf",
+  "trust_society_section8",
+] as const;
+
+// Entity types that MUST carry a CIN (registered under the Companies Act).
+const CIN_REQUIRED_ENTITY_TYPES: readonly string[] = ["private_limited", "public_limited", "one_person_company"];
+// `trust_society_section8` is a COMBINED bucket: a Section-8 company HAS a CIN, but a trust/society
+// does NOT. The enum cannot tell them apart, so CIN is valid-if-present (not required) for it, and an
+// LLPIN never applies. (Flagged in the build report — a finer enum would split Section-8 out.)
+const CIN_OPTIONAL_ENTITY_TYPES: readonly string[] = ["trust_society_section8"];
+
+// The raw object (kept separate from the refined schema below) so callers that need `.partial()`
+// — e.g. the super-admin partial editor — can still derive from it. `.superRefine` returns a
+// ZodEffects, which has no `.partial()`.
+export const indiaObjectSchema = z
+  .object({
+    // GSTIN / CIN / EPF are CONDITIONAL in statute; requiring them server-side would 400 a blank save
+    // from the wizard (which already treats them as valid-if-present) — the exclusion the entity-type
+    // work exists to remove. Optional here; PAN, TAN and the primary state are what genuinely hold.
+    gstin: z.string().length(15).regex(/^[0-9A-Z]{15}$/, "Invalid GSTIN format").optional(),
+    pan: z.string().length(10).regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN"),
+    cin: z.string().length(21).regex(/^[L|U]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/, "Invalid CIN").optional(),
+    /** LLPIN — the LLP registration identifier, 7 alphanumeric chars. A DIFFERENT field from CIN,
+     *  not a relabelled one; only an LLP carries it. (Format kept permissive — the LLPIN format has
+     *  varied over time and the cited statutory-identifiers research doc is not in the repo.) */
+    llpin: z.string().length(7).regex(/^[A-Z0-9]{7}$/, "Invalid LLPIN — 7 alphanumeric characters").optional(),
+    /** Legal entity type. Drives CIN-vs-LLPIN-vs-neither (superRefine below); persisted to
+     *  organizations.entity_type. Optional for backward-compatible partial saves. */
+    entityType: z.enum(entityTypeValues).optional(),
+    tan: z.string().length(10).regex(/^[A-Z]{4}[0-9]{5}[A-Z]{1}$/, "Invalid TAN"),
+    pf: z.string().min(1).optional(),
+    /** ESIC employer establishment code. Optional — not every org is ESI-registered
+     *  (registration triggers at 10+ employees). Rendered on the payslip when present. */
+    esi: z.string().min(1).optional(),
+    /** EPF contribution rate for this establishment (12 default, 10 for small/sick). Applies to
+     *  every employee under this registration. */
+    pfContributionRate: z.number().min(0).max(12).optional(),
+    /** EPFO ground for a reduced (<12%) rate — required when the rate is reduced (enforced in the
+     *  write path); this is the value the ECR upload carries. */
+    pfReducedRateReason: z
+      .enum(["bidi", "brick", "coir", "jute", "guar_gum", "under_20_employees", "sick_establishment"])
+      .optional(),
+    stateCode: z.string().length(2),
+    /** AATO in rupees — drives the GSTR-1 HSN digit rule. Optional at onboarding. */
+    annualAggregateTurnover: z.number().nonnegative().optional(),
+  });
+
+export const indiaSchema = indiaObjectSchema
+  // Registration identifier follows entity type: a company needs a CIN, an LLP needs an LLPIN, and
+  // partnership/proprietorship/HUF need neither. Only enforced once an entity type is chosen (so a
+  // legacy partial save with no entity type stays valid). Requiring a CIN of everyone excluded every
+  // non-company permanently — the whole reason this branch exists.
+  .superRefine((data, ctx) => {
+    if (!data.entityType) return;
+    if (CIN_REQUIRED_ENTITY_TYPES.includes(data.entityType)) {
+      if (!data.cin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cin"], message: "CIN is required for a company" });
+      if (data.llpin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["llpin"], message: "An LLPIN does not apply to a company — it carries a CIN" });
+    } else if (data.entityType === "llp") {
+      if (!data.llpin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["llpin"], message: "LLPIN is required for an LLP" });
+      if (data.cin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cin"], message: "A CIN does not apply to an LLP — it carries an LLPIN" });
+    } else if (CIN_OPTIONAL_ENTITY_TYPES.includes(data.entityType)) {
+      // Section-8 company (CIN) vs trust/society (none) share this bucket — CIN valid-if-present, LLPIN never.
+      if (data.llpin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["llpin"], message: "An LLPIN does not apply to this entity type" });
+    } else {
+      // partnership_firm / sole_proprietorship / huf — neither identifier.
+      if (data.cin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cin"], message: "A CIN does not apply to this entity type" });
+      if (data.llpin) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["llpin"], message: "An LLPIN does not apply to this entity type" });
+    }
+  });
 
 export const itsmSchema = z.object({
   p1: z.number().int().positive(),
@@ -428,6 +485,8 @@ export const onboardingRouter = router({
         gstin: gstinRow?.gstin ?? "",
         pan: orgPan,
         cin: leRow?.cin ?? "",
+        llpin: leRow?.llpin ?? "",
+        entityType: orgRow.entityType ?? "",
         tan: orgRow.tan ?? "",
         pf: orgRow.epfCode ?? "",
         esi: orgRow.esiEstablishmentNumber ?? "",

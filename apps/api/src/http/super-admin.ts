@@ -3,13 +3,13 @@ import jwt from "jsonwebtoken";
 import { getDb, eq } from "@coheronconnect/db";
 import { alias } from "drizzle-orm/pg-core";
 import { organizations, gstinRegistry, legalEntities, superAdminAuditLogs, users } from "@coheronconnect/db/schema";
-import { profileSchema, indiaSchema, itsmSchema } from "../routers/onboarding";
+import { profileSchema, indiaObjectSchema, itsmSchema } from "../routers/onboarding";
 import { writeWizardData, DuplicateGstinError } from "../services/orgWizardWrite";
 import { z } from "zod";
 
 const adminUpdateSchema = z.object({
   profile: profileSchema.partial().optional(),
-  india: indiaSchema.partial().optional(),
+  india: indiaObjectSchema.partial().optional(),
   itsm: itsmSchema.partial().optional()
 });
 

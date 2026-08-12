@@ -158,6 +158,8 @@ interface IndiaData {
   gstin: string;
   pan: string;
   cin: string;
+  llpin: string;
+  entityType: string;
   tan: string;
   pf: string;
   esi: string;
@@ -166,6 +168,24 @@ interface IndiaData {
   seedHolidays: boolean;
   seedCoa: boolean;
 }
+
+// The 8 legal entity types (mirrors the server `entityTypeValues` / db enum) and which registration
+// identifier each carries. Companies → CIN; LLP → LLPIN; the rest → neither.
+const ENTITY_TYPE_OPTIONS = [
+  { v: "private_limited", l: "Private Limited Company" },
+  { v: "public_limited", l: "Public Limited Company" },
+  { v: "one_person_company", l: "One Person Company (OPC)" },
+  { v: "llp", l: "Limited Liability Partnership (LLP)" },
+  { v: "partnership_firm", l: "Partnership Firm" },
+  { v: "sole_proprietorship", l: "Sole Proprietorship" },
+  { v: "huf", l: "Hindu Undivided Family (HUF)" },
+  { v: "trust_society_section8", l: "Trust / Society / Section 8 Company" },
+] as const;
+type WizardEntityType = (typeof ENTITY_TYPE_OPTIONS)[number]["v"];
+const CIN_REQUIRED_TYPES = ["private_limited", "public_limited", "one_person_company"];
+const CIN_OPTIONAL_TYPES = ["trust_society_section8"]; // Section-8 has a CIN; trust/society don't — valid-if-present
+function entityCarriesCin(t: string) { return CIN_REQUIRED_TYPES.includes(t) || CIN_OPTIONAL_TYPES.includes(t); }
+function entityCarriesLlpin(t: string) { return t === "llp"; }
 
 function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
   data: IndiaData;
@@ -182,12 +202,25 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
   // EPF is enforced later, at its point of use (ECR generation), where it actually matters.
   const gstinOk = data.gstin.trim() === "" || /^[A-Z0-9]{15}$/.test(data.gstin.trim().toUpperCase());
   const panValid = /^[A-Z0-9]{10}$/.test(data.pan.trim().toUpperCase());
-  const cinOk = data.cin.trim() === "" || /^[A-Z0-9]{21}$/.test(data.cin.trim().toUpperCase());
+  const cinPresentValid = /^[A-Z0-9]{21}$/.test(data.cin.trim().toUpperCase());
+  const cinBlank = data.cin.trim() === "";
+  const llpinPresentValid = /^[A-Z0-9]{7}$/.test(data.llpin.trim().toUpperCase());
+  const llpinBlank = data.llpin.trim() === "";
   const tanValid = /^[A-Z0-9]{10}$/.test(data.tan.trim().toUpperCase());
   const stateCodeValid = /^[A-Z0-9]{2}$/.test(data.stateCode.trim().toUpperCase());
-  const canNext = panValid && tanValid && stateCodeValid && gstinOk && cinOk;
+  const t = data.entityType;
+  const entityTypeSelected = t !== "";
+  // Identifier gate follows the chosen entity type: company ⇒ valid CIN required; LLP ⇒ valid LLPIN
+  // required; Section-8/trust/society ⇒ CIN valid-if-present; partnership/proprietor/HUF ⇒ neither.
+  const identifierOk =
+    !entityTypeSelected ? false
+    : CIN_REQUIRED_TYPES.includes(t) ? cinPresentValid
+    : entityCarriesLlpin(t) ? llpinPresentValid
+    : CIN_OPTIONAL_TYPES.includes(t) ? (cinBlank || cinPresentValid)
+    : true; // neither identifier applies
+  const canNext = panValid && tanValid && stateCodeValid && gstinOk && entityTypeSelected && identifierOk;
 
-  const upperCaseFields = ["gstin", "pan", "cin", "tan", "stateCode"];
+  const upperCaseFields = ["gstin", "pan", "cin", "llpin", "tan", "stateCode"];
 
   return (
     <div className="flex flex-col gap-4">
@@ -195,11 +228,23 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
         <h2 className="text-body-lg font-semibold text-foreground">India Compliance Setup</h2>
         <p className="text-body-sm text-muted-foreground mt-1">These numbers are used for GSTR, TDS returns, payroll, and e-invoicing.</p>
       </div>
+      <div>
+        <label className="text-[11px] font-medium text-muted-foreground block mb-1">Legal Entity Type *</label>
+        <select
+          value={data.entityType}
+          onChange={e => onChange({ entityType: e.target.value })}
+          className="w-full px-3 py-2 text-[13px] border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+        >
+          <option value="">Select entity type…</option>
+          {ENTITY_TYPE_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+        </select>
+        <p className="text-[10px] text-muted-foreground/60 mt-0.5">Determines which registration identifier applies: a CIN (companies), an LLPIN (LLP), or none.</p>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         {[
           { k: "gstin", l: "GSTIN", ph: "29ABCDE1234F1Z5", hint: "Optional — only if GST-registered (turnover-triggered). Not used by payroll." },
           { k: "pan",   l: "PAN *",   ph: "ABCDE1234F",      hint: "10-character PAN" },
-          { k: "cin",   l: "CIN", ph: "U74999KA2020PTC123456", hint: "Optional — companies only. LLPs hold an LLPIN; proprietorships/partnerships/HUFs have none." },
           { k: "tan",   l: "TAN (TDS) *", ph: "BLRE12345A",  hint: "10-character TAN for TDS filing" },
           { k: "pf",    l: "EPF Establishment Code", ph: "KA/BNG/12345/000/0001", hint: "Optional at setup; required before generating an EPF ECR (20+ employees, or voluntary)." },
           { k: "esi",   l: "ESI Establishment No.", ph: "12000123450000999", hint: "ESIC employer code — leave blank if not ESI-registered" },
@@ -216,6 +261,38 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
             {f.hint && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{f.hint}</p>}
           </div>
         ))}
+
+        {/* Registration identifier — branched on entity type. Shown only for entities that carry one. */}
+        {entityTypeSelected && entityCarriesCin(t) && (
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+              CIN {CIN_REQUIRED_TYPES.includes(t) ? "*" : ""}
+            </label>
+            <input
+              value={data.cin}
+              onChange={e => onChange({ cin: e.target.value.toUpperCase() })}
+              placeholder="U74999KA2020PTC123456"
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+            />
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              {CIN_REQUIRED_TYPES.includes(t)
+                ? "21-character Corporate Identification Number."
+                : "21-character CIN — enter it if this is a Section-8 company; leave blank for a trust or society."}
+            </p>
+          </div>
+        )}
+        {entityTypeSelected && entityCarriesLlpin(t) && (
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground block mb-1">LLPIN *</label>
+            <input
+              value={data.llpin}
+              onChange={e => onChange({ llpin: e.target.value.toUpperCase() })}
+              placeholder="AAB1234"
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+            />
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">7-character LLP Identification Number (an LLP&apos;s equivalent of a CIN).</p>
+          </div>
+        )}
       </div>
 
       <div>
@@ -403,7 +480,7 @@ export default function OnboardingWizardPage() {
   });
 
   const [indiaData, setIndiaData] = useState<IndiaData>({
-    gstin: "", pan: "", cin: "", tan: "", pf: "", esi: "", stateCode: "KA",
+    gstin: "", pan: "", cin: "", llpin: "", entityType: "", tan: "", pf: "", esi: "", stateCode: "KA",
     annualAggregateTurnover: "",
     seedHolidays: true, seedCoa: true,
   });
@@ -441,6 +518,8 @@ export default function OnboardingWizardPage() {
           gstin: data.india.gstin ?? "",
           pan: data.india.pan ?? "",
           cin: data.india.cin ?? "",
+          llpin: data.india.llpin ?? "",
+          entityType: data.india.entityType ?? "",
           tan: data.india.tan ?? "",
           pf: data.india.pf ?? "",
           esi: data.india.esi ?? "",
@@ -527,17 +606,28 @@ export default function OnboardingWizardPage() {
               </h3>
               <div className="grid grid-cols-2 gap-3 bg-muted/20 p-4 rounded-xl text-body-xs">
                 <div>
+                  <span className="text-muted-foreground block">Entity Type</span>
+                  <span className="font-medium text-foreground">{ENTITY_TYPE_OPTIONS.find(o => o.v === indiaData.entityType)?.l ?? "—"}</span>
+                </div>
+                <div>
                   <span className="text-muted-foreground block">GSTIN</span>
-                  <span className="font-medium text-foreground font-mono">{indiaData.gstin}</span>
+                  <span className="font-medium text-foreground font-mono">{indiaData.gstin || "—"}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground block">PAN</span>
                   <span className="font-medium text-foreground font-mono">{indiaData.pan}</span>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block">CIN</span>
-                  <span className="font-medium text-foreground font-mono">{indiaData.cin}</span>
-                </div>
+                {entityCarriesLlpin(indiaData.entityType) ? (
+                  <div>
+                    <span className="text-muted-foreground block">LLPIN</span>
+                    <span className="font-medium text-foreground font-mono">{indiaData.llpin || "—"}</span>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="text-muted-foreground block">CIN</span>
+                    <span className="font-medium text-foreground font-mono">{entityCarriesCin(indiaData.entityType) ? (indiaData.cin || "—") : "N/A"}</span>
+                  </div>
+                )}
                 <div>
                   <span className="text-muted-foreground block">TAN (TDS)</span>
                   <span className="font-medium text-foreground font-mono">{indiaData.tan}</span>
@@ -621,12 +711,16 @@ export default function OnboardingWizardPage() {
     try {
       await saveWizardMut.mutateAsync({
         india: {
-          gstin: indiaData.gstin,
+          // gstin / cin / llpin / pf are optional server-side; omit when blank ("" fails the format
+          // regex, and `.optional()` only accepts undefined). Only send the identifier the entity
+          // type actually carries, so the server's entity-type/identifier refine stays satisfied.
+          gstin: indiaData.gstin.trim() || undefined,
           pan: indiaData.pan,
-          cin: indiaData.cin,
+          entityType: (indiaData.entityType || undefined) as WizardEntityType | undefined,
+          cin: entityCarriesCin(indiaData.entityType) ? (indiaData.cin.trim() || undefined) : undefined,
+          llpin: entityCarriesLlpin(indiaData.entityType) ? (indiaData.llpin.trim() || undefined) : undefined,
           tan: indiaData.tan,
-          pf: indiaData.pf,
-          // Optional: omit when blank (the schema is `.min(1).optional()`; "" would fail).
+          pf: indiaData.pf.trim() || undefined,
           esi: indiaData.esi.trim() || undefined,
           stateCode: indiaData.stateCode,
           annualAggregateTurnover: indiaData.annualAggregateTurnover.trim()

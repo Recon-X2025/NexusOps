@@ -39,15 +39,12 @@ import {
 } from "@coheronconnect/payroll-math";
 import { router, permissionProcedure } from "../lib/trpc";
 import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
+import { LeaveTypeEnum } from "@coheronconnect/types";
 
-const leaveTypeSchema = z.enum([
-  "vacation",
-  "sick",
-  "parental",
-  "bereavement",
-  "unpaid",
-  "other",
-]);
+// The leave-type set is single-sourced from `@coheronconnect/types` (which mirrors the db enum).
+// This was a fourth hand-maintained copy (6 values) that omitted the db's `primary`/`annual`;
+// aliased here so the many `leaveTypeSchema` references below are unchanged.
+const leaveTypeSchema = LeaveTypeEnum;
 
 /** Monthly Basic+DA for an employee from their salary structure (Basic %). */
 function monthlyBasicPlusDA(

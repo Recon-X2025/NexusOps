@@ -568,6 +568,13 @@
       "when": 1786520768265,
       "tag": "0080_worried_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1786538597025,
+      "tag": "0081_illegal_stick",
+      "breakpoints": true
     }
   ]
 }

@@ -128,18 +128,28 @@ function fyCondition(startYear: number) {
 /** Rough monthly tax snapshot for the employee portal (full FY projection lives in `taxPreview`). */
 // PT2: annual tax figures for a stored payslip come from one shared helper so the screen
 // (here) and the downloadable PDF cannot drift. See `../lib/payslip-tax`.
-function taxComputationFromPayslip(p: typeof payslips.$inferSelect) {
-  return computePayslipTaxFigures(p);
+type DeclarationDeductions = {
+  section80C: number;
+  section80D: number;
+  section80CCD1B: number;
+  section80TTA: number;
+  section24b: number;
+};
+
+function taxComputationFromPayslip(p: typeof payslips.$inferSelect, declarations?: DeclarationDeductions) {
+  return computePayslipTaxFigures(p, declarations);
 }
 
-function mapPayslipRow(p: typeof payslips.$inferSelect) {
+function mapPayslipRow(p: typeof payslips.$inferSelect, declarations?: DeclarationDeductions) {
   // C6: read from the SHARED payslip view (no tenant identity — the portal shows amounts +
   // attendance only) so the on-screen breakdown and the statutory PDF cannot drift. This is
   // where ESI and LOP were previously hardcoded to 0; the builder reads the stored columns.
   const view = buildPayslipView({ slip: p });
   return payslipViewToPortalRow(view, {
     id: p.id,
-    taxComputation: taxComputationFromPayslip(p),
+    // C1 residual fix: pass the employee's declared deductions for this payslip's FY so the portal
+    // list's annual tax projection matches the actual TDS deducted (and the PDF). Was hardcoded 0.
+    taxComputation: taxComputationFromPayslip(p, declarations),
     pdfUrl: p.pdfUrl,
   });
 }
@@ -996,7 +1006,29 @@ const payslipsRouter = router({
         .where(and(eq(payslips.employeeId, emp.id), fyCondition(input.year)))
         .orderBy(desc(payslips.year), desc(payslips.month));
 
-      return rows.map(mapPayslipRow);
+      // C1 residual fix: the on-screen list's annual tax projection ignored declarations (always 0),
+      // so it over-stated old-regime tax vs the actual TDS and the PDF. Fetch this employee's declared
+      // deductions per FY (excluding `lapsed`, exactly as the run does) and thread each payslip's FY row.
+      const empDecls = await db
+        .select()
+        .from(taxDeclarations)
+        .where(and(eq(taxDeclarations.orgId, org.id), eq(taxDeclarations.employeeId, emp.id)));
+      const declByFy = new Map<number, DeclarationDeductions>(
+        empDecls
+          .filter((d) => d.provenance !== "lapsed")
+          .map((d) => [
+            d.fiscalYear,
+            {
+              section80C: Number(d.section80C || 0),
+              section80D: Number(d.section80D || 0),
+              section80CCD1B: Number(d.section80CCD1B || 0),
+              section80TTA: Number(d.section80TTA || 0),
+              section24b: Number(d.section24B || 0),
+            },
+          ]),
+      );
+      const fyOf = (p: typeof payslips.$inferSelect) => (p.month >= 4 ? p.year : p.year - 1);
+      return rows.map((p) => mapPayslipRow(p, declByFy.get(fyOf(p))));
     }),
 });
 
@@ -1261,10 +1293,108 @@ const salaryStructuresRouter = router({
     }),
 });
 
+// C1: per-employee, per-fiscal-year old-regime investment declarations (80C/80D/80CCD(1B)/80TTA/24b).
+// The FORM captures the declared amounts; the statutory CAPS live in computeTax (tax-engine.ts), NOT
+// here — this router only stores raw values. Every write lands as `provisional` (proof verification,
+// which flips it to proven/lapsed, is a later layer); a `lapsed` row is treated as 0 by the run.
+const taxDeclarationsRouter = router({
+  // All declarations for a fiscal year (FY start year, e.g. 2026 for FY 2026-27), keyed for the form.
+  listForFy: permissionProcedure("payroll", "read")
+    .input(z.object({ fiscalYear: z.coerce.number().int() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(taxDeclarations)
+        .where(and(eq(taxDeclarations.orgId, org!.id), eq(taxDeclarations.fiscalYear, input.fiscalYear)));
+    }),
+
+  // One employee's declaration for a fiscal year (null if none captured yet).
+  get: permissionProcedure("payroll", "read")
+    .input(z.object({ employeeId: z.string().uuid(), fiscalYear: z.coerce.number().int() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select()
+        .from(taxDeclarations)
+        .where(
+          and(
+            eq(taxDeclarations.orgId, org!.id),
+            eq(taxDeclarations.employeeId, input.employeeId),
+            eq(taxDeclarations.fiscalYear, input.fiscalYear),
+          ),
+        );
+      return row ?? null;
+    }),
+
+  // Upsert by (employee, fiscalYear) — the unique key. Amounts are stored raw (caps applied by the
+  // engine); provenance is always (re)set to `provisional` on capture.
+  upsert: permissionProcedure("payroll", "write")
+    .input(
+      z.object({
+        employeeId: z.string().uuid(),
+        fiscalYear: z.coerce.number().int(),
+        section80C: z.coerce.number().nonnegative().default(0),
+        section80D: z.coerce.number().nonnegative().default(0),
+        section80CCD1B: z.coerce.number().nonnegative().default(0),
+        section80TTA: z.coerce.number().nonnegative().default(0),
+        section24b: z.coerce.number().nonnegative().default(0),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      // Employee must belong to this tenant (defence-in-depth alongside the RLS wall).
+      const [emp] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+
+      const values = {
+        section80C: input.section80C.toFixed(2),
+        section80D: input.section80D.toFixed(2),
+        section80CCD1B: input.section80CCD1B.toFixed(2),
+        section80TTA: input.section80TTA.toFixed(2),
+        section24B: input.section24b.toFixed(2),
+        provenance: "provisional" as const,
+        updatedAt: new Date(),
+      };
+      const [existing] = await db
+        .select({ id: taxDeclarations.id })
+        .from(taxDeclarations)
+        .where(
+          and(
+            eq(taxDeclarations.orgId, org!.id),
+            eq(taxDeclarations.employeeId, input.employeeId),
+            eq(taxDeclarations.fiscalYear, input.fiscalYear),
+          ),
+        );
+      if (existing) {
+        const [updated] = await db
+          .update(taxDeclarations)
+          .set(values)
+          .where(and(eq(taxDeclarations.id, existing.id), eq(taxDeclarations.orgId, org!.id)))
+          .returning();
+        return updated;
+      }
+      const [created] = await db
+        .insert(taxDeclarations)
+        .values({
+          orgId: org!.id,
+          employeeId: input.employeeId,
+          fiscalYear: input.fiscalYear,
+          ...values,
+        })
+        .returning();
+      return created;
+    }),
+});
+
 export const payrollRouter = router({
   runs: runsRouter,
   payslips: payslipsRouter,
   salaryStructures: salaryStructuresRouter,
+  taxDeclarations: taxDeclarationsRouter,
 
   generateForm16ToDms: permissionProcedure("payroll", "write")
     .input(z.object({ employeeId: z.string().uuid(), fy: z.string() }))

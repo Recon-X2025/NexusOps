@@ -347,6 +347,16 @@ export async function computePayrollRunTotals(
     const st = await resolveSalaryStructureForPeriod(db, orgId, emp.salaryStructureId!, periodDate);
     if (st) {
       rows.push({ emp, st });
+      // ARCHIVED-STRUCTURE-PAYS (owner decision): the resolver deliberately does NOT filter
+      // `isArchived`, so an archived-but-still-effective version keeps paying. Do NOT silently stop
+      // paying (that could drop someone mid-onboarding). Instead surface it as a readiness data-problem
+      // the customer resolves — the employee is STILL in `rows` (paid), just flagged by name.
+      if (st.isArchived) {
+        errors.push({
+          employeeId: emp.id,
+          message: `${emp.employeeId} is linked to an ARCHIVED salary structure ("${st.structureName}"). It still pays this run, but reassign the employee to a current structure — an archived structure should not be a live pay basis.`,
+        });
+      }
     } else {
       // Excluded for want of an EFFECTIVE structure — named in the same errors[] channel the
       // structureless flag below uses (by employee code, never a raw UUID). Identical message to

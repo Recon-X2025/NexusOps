@@ -31,6 +31,18 @@ export async function writeWizardData(
       gstin?: string;
       pan?: string;
       cin?: string;
+      /** LLP registration identifier (7 chars). Persisted to legalEntities.llpin. */
+      llpin?: string;
+      /** Legal entity type — persisted to organizations.entity_type. */
+      entityType?:
+        | "private_limited"
+        | "public_limited"
+        | "one_person_company"
+        | "llp"
+        | "partnership_firm"
+        | "sole_proprietorship"
+        | "huf"
+        | "trust_society_section8";
       tan?: string;
       pf?: string;
       esi?: string;
@@ -113,6 +125,7 @@ export async function writeWizardData(
         updateFields.panMaskedDisplay = panCols.panMaskedDisplay;
       }
       if (input.india.tan !== undefined) updateFields.tan = input.india.tan;
+      if (input.india.entityType !== undefined) updateFields.entityType = input.india.entityType;
       if (input.india.pf !== undefined) updateFields.epfCode = input.india.pf;
       if (input.india.esi !== undefined) updateFields.esiEstablishmentNumber = input.india.esi;
       if (input.india.pfContributionRate !== undefined) {
@@ -175,25 +188,30 @@ export async function writeWizardData(
       }
     }
 
-    // Handle Legal Entity for CIN
-    if (input.india && input.india.cin !== undefined) {
+    // Handle Legal Entity registration identifier: CIN (companies) OR LLPIN (LLP). Both live on
+    // legalEntities; an entity carries at most one, disambiguated by organizations.entity_type.
+    if (input.india && (input.india.cin !== undefined || input.india.llpin !== undefined)) {
       const [existingLe] = await tx
         .select()
         .from(legalEntities)
         .where(eq(legalEntities.orgId, orgId))
         .limit(1);
 
+      const idFields: { cin?: string; llpin?: string } = {};
+      if (input.india.cin !== undefined) idFields.cin = input.india.cin;
+      if (input.india.llpin !== undefined) idFields.llpin = input.india.llpin;
+
       if (existingLe) {
         await tx
           .update(legalEntities)
-          .set({ cin: input.india.cin, updatedAt: new Date() })
+          .set({ ...idFields, updatedAt: new Date() })
           .where(eq(legalEntities.orgId, orgId));
       } else {
         await tx.insert(legalEntities).values({
           orgId,
           name: updateFields.name ?? orgRow.name,
           code: "HQ",
-          cin: input.india.cin
+          ...idFields,
         });
       }
     }

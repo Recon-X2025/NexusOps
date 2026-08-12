@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
 import { toast } from "sonner";
 import { Calculator, Play, CheckCircle } from "lucide-react";
+import { LEAVE_TYPE_PICKER_OPTIONS } from "@/lib/leave-labels";
 
 export function LeaveAccrualsTab() {
   const { can } = useRBAC();
@@ -57,12 +58,7 @@ export function LeaveAccrualsTab() {
             <div>
               <label className="block text-sm font-medium mb-1">Leave Type</label>
               <select className="border rounded px-3 py-2 w-full bg-background" value={selectedType} onChange={(e) => setSelectedType(e.target.value as any)}>
-                <option value="vacation">Vacation</option>
-                <option value="sick">Sick</option>
-                <option value="parental">Parental</option>
-                <option value="bereavement">Bereavement</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="other">Other</option>
+                {LEAVE_TYPE_PICKER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className="flex gap-4">

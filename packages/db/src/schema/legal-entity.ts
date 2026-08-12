@@ -12,6 +12,11 @@ export const legalEntities = pgTable(
     code: text("code").notNull(),
     name: text("name").notNull(),
     cin: text("cin"),
+    // LLPIN — the LLP's registration identifier (7 chars), the LLP-world analogue of a CIN.
+    // Distinct column, not a relabelled `cin`: an entity has EITHER a CIN (companies + Section 8)
+    // OR an LLPIN (LLP) OR neither (partnership / proprietorship / HUF / trust), disambiguated by
+    // `organizations.entity_type`. Nullable — existing rows and non-LLP entities carry none.
+    llpin: text("llpin"),
     parentLegalEntityId: uuid("parent_legal_entity_id"),
     holdingPercentage: numeric("holding_percentage", { precision: 6, scale: 2 }),
     materialSubsidiary: boolean("material_subsidiary").notNull().default(false),

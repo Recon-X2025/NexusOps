@@ -1042,7 +1042,16 @@ export const hrRouter = router({
           startDate: z.string().optional(),
           endDate: z.string().optional(),
           reason: z.string().optional(),
-        }))
+        })
+        // Same date-order guard the create path carries (CreateLeaveRequestSchema in @coheronconnect/
+        // types): without it, an edit could reverse a valid range (end before start) — the exact
+        // corruption A1 closed on create, reproduced on the update path. Only fires when BOTH dates are
+        // supplied (either may be edited alone). NOTE: `days` is NOT recomputed here and the balance is
+        // not moved — reported as an open question; this guard only blocks the reversed-range write.
+        .refine(
+          (d) => !(d.startDate && d.endDate) || new Date(d.endDate).getTime() >= new Date(d.startDate).getTime(),
+          { message: "End date must be on or after the start date", path: ["endDate"] },
+        ))
         .mutation(async ({ ctx, input }) => {
           const { db, org } = ctx;
           const [request] = await db

@@ -5684,7 +5684,18 @@ could not run locally** — each service's `env_file: .env.production` is a host
 limit is stated, not papered over. **The real test is the deploy.** Gate: **cold lint 9/9** (0 cached, 13.2s),
 **full suite 177 files / 1593 tests, 0 failures**. **Not committed; not pushed.**
 
-## C1-CORE — 2026-08-12 (built, UNCOMMITTED — the money-path half of the migration batch; migration 0080)
+## C1-CORE — SHIPPED & DEPLOYED `362abc5` (2026-08-12) — the money-path half of the migration batch; migration 0080
+
+**Status: SHIPPED & DEPLOYED — commit `362abc5`, CI run `31584256191`, all five jobs green incl. terminal
+`Deploy to Vultr` on ATTEMPT 1, no reboot (the PRUNE-PREFLIGHT series continues clean; pre-flight `45GB free`).
+LIVE on `connect.coheron.tech` (`/api/health` → `version: 362abc5c839…`), migration head `0080_worried_firestar`,
+239 base tables.** The api container is running image `362abc5` **healthy**; its `CMD` is `node dist/migrate.mjs
+&& node dist/index.mjs` (`apps/api/Dockerfile:62`, exit 1 on migrate failure), so the booted server means `0080`
+applied on prod **including the ENABLE + FORCE ROW LEVEL SECURITY + `tenant_isolation` policy on
+`tax_declarations`** (all in the same `0080.sql`, lines 36–49; verified by reading the migration file).
+**Verification caveat (per operating rules):** a direct prod `pg_class.relforcerowsecurity` query was **not**
+run — this environment holds no prod DB credentials. The boot-implies-applied chain + the migration-file
+contents are the verification of record; the from-empty and seeded-DB validations were local.
 
 Landed as its own gated deploy ahead of the rest of the migration batch: these three are the money and were
 done and sitting uncommitted. Splitting keeps a clean bisect (a migration + one helper + two wiring sites, not
@@ -5712,6 +5723,167 @@ mapper (`payroll.ts:130-134`) still calls `computePayslipTaxFigures` WITHOUT dec
 tax-projection column ignores them. **The deducted TDS and the payslip PDF are correct**; only the list column
 is over-stated. It's a sync mapper (no db) so wiring it needs a batch-fetch threaded through the handler —
 folded into the second half. Named here so it isn't discovered as a fresh defect.
+
+## C1-SECOND-HALF — 2026-08-12 (BUILT, UNCOMMITTED — gate green; ⚠️ carries migration `0081` by owner decision)
+
+The rest of C1 in one unit. **⚠️ DEPLOY-NATURE CHANGE: this deploy carries a migration (`0081_illegal_stick`)**
+— the build prompt expected none, but 1b's LLPIN had no storage column and the **owner explicitly chose "add
+a dedicated `llpin` column (migration)"** over reusing `legalEntities.cin`. `0081` is additive-only:
+`ALTER TABLE "legal_entities" ADD COLUMN "llpin" text;` (nullable). No RLS change (column on an existing
+table). Journal at `0081`, db dist rebuilt, validated from-empty and applied to dev + test.
+
+**Built:**
+- **1a — declaration capture (`tax_declarations` UI + API).** New `payroll.taxDeclarations` sub-router
+  (`get` / `listForFy` / `upsert`, RBAC `payroll:read|write`, org-scoped + employee-tenancy check). Upsert is
+  by the unique `(employee, fiscalYear)` key, stores **raw** amounts (the statutory caps stay in
+  `computeTax`, not re-implemented in the form), and always writes **`provenance = provisional`**. Web: a new
+  **Tax declarations** tab on the payroll page → per-employee modal for 80C/80D/80CCD(1B)/80TTA/24b, showing
+  the FY and a **new-regime warning** (entries have no effect until the employee switches). Verified
+  `lapsed ⇒ 0` in the run is unchanged (`payroll.ts:486` filters lapsed before the map).
+- **1b — entity type + CIN/LLPIN branch.** `organizations.entity_type` (8-value enum, `0080`) is now written;
+  `legalEntities.llpin` (`0081`) added. Server `indiaSchema` gained `entityType` + `llpin` and a
+  **superRefine**: company ⇒ CIN required (LLPIN rejected); LLP ⇒ LLPIN required (CIN rejected);
+  `trust_society_section8` ⇒ CIN valid-if-present (the combined bucket — Section-8 has a CIN, trust/society
+  don't; **flagged: a finer enum would split Section-8 out**); partnership/proprietor/HUF ⇒ neither. **Also made
+  `gstin`/`cin`/`pf` OPTIONAL server-side** — they were still *required* in `indiaSchema` while the wizard
+  (post-intake-batch) lets them be blank, so a blank save 400'd; that IS the "requiring a CIN excludes every
+  non-company" exclusion, at the schema. Split `indiaSchema` into `indiaObjectSchema` (raw, keeps `.partial()`
+  for `super-admin.ts`) + the refined `indiaSchema`. Wizard UI: entity-type `<select>` + a **branched
+  identifier field** (CIN 21 / LLPIN 7 / none). **Screens found:** only the **onboarding wizard** carries the
+  `*` markers and a CIN field; the Admin **Statutory Identity** tab has no GSTIN/PAN/TAN/CIN at all → the branch
+  went on the wizard only. **⚠️ The cited `statutory-identifiers-research_2026-08-12.md` is NOT in the repo**
+  (searched); LLPIN validated permissively as 7 alphanumerics (format has varied) — flagged.
+- **1c — leave labels (display only).** New `apps/web/src/lib/leave-labels.ts` central map; three pickers +
+  the list renderer now use it. `vacation → "Annual Leave"`, `sick → "Sick / Casual Leave"`, **`other` hidden
+  from pickers but still rendered honestly** (the edit modal keeps any legacy value — other/primary/annual — as
+  an option so it doesn't snap to the first). **Stored values UNCHANGED** — the divergence is commented at the
+  map and in the types enum so nobody "fixes" the labels back. (LEAVE-ENUM-REBUILD stays deferred.)
+- **Step 2 — `leave.update` date-order guard.** Added the same reversed-range refine the create path carries
+  (`hr.ts` update input). **REPORTED, not fixed (needs a decision): `update` does NOT recompute `days` or move
+  the balance** when dates change — recomputing may need to unwind and reapply the balance movement.
+- **Step 3 — enum alignment (code-only, no schema change).** `@coheronconnect/types` is now the single source
+  for `LeaveTypeEnum` (expanded to the db's 8 values), `EmploymentTypeEnum` (fixes validators' `contract` →
+  `contractor`), `LeaveStatusEnum`. `@coheronconnect/validators` re-exports them (new `workspace:*` dep);
+  `leave-accrual.ts` imports `LeaveTypeEnum`. **De-risked: nothing in `apps/` imports `@coheronconnect/
+  validators`** (its enums were unconsumed), so the realignment has no runtime blast radius.
+- **Step 4 — opt-in starter structures.** Four templates (Services/IT 50-0-50, Manufacturing 40-10-40,
+  Retail 50-0-40, Sales 50-0-50) as **client-side prefills** on the New-structure modal → adoption = create +
+  edit a normal row. **No auto-created rows, no seeded tenant data, no importer.** All satisfy Basic+DA=50.
+- **Step 5 — register + residual.**
+  - **ARCHIVED-STRUCTURE-PAYS (owner decision): surfaced as a READINESS error, NOT a silent stop-pay.** When
+    the resolver returns an archived-but-effective structure, the employee **still pays** but is named in the
+    readiness panel (`payroll-run-aggregates.ts`). **Affected count: dev = 0** (dev has ~no such data);
+    **prod count NOT read from here** — query for the owner: employees whose resolved structure `is_archived`.
+  - **`mapPayslipRow` residual THREADED.** The portal payslip-list now fetches the employee's declarations per
+    FY (lapsed excluded) and threads them, so the list's annual projection matches the deducted TDS + the PDF.
+    **New sibling finding: the preview/totals path also omits declarations** (`payroll-run-aggregates.ts:449`,
+    `computePayrollRunTotals`) → preview TDS over-states vs the committed run. **Recorded, not fixed** (out of
+    this unit's named scope; the run and payslip — the money — are correct).
+  - **CLOSED as register items:** SHA-DRIFT (two files by design, not three drifting); EMPID-FORMAT /
+    THRESHOLD-OPTIONAL / MIGRATE-REFERENCE / PT-16 (zero repo hits, unrecoverable definitions from an older
+    register — do not guess; the employee-number allocator was separately verified correct).
+  - **PF-RATE precisions — DEFERRED, needs a migration.** Adding `accumulated_losses_exceed_net_worth` to
+    `pfReducedRateReasonEnum` is a **pgEnum change (`ALTER TYPE … ADD VALUE`) = a migration**; per the owner
+    rule (defer if it needs a migration) it is **NOT added** here even though `0081` exists — kept out to hold
+    the deploy tight. The `under_20_employees` **three-year time-scope stays unenforced** (trigger: first
+    customer under 20 employees). **No pilot is affected** (all above 20).
+- **Step 6 — negative-days cleanup: WRITTEN, NOT RUN** → `reports/negative-days-cleanup.sql`. All-negative-rows
+  query + an atomic reverse-`pending_days`-then-delete block (defaults to `ROLLBACK`) + an approved-rows
+  detector. Establishes from code that **delete alone does not unwind the balance**. **Dev negative-days = 0;
+  prod never read** — hand to owner.
+
+**Gate:** `pnpm lint:cold` **9/9, 0 cached (forced)**. Targeted API tests (c1-second-half + c1-core + intake +
+leave/readiness/onboarding) and web (leave-labels + suite) green; **full API suite running at write time** — do
+not treat as passed until confirmed. New tests: `apps/api/src/__tests__/c1-second-half.test.ts` (entity/identifier
+validation, leave.update rejection, declaration upsert→run rupee-diff + idempotency, starter-structure
+composition) and `apps/web/src/lib/__tests__/leave-labels.test.ts`.
+
+**Explicitly NOT in this unit (per prompt):** LEAVE-ENUM-REBUILD; election window + VPF lock; Feb–March catch-up
+(PR5-blocked); LTA exemption (over-taxed, safe; CA has not ruled); proof capture; casual ≤3-day classification;
+s.18(3); the structure importer.
+
+## STEP-0 READS (2026-08-12) — eight verifications; several shrink or CLOSE future work
+
+Read before the C1 second half was scoped. Each was traced to code with `file:line`; several items the plan
+had carried as open turn out to be built, mis-scoped, or non-existent.
+
+| Read | Finding |
+|---|---|
+| **R1 — `encash.run` encashability filter** | **Filter EXISTS.** `encash.run` throws `PRECONDITION_FAILED` "Leave type '<t>' is not encashable" (`leave-accrual.ts:597-603`), policy-driven per leave type. **The annual-encashable / sick-not rule already has a mechanism — CLOSE the open item.** |
+| **R2 — `leave.update` date-order guard** | **CONFIRMED DEFECT.** `leave.update` (`hr.ts:1027-1066`) edits `startDate`/`endDate` with **no date-order guard** and uses the unrefined `LeaveTypeEnum` (`:1041`). It writes the new dates but does **not** recompute `days` or move the balance — less severe than the create-path corruption (which A1 fixed) but it still feeds approve → attendance → LOP. **OPEN; next unit.** |
+| **R3 — geographic-state sort** | **No unsorted geographic dropdown exists.** The employee form uses sorted `INDIAN_STATES`; admin/payroll/structure/Statutory-Identity have no state `select`. **C3 was correctly "not located" — CLOSE it, nothing to sort.** |
+| **R4 — leave-type enum reachability** | **Not reachable via UI, confirmed** — the dropdown renders exactly the six types-enum values (`hr.ts:951-956`); db-only `primary`/`annual` are not offered. **Fourth copy noted:** `leaveTypeSchema` at `leave-accrual.ts:43` (folded into SCHEMA-DRIFT). |
+| **R5 — R-ITC (input-tax-credit)** | **Substantially built.** `gst-engine.ts` has GSTR-2B reconciliation (`reconcileGSTR2B:381`, four buckets) + **s.17(5) blocked ITC** (`:151`); `financial.gstr2b.ingest` persists reconciliation with eligible ITC on matched lines only, idempotent, RBAC'd, tested. **Residual, unconfirmed:** reverse charge, ITC claim-window time-bar, procurement-posting wiring. **The procurement phase is materially smaller than the plan assumed.** |
+| **R6 — R-ACCT (procurement accrual)** | **Placeholder-UUID appears FIXED** — procurement accrual resolves or creates a real accounts-payable account (`procurement.ts:54-92`); the "fabricated placeholder" comment reads past-tense. **"Add-account broken" could NOT be reproduced from code** — the `coa` router exists (`accounting.ts:159`). **Record as an unestablished symptom needing a UI repro + the exact error**, not a confirmed defect. |
+| **R7 — R-VALUATION (inventory)** | **Exists** — FIFO and weighted-average, **method-selectable per item** (`inventory-valuation.ts`, `inventory.ts:314`). Not "none". |
+| **R8 — stale branches** | **`origin/fixes/phase-2`: 0 ahead / 62 behind — dead, nothing to take.** The "Phase 2 = payroll" hypothesis was **wrong.** **`origin/wip/mac-build`: 1 stale WIP commit (`51f01fc`), 130 behind, 72k insertions incl. 5 migration files** → journal-collision risk, non-payroll → **reject as-is.** Neither is a payroll conflict surface. **Both branch assessments complete.** |
+
+## DEFERRALS (2026-08-12) — each with its trigger
+
+- **`LEAVE-ENUM-REBUILD`** — the destructive leave-type rename (`vacation`→`annual`, `sick`→`sick_casual`,
+  remove `other`) is **DEFERRED.** Postgres cannot `DROP VALUE`, so it needs a new type + column swap + drop,
+  across **four tables** (`leave_requests`, `leave_balances`, `leave_accrual_events`, `leave_policies`) **and
+  four code copies** (db enum, `types`, `validators`, `leaveTypeSchema` — see SCHEMA-DRIFT). **Blocked on prod
+  row counts**, which are unreadable from the build environment (dev has zero leave rows).
+  **Before it runs it needs:** prod counts, a decided destination for existing `other` rows
+  (**owner decision: `unpaid`** — conservative, since `annual` is encashable and accrues), throwaway-schema
+  validation, and a quiet window.
+  **⚠️ RECORD EXPLICITLY: the display labels and the stored values now deliberately diverge.** The UI shows
+  "Annual Leave" while the stored value is `vacation`. **Nobody should later "fix" the labels back to match the
+  stored value** — the divergence is intentional until this rebuild lands.
+- **Step 6 (regime-election window + VPF lock)** — **cut from C1 by owner decision.** Correctness holds
+  without it: the regime default is `new`, and C1-CORE fixed the old-regime math. **It is governance, not
+  correctness.** Trigger: the next unit after the C1 second half.
+- **Feb–March catch-up** — a **Feb 2027** event, and **`PR5` blocks it**: `ytdGross/PF/TDS/Net` are 0 every
+  run (`payroll-run-aggregates.ts:87-90`), so a catch-up computed on zero YTD is wrong. **PR5 sequences
+  first.**
+- **LTA exemption** — LTA is **fully taxed today** (`tax-engine.ts:283`, no `ltaExemption` parameter):
+  **over-taxed, therefore SAFE** (no first-cycle under-deduction). The CA has **not** ruled on LTA (letter
+  B8(c) open) — **do not assume it mirrors the investment-declaration mechanism.**
+
+## TESTS-ENCODE-DEFECTS (standing item, 2026-08-12) — a test that fails after a fix may have asserted the defect
+
+**Three tests in two days asserted broken behaviour as expected:**
+1. the bulk-import test asserting the old **silent regime default**;
+2. the metro test **setting `isMetroCity`** and expecting it to thread (C1-CORE now derives metro from city);
+3. the leave fixtures created **without a salary structure** (structure is now required intake).
+
+**A test that locks in a defect makes the fix look like a regression.** Standing check: **when a fix breaks a
+test, establish whether the test was asserting the defect before changing either.** (Also added as an operating
+rule in `CLAUDE.md`.)
+
+## DATA-CLEANUP — negative-days leave row on prod (2026-08-12) — NOT code; no build fixes it
+
+The deployed platform carries a leave request with **−1.0 days** (Amit Mehra, **11 Aug → 9 Aug**, status
+**Pending**). It predates the create-path date-order guard shipped in `ec2b7a9` (A1), and **it moved a leave
+balance at create time** — the create path does `pendingDays = pendingDays + days` (`hr.ts:902`), so a `days`
+of −1.0 pushed `pendingDays` **down by 1**.
+
+- **Established from code: deleting the row alone does NOT unwind the balance movement.** The `leave.delete`
+  handler (`hr.ts:1068-1075`) is a bare `db.delete(leaveRequests)` — it touches no `leaveBalances` row, and
+  balances are aggregate columns, not per-request rows with a cascading FK. **So the balance needs a separate
+  correction** (add 1.0 back to that employee/year/type's `pendingDays`); deleting the request without it
+  leaves `pendingDays` 1 too low.
+- **It is Pending**, so `leave.approve` never ran — `usedDays` was **not** moved and the **G8 attendance reflex
+  (unpaid → `absent`) was never written** over the reversed range. Only the create-time `pendingDays` movement
+  needs reversing.
+- **Corrective SQL — WRITTEN, NOT RUN** (needs prod DB access this environment does not hold; run against a
+  throwaway copy first):
+  ```sql
+  -- 1) reverse the create-time pendingDays movement (add back the 1.0 the negative days subtracted)
+  UPDATE leave_balances lb
+  SET pending_days = pending_days + 1.0
+  FROM leave_requests lr
+  WHERE lr.id = '<the -1.0 request id>'
+    AND lb.employee_id = lr.employee_id
+    AND lb.year = EXTRACT(YEAR FROM lr.start_date)
+    AND lb.leave_type = lr.type;   -- confirm the join columns against the live schema first
+  -- 2) then delete the corrupt request
+  DELETE FROM leave_requests WHERE id = '<the -1.0 request id>';
+  ```
+- **Prod row counts for negative-days rows have NEVER been read** — this may not be the only one. Before any
+  cleanup, `SELECT count(*) FROM leave_requests WHERE end_date < start_date` (or `days < 0`) on prod to size
+  the problem.
 
 ## PRUNE-PREFLIGHT — SHIPPED & DEPLOYED `db37bb4` (2026-08-12) — infra only; no app code, no migration
 
@@ -5757,7 +5929,11 @@ filters syntactically valid; the `set -e` non-interaction traced (both blocks `|
 **full suite api 177 files/1593 tests + web 6 files/97 tests, 0 failures**. **The real test is the deploy —
 which passed:** green on attempt 1, no reboot (see the status line at the top of this entry).
 
-## SURFACES — 2026-08-12 (built, UNCOMMITTED — no migration; make the screens tell the truth)
+## SURFACES — SHIPPED & DEPLOYED `1e42d6e` (2026-08-12) — no migration; make the screens tell the truth
+
+**Status: SHIPPED & DEPLOYED — commit `1e42d6e`, CI run `31570113297`, all five jobs green incl. terminal
+`Deploy to Vultr` on ATTEMPT 1, no reboot (pre-flight `46GB free`). Live (`/api/health` → `1e42d6e…`), no
+migration (head stayed `0079`).** Superseded as LIVE by `362abc5` (C1-CORE) later the same day.
 
 The other half of the intake batch — the items whose component could not be isolated in time. Theme: every
 one was a surface that said something untrue. **Located each before editing** (the discipline that found the
@@ -5844,7 +6020,15 @@ the next unit; only the card component / panel is unlocated, the cause is pinned
 
 Closing the leave-schema drift surfaced the class. **Three names are defined in BOTH `@coheronconnect/types`
 and `@coheronconnect/validators`:** `EmploymentTypeEnum`, `LeaveStatusEnum`, `LeaveTypeEnum` (plus the
-now-consolidated `CreateLeaveRequestSchema`). **`LeaveTypeEnum` diverges 3 ways:**
+now-consolidated `CreateLeaveRequestSchema`).
+
+**Update (2026-08-12): the leave-type enum has a FOURTH copy — `leaveTypeSchema` at
+`apps/api/src/lib/leave-accrual.ts:43`.** So the count for the leave-type taxonomy is **four**: the `db`
+`leave_type` pgEnum + `@coheronconnect/types` + `@coheronconnect/validators` + `leaveTypeSchema`. Any
+consolidation must touch all four code copies (and, for the destructive rename, four *tables* — see
+`LEAVE-ENUM-REBUILD` below).
+
+**`LeaveTypeEnum` diverges 3 ways:**
 - `types`: `vacation, sick, parental, bereavement, unpaid, other` (6)
 - `validators`: `annual, sick, casual, maternity, paternity, bereavement, compensatory, unpaid` (8)
 - `db` `leave_type`: `primary, annual, vacation, sick, parental, bereavement, unpaid, other` (8)

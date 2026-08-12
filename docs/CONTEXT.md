@@ -38,21 +38,21 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `ec2b7a9`** — migration head
-  **`0079_peaceful_caretaker`**, 238 base tables (no migration since) — verified through the terminal
-  **`Deploy to Vultr` job of CI run `31562454012`** (`success` on **attempt 1, no reboot — third clean
-  unattended deploy in a row** under PRUNE-PREFLIGHT). `ec2b7a9` is the **intake batch** (server-side
-  employee/leave validation: structure/regime required, future-DOB, state-validated, duplicate-PAN, leave
-  date consolidation; onboarding compliance-flag unblocker; two display fixes). It includes `db37bb4`
-  (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING), `adeb2be` (Base Pay), `8b4191a` (statutory wage config)
-  and earlier as ancestors.
+- **LIVE on `connect.coheron.tech` = `origin/main` = `362abc5`** — migration head
+  **`0080_worried_firestar`**, 239 base tables (`0080` added `tax_declarations`) — verified through the
+  terminal **`Deploy to Vultr` job of CI run `31584256191`** (`success` on **attempt 1, no reboot** under
+  PRUNE-PREFLIGHT; pre-flight read `45GB free`) and `/api/health` returning `version: 362abc5…`. `362abc5`
+  is **C1-CORE** (migration `0080`: `organizations.entity_type` + `tax_declarations` with the RLS wall; HRA
+  metro derived from city; investment-declaration capture wired at the run and the payslip PDF). It includes
+  `1e42d6e` (SURFACES), `ec2b7a9` (intake), `db37bb4` (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING),
+  `adeb2be` (Base Pay), `8b4191a` (statutory wage config) and earlier as ancestors.
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **Working tree (as of this writing): the SURFACES unit + this deploy-state refresh, UNCOMMITTED** —
-  compliance-cards / readiness-panel / form-message / doc-facade fixes plus the docs. `origin/main` is at
-  `ec2b7a9`; per rule 6 the deploy-state refresh rides this unit's commit.
+- **Working tree (as of this writing): this deploy-state refresh, UNCOMMITTED** — docs only
+  (CONTEXT / fix-plan / CLAUDE) recording the SURFACES + C1-CORE deploys. `origin/main` is at `362abc5`;
+  per rule 6 the deploy-state refresh rides the next code change (the second half of C1), not its own commit.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -66,7 +66,51 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   server accepts traffic); the Vultr deploy uses `docker-compose.vultr-test.yml` +
   `docker-compose.vultr.images.yml`, **not** `docker-compose.prod.yml`'s `migrator` service.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
-  count = head-number + 1 files (`0000`…`0079`).
+  count = head-number + 1 files (`0000`…`0080`).
+
+## 2026-08-12 — C1-CORE: declaration capture + HRA metro derivation SHIPPED (`362abc5`)
+
+_Shipped & deployed as `362abc5` (CI `31584256191`, all five jobs green incl. terminal `Deploy to Vultr`
+on attempt 1, no reboot; migration `0080_worried_firestar`, head `0080`, 239 base tables — `0080` adds the
+one new table `tax_declarations`). LIVE on `connect.coheron.tech` (`/api/health` → `version: 362abc5…`)._
+
+Three things landed:
+- **Migration `0080`** — `organizations.entity_type` (an `entity_type` enum: private/public ltd, OPC, LLP,
+  partnership, sole-prop, HUF, trust/society/s.8) and the **`tax_declarations`** table (per-employee,
+  per-fiscal-year investment declarations: 80C / 80D / 80CCD(1B) / 80TTA / 24b, with a
+  `declaration_provenance` enum of `provisional`/`proven`/`lapsed`). The table carries `org_id` and is
+  **RLS-walled** — `ENABLE` + `FORCE ROW LEVEL SECURITY` + the `tenant_isolation` policy, hand-added in the
+  same migration (drizzle-kit does not model RLS; same convention as `0052`/`0061`). FKs cascade on org and
+  employee; unique index on `(employee_id, fiscal_year)`.
+- **HRA metro derivation** — the 50%-vs-40% HRA exemption metro flag is now **derived from the employee's
+  city** against the four-city statutory list (Delhi, Mumbai, Kolkata, Chennai), not read from a stored
+  `isMetroCity` boolean. (The old metro test that *set* `isMetroCity` and expected it to thread was asserting
+  the pre-fix behaviour — see `TESTS-ENCODE-DEFECTS`.)
+- **Declaration capture wired** — the stored declarations feed **both** the payroll run and the payslip PDF,
+  so old-regime exemptions/deductions compute from real declared values.
+
+**Deferred out of C1 by owner decision (correctness holds without them):** Step 6 (the regime-election window
++ VPF lock) — governance, not correctness, since the regime default is `new` and C1-CORE fixed the old-regime
+math; and the Feb–March catch-up — a Feb 2027 event that is blocked behind `PR5` (YTD aggregates read 0). See
+`reports/fix-plan.md`.
+
+## 2026-08-12 — SURFACES: make the screens tell the truth SHIPPED (`1e42d6e`)
+
+_Shipped & deployed as `1e42d6e` (CI `31570113297`, all five jobs green incl. terminal `Deploy to Vultr` on
+attempt 1, no reboot; no migration, head stays `0079`). Superseded as LIVE by `362abc5` the same day._
+
+- **Compliance cards** now read real columns, showing **deducted and deposited as distinct facts**, and
+  render **"—" for unstored fields** rather than a fabricated ₹0.
+- **Readiness panel** points at **Organisation Settings → Statutory Identity** and **recomputes live**
+  instead of showing a stale snapshot.
+- **Form messages** corrected; **doc-facade controls disabled honestly** (the fake upload/attachment
+  controls no longer pretend to work — see the document-storage correction below).
+- **`lint:cold` gate-defect fix** — the pre-merge gate now actually typechecks: the checklist had said
+  "cold lint 9/9" while `pnpm lint` was cache-dependent and could return a warm cache hit that runs no
+  typecheck. The gate is now `pnpm lint:cold` (`turbo run lint --force`).
+- **Payslip PDF reclassified as render-on-the-fly** — `http/payroll-payslip-pdf.ts` builds it from the
+  stored payslip row + shared view and streams it (no object storage), so the first cycle can hand employees
+  payslips regardless of the attachment-storage gap. The storage gap is **document-attachment only**.
 
 ## 2026-08-11 — statutory wage config made expressible AND reachable SHIPPED (`8b4191a`)
 
@@ -672,26 +716,33 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31562454012` — commit `ec2b7a9` (the intake batch: server-side employee/leave validation —
-structure/regime required, future/under-18 DOB, state-validated, duplicate-PAN, leave date-order
-consolidation; the onboarding India-Setup compliance-flag unblocker; two display fixes; no migration) —
-terminal `Deploy to Vultr` job `success` on **attempt 1, no reboot** — 2026-08-12 — migration head
-`0079_peaceful_caretaker`, 238 base tables.** Verified via `gh run view 31562454012 --json jobs` (terminal
-`Deploy to Vultr` = `success`) and `curl connect.coheron.tech/api/health` returning `version: ec2b7a9…`. This
-is LIVE on `connect.coheron.tech`. `ec2b7a9` includes `db37bb4` (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING),
-`adeb2be` (Base Pay composition), `8b4191a` (statutory wage config), `6b08414` (statutory-filing loop) and
-earlier as ancestors.
+**CI run `31584256191` — commit `362abc5` (C1-CORE: migration `0080` adds `organizations.entity_type` +
+the `tax_declarations` table with its RLS wall; HRA metro derived from city; investment-declaration capture
+wired at the payroll run and the payslip PDF) — terminal `Deploy to Vultr` job `success` on **attempt 1, no
+reboot** — 2026-08-12 — migration head `0080_worried_firestar`, 239 base tables.** Verified via `gh run view
+31584256191 --json jobs` (all five jobs `success`; terminal `Deploy to Vultr` = `success`) and
+`connect.coheron.tech/api/health` returning `version: 362abc5c839…`. This is LIVE on `connect.coheron.tech`.
+The api container is running image `362abc5` **healthy**; its `CMD` is `node dist/migrate.mjs && node
+dist/index.mjs` (`apps/api/Dockerfile:62`, exit 1 on migrate failure), so a booted server means `0080`
+applied — **including the ENABLE + FORCE ROW LEVEL SECURITY + `tenant_isolation` policy on `tax_declarations`,
+which are in the same `0080.sql` file** (lines 36–49). A direct prod `pg_class.relforcerowsecurity` query was
+**not** run (needs DB credentials this environment does not hold); the boot-implies-applied chain plus the
+migration-file contents are the verification of record. `362abc5` includes `1e42d6e` (SURFACES), `ec2b7a9`
+(intake), `db37bb4` (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING), `adeb2be` (Base Pay composition),
+`8b4191a` (statutory wage config), `6b08414` (statutory-filing loop) and earlier as ancestors.
 
-_**PRUNE-PREFLIGHT trend — three clean unattended deploys in a row.** Change D's pre-flight `df` read was
-**47GB free** on both `db37bb4` and `ec2b7a9` (hours apart) — the disk is **not refilling**. Honest caveat:
-nothing was older than 168h yet, so Change E's 168h-retention prune has not actually reclaimed anything — the
-real test is the reading a week out, and onboarding week is the load case._
+_**PRUNE-PREFLIGHT trend — disk gently declining, not refilling.** Verified pre-flight `df` reads across the
+run: `ec2b7a9` **47GB** → `1e42d6e` **46GB** → `362abc5` **45GB** (each `≥ 10GB — no prune needed`), on top of
+`db37bb4`'s **47GB**. A ~1GB-per-deploy drift, no spike — consistent with the 168h-retention prune keeping a
+week of images. Honest caveat still holds: images are only now approaching 168h old, so retention prune has
+reclaimed little yet — the real test is a reading a week into the load case (onboarding, ~25 Aug)._
 
-_**First unattended, first-attempt deploy in four — and the confirmation of the outage cause.** Change D
-recorded **47GB free ≥ 10GB, no prune needed** to `/var/log/coheron/` (the disk figure that was invisible from
-outside the box across four incidents — the Vultr graphs have no disk-space panel). Postgres was recreated this
-round (Change F changed its `logging:`) and came **healthy**, where the identical recreate on `807aa19` had
-timed out — the only variable changed being disk headroom, which is the causal confirmation._
+_**Every deploy since PRUNE-PREFLIGHT shipped has gone first-attempt, no-reboot** — the four commits
+`db37bb4` → `ec2b7a9` → `1e42d6e` → `362abc5` (verified from each CI run's terminal `Deploy to Vultr` job).
+Every deploy writes its `df` to `/var/log/coheron/` — the disk figure that was invisible from outside the box
+across the four OUTAGE-2026-08-10 incidents (the Vultr graphs have no disk-space panel). App-tier-only recreate
+leaves Postgres/Redis/Meilisearch running (up 9 hours through this deploy), so the recreate-Postgres-times-out
+failure mode is no longer on the deploy path at all._
 
 _The earlier deploy failures now have a cause. `adeb2be`'s deploy needed four attempts and `807aa19`'s failed
 first — recorded at the time as "cause UNESTABLISHED" and kept apart (correctly, while unknown). They are all
@@ -704,7 +755,11 @@ _This line will be re-stamped by the next code change. **Read the live SHA from 
 job of the latest ATTEMPT of the latest `main` CI run and `/api/health`, never from a SHA quoted in prose** —
 this line has drifted to a stale SHA before, and a run can go green on a re-run after earlier attempts failed._
 
-_Prior validated deploys (all superseded): `807aa19` (DEPLOY-HARDENING: service-scoped recreate + pre-recreate
+_Prior validated deploys (all superseded): `1e42d6e` (SURFACES: honest compliance-cards / readiness-panel /
+form-messages / doc-facade + the `lint:cold` gate-defect fix; no migration) CI `31570113297` (attempt 1, no
+reboot, pre-flight 46GB); `ec2b7a9` (intake batch: server-side employee/leave validation, onboarding
+compliance-flag unblocker, two display fixes; no migration) CI `31562454012` (attempt 1, no reboot, pre-flight
+47GB); `807aa19` (DEPLOY-HARDENING: service-scoped recreate + pre-recreate
 evidence capture; its Deploy failed first — later explained by the full-disk cause) CI `31512789381`;
 `adeb2be` (Base Pay composition; Deploy green on attempt 4) CI `31474830285`; `6b08414` (statutory-filing loop
 closed + salary-structure resolver unified; its Deploy also failed first on unhealthy Postgres, reboot + re-run

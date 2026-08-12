@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X, CheckCircle, Upload } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { LEAVE_TYPE_PICKER_OPTIONS, leaveTypeLabel } from "@/lib/leave-labels";
 import { INDIAN_STATES } from "@/lib/india-states";
 import { filterEmployeeDirectory } from "@/lib/employee-directory-access";
 import { trpc } from "@/lib/trpc";
@@ -948,12 +949,12 @@ export default function HRPage() {
                   onChange={(e) => setEditingLeave((prev: any) => prev ? { ...prev, type: e.target.value } : null)}
                   className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
                 >
-                  <option value="vacation">Vacation</option>
-                  <option value="sick">Sick</option>
-                  <option value="parental">Parental</option>
-                  <option value="bereavement">Bereavement</option>
-                  <option value="unpaid">Unpaid</option>
-                  <option value="other">Other</option>
+                  {LEAVE_TYPE_PICKER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {/* Legacy value (other / primary / annual) not in the offered set: keep it as an option
+                      while editing such a row so it renders honestly instead of snapping to the first. */}
+                  {editingLeave?.type && !LEAVE_TYPE_PICKER_OPTIONS.some(o => o.value === editingLeave.type) && (
+                    <option value={editingLeave.type}>{leaveTypeLabel(editingLeave.type)}</option>
+                  )}
                 </select>
               </div>
               <div className="flex gap-2">
@@ -2243,12 +2244,7 @@ export default function HRPage() {
                       value={leaveForm.type}
                       onChange={(e) => setLeaveForm(f => ({ ...f, type: e.target.value }))}
                     >
-                      <option value="vacation">Vacation</option>
-                      <option value="sick">Sick Leave</option>
-                      <option value="parental">Parental Leave</option>
-                      <option value="bereavement">Bereavement Leave</option>
-                      <option value="unpaid">Unpaid Leave</option>
-                      <option value="other">Other</option>
+                      {LEAVE_TYPE_PICKER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
                   <div>
@@ -2324,7 +2320,7 @@ export default function HRPage() {
                     <tr key={req.id}>
                       <td className="text-foreground text-[11px]">{req.employeeName ?? req.employeeCode ?? req.employeeId?.slice(0,8) ?? "—"}</td>
                       <td>
-                        <span className="status-badge capitalize bg-blue-100 text-blue-700">{req.type?.replace(/_/g," ")}</span>
+                        <span className="status-badge bg-blue-100 text-blue-700">{leaveTypeLabel(req.type)}</span>
                       </td>
                       <td className="text-muted-foreground text-[11px]">{req.startDate ? new Date(req.startDate).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{req.endDate ? new Date(req.endDate).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—"}</td>

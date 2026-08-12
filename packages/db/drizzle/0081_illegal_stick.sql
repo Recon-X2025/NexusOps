@@ -1,0 +1,1 @@
+ALTER TABLE "legal_entities" ADD COLUMN "llpin" text;

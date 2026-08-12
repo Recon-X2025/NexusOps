@@ -90,8 +90,12 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   `0077`–`0079` makes the India wage config expressible: `0077_mean_wong` (`employees.voluntary_pf_rate`,
   `payslips.da`, `salary_structures.da_percent`), `0078_slimy_nocturne` (`organizations.pf_contribution_rate`
   + the four `employees.para266_*` fields), `0079_peaceful_caretaker` (`pf_reduced_rate_reason` enum type +
-  `organizations.pf_reduced_rate_reason`) — additive columns and one enum, no new table. **Live head is
-  `0079`; base tables 238.**
+  `organizations.pf_reduced_rate_reason`) — additive columns and one enum, no new table. `0080_worried_firestar`
+  (C1-CORE) adds `organizations.entity_type` (an 8-value `entity_type` enum) + the `tax_declarations` table
+  (per-employee/per-FY investment declarations: 80C/80D/80CCD(1B)/80TTA/24b + a `declaration_provenance` enum,
+  cascade FKs, unique `(employee_id, fiscal_year)`, **RLS-walled** — ENABLE+FORCE+`tenant_isolation` in the
+  same migration, per the `0052`/`0061` convention) — the +1 that took base tables 238→239. **Live head is
+  `0080`; base tables 239.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -248,6 +252,10 @@ before severity").
 - **Verify everything; do not triage by apparent importance** — importance is an output of verification,
   not an input to it.
 - **Where a claim was not verified, say so** rather than filling the gap.
+- **A test that fails after a fix may have been asserting the defect.** Establish which before changing
+  either. Three instances in two days (silent-regime-default import test; a metro test that set `isMetroCity`
+  and expected it to thread; leave fixtures created without a salary structure). See `reports/fix-plan.md`
+  → `TESTS-ENCODE-DEFECTS`.
 
 ## Gap analysis (where the product actually stands)
 

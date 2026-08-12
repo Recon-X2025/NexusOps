@@ -12,7 +12,15 @@ export const HRCaseTypeEnum = z.enum([
   "workplace",
   "equipment",
 ]);
-export const LeaveTypeEnum = z.enum(["vacation", "sick", "parental", "bereavement", "unpaid", "other"]);
+// Single source of truth for the leave-type set — mirrors the db `leaveTypeEnum`
+// (packages/db/src/schema/hr.ts) exactly, which is the enforced list. `@coheronconnect/validators`
+// and the API's leave-accrual router re-export/import this rather than keeping their own copies.
+// NOTE: display labels deliberately diverge from these stored values in the web UI (e.g. `vacation`
+// renders as "Annual Leave", `sick` as "Sick / Casual Leave") — see the web leave-label map. Do not
+// "correct" the labels back to the stored values; the taxonomy rename is the deferred LEAVE-ENUM-REBUILD.
+export const LeaveTypeEnum = z.enum([
+  "primary", "annual", "vacation", "sick", "parental", "bereavement", "unpaid", "other",
+]);
 export const LeaveStatusEnum = z.enum(["pending", "approved", "rejected", "cancelled"]);
 
 export type EmployeeStatus = z.infer<typeof EmployeeStatusEnum>;
