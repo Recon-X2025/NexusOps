@@ -38,22 +38,21 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `db37bb4`** — migration head
+- **LIVE on `connect.coheron.tech` = `origin/main` = `ec2b7a9`** — migration head
   **`0079_peaceful_caretaker`**, 238 base tables (no migration since) — verified through the terminal
-  **`Deploy to Vultr` job of CI run `31552652138`** (`success` on **attempt 1 — the first unattended,
-  no-reboot deploy in four**, after the 2026-08-10 outage cause was established as a full disk and fixed).
-  `db37bb4` is the **PRUNE-PREFLIGHT** unit (auto-prune old Docker images + capped container logs, so the
-  root filesystem stops filling). It includes `807aa19` (DEPLOY-HARDENING: service-scoped recreate + evidence
-  capture), `adeb2be` (Base Pay composition), `8b4191a` (statutory wage config expressible + reachable),
-  `6b08414` (statutory-filing loop) and earlier as ancestors.
+  **`Deploy to Vultr` job of CI run `31562454012`** (`success` on **attempt 1, no reboot — third clean
+  unattended deploy in a row** under PRUNE-PREFLIGHT). `ec2b7a9` is the **intake batch** (server-side
+  employee/leave validation: structure/regime required, future-DOB, state-validated, duplicate-PAN, leave
+  date consolidation; onboarding compliance-flag unblocker; two display fixes). It includes `db37bb4`
+  (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING), `adeb2be` (Base Pay), `8b4191a` (statutory wage config)
+  and earlier as ancestors.
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **Working tree (as of this writing): docs-only deploy-state refresh, UNCOMMITTED** — this
-  update to `CLAUDE.md`, `docs/CONTEXT.md` and `reports/fix-plan.md` after `db37bb4` deployed.
-  `origin/main` is at `db37bb4`; per rule 6 a deploy-state refresh rides the next code change (or is a
-  local unpushed commit), so local `main` may read one commit ahead of origin — deliberate, not drift.
+- **Working tree (as of this writing): the SURFACES unit + this deploy-state refresh, UNCOMMITTED** —
+  compliance-cards / readiness-panel / form-message / doc-facade fixes plus the docs. `origin/main` is at
+  `ec2b7a9`; per rule 6 the deploy-state refresh rides this unit's commit.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -457,6 +456,12 @@ claims). Full detail in `reports/fix-plan.md` → "Document & storage sweep (202
   + retention workers. **BUT ALL SIX FAIL IN PRODUCTION:** the deployed stack composes
   `docker-compose.vultr-test.yml`, which ships **no object-storage backend**. `docker-compose.prod.yml`
   defines MinIO and is referenced by nothing — an orphan.
+  - **Reclassified 2026-08-12 — the PAYSLIP is NOT in this failing set.** The employee-facing payslip PDF
+    (`http/payroll-payslip-pdf.ts`) is **render-on-the-fly**: it builds the PDF from the stored payslip row +
+    the shared view and streams it, needing no storage — so **the first cycle can hand employees payslips.**
+    Only the *optional* archive-to-S3 path (`payroll.ts:1307` `putObject`, "not pushed to S3 yet") depends on
+    storage. So the object-storage gap is **document-ATTACHMENT only** (employee docs / onboarding uploads),
+    **not payroll output** — and those fake upload/download controls are now disabled honestly (SURFACES → DOC-FACADE).
 - **~14 more present a document capability that stores NOTHING even in a working env.** The two worst
   (same "reports doing something it didn't" class as the ESI payslip / PAN ciphertext): the **Employee
   Documents "Download" button is a toast with no file**, and the **HR onboarding upload keeps the
@@ -667,15 +672,20 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31552652138` — commit `db37bb4` (PRUNE-PREFLIGHT: the deploy now auto-prunes old Docker images —
-pre-flight when free space on the docker device drops below 10GB, and a 168h-retention prune after a
-confirmed-good deploy — and caps per-service container logs, so the root filesystem stops filling; infra only,
-no app code / schema / migration) — terminal `Deploy to Vultr` job `success` on **attempt 1** — 2026-08-12 —
-migration head `0079_peaceful_caretaker`, 238 base tables.** Verified via `gh run view 31552652138 --json jobs`
-(terminal `Deploy to Vultr` = `success`) and `curl connect.coheron.tech/api/health` returning
-`version: db37bb4…`. This is what is LIVE on `connect.coheron.tech`. `db37bb4` includes `807aa19`
-(DEPLOY-HARDENING), `adeb2be` (Base Pay composition), `8b4191a` (statutory wage config expressible + reachable),
-`6b08414` (statutory-filing loop) and earlier as ancestors.
+**CI run `31562454012` — commit `ec2b7a9` (the intake batch: server-side employee/leave validation —
+structure/regime required, future/under-18 DOB, state-validated, duplicate-PAN, leave date-order
+consolidation; the onboarding India-Setup compliance-flag unblocker; two display fixes; no migration) —
+terminal `Deploy to Vultr` job `success` on **attempt 1, no reboot** — 2026-08-12 — migration head
+`0079_peaceful_caretaker`, 238 base tables.** Verified via `gh run view 31562454012 --json jobs` (terminal
+`Deploy to Vultr` = `success`) and `curl connect.coheron.tech/api/health` returning `version: ec2b7a9…`. This
+is LIVE on `connect.coheron.tech`. `ec2b7a9` includes `db37bb4` (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING),
+`adeb2be` (Base Pay composition), `8b4191a` (statutory wage config), `6b08414` (statutory-filing loop) and
+earlier as ancestors.
+
+_**PRUNE-PREFLIGHT trend — three clean unattended deploys in a row.** Change D's pre-flight `df` read was
+**47GB free** on both `db37bb4` and `ec2b7a9` (hours apart) — the disk is **not refilling**. Honest caveat:
+nothing was older than 168h yet, so Change E's 168h-retention prune has not actually reclaimed anything — the
+real test is the reading a week out, and onboarding week is the load case._
 
 _**First unattended, first-attempt deploy in four — and the confirmation of the outage cause.** Change D
 recorded **47GB free ≥ 10GB, no prune needed** to `/var/log/coheron/` (the disk figure that was invisible from

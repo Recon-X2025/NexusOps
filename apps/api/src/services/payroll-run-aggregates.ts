@@ -498,8 +498,8 @@ export async function computePayrollRunTotals(
             employeeId: emp.id,
             message:
               `Employee is an ESI member this period, but the ORGANISATION has no ESI establishment ` +
-              `number — a mandatory payslip field would print blank. Set it in the India setup wizard ` +
-              `(org-level fix).`,
+              `number — a mandatory payslip field would print blank. Set it in Organisation Settings → ` +
+              `Statutory Identity (org-level fix).`,
           });
         }
         if (!emp.esiIpNumber?.trim()) {

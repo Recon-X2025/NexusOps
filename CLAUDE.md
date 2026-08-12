@@ -23,10 +23,12 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
 
 ## Critical build/test facts
 
-- **Before every merge, run `pnpm lint` from the repo root.** This is the single pre-merge
-  gate: `turbo run lint` typechecks **every** workspace (api, web, mac, worker, and the
+- **Before every merge, run `pnpm lint:cold` from the repo root** (= `turbo run lint --force`).
+  This is the single pre-merge gate: it typechecks **every** workspace (api, web, mac, worker, and the
   packages) in one command, so it catches the same class of failure CI's "Lint & Type Check"
-  job does. CI typechecks **both** `apps/api` **and** `apps/web` (`cd apps/web && npx tsc
+  job does. **Use `lint:cold`, NOT plain `pnpm lint`, for the gate:** `turbo run lint` is cache-aware, so
+  a warm `.turbo` returns a full cache hit (~60ms) that runs no typecheck at all — "cold 9/9" only means
+  something when the cache is bypassed. (`--force` also guards against a stale cache masking a real failure.) CI typechecks **both** `apps/api` **and** `apps/web` (`cd apps/web && npx tsc
   --noEmit`) — a green `apps/api` typecheck alone is **not** sufficient and will let a web
   type error through to CI, where it blocks Build+Deploy (both gated behind lint passing).
   The full CI pipeline is: Lint & Type Check → Unit & Integration Tests (`pnpm test`) →
@@ -401,7 +403,11 @@ columns read nowhere; possible underpayment vs the additive `ltaAnnual`), the **
 labelled trap), and the **document/storage sweep** — "no file upload anywhere" is **FALSE** (a real S3
 service + `documents` schema + ~6 wired paths exist), but the deployed stack (`docker-compose.vultr-test.yml`)
 ships **no object-storage backend**, so uploads fail in prod; a Vultr bucket is provisioned but not yet
-wired. See `docs/CONTEXT.md` + `reports/fix-plan.md` for detail.
+wired. **Scope reclassified 2026-08-12: this gap is document-ATTACHMENT only, NOT payroll output.** The
+payslip PDF is **render-on-the-fly** (`http/payroll-payslip-pdf.ts` builds it from the stored payslip row +
+shared view and streams it — no storage), so **the first cycle can hand employees payslips regardless.** What
+still needs storage is file *attachments* (employee documents, onboarding uploads) — whose fake controls are
+now disabled honestly (SURFACES → DOC-FACADE). See `docs/CONTEXT.md` + `reports/fix-plan.md` for detail.
 
 Older history (2026-08-02 and before, retained for decision-history):
 Prior snapshot: `main` was in sync with `origin/main` @ **`2baaa25`** (migration head

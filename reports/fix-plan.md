@@ -5728,7 +5728,56 @@ filters syntactically valid; the `set -e` non-interaction traced (both blocks `|
 **full suite api 177 files/1593 tests + web 6 files/97 tests, 0 failures**. **The real test is the deploy —
 which passed:** green on attempt 1, no reboot (see the status line at the top of this entry).
 
-## INTAKE-BATCH — 2026-08-12 (built, UNCOMMITTED — no migration; the small batch, A cluster + B flags + two ride-alongs)
+## SURFACES — 2026-08-12 (built, UNCOMMITTED — no migration; make the screens tell the truth)
+
+The other half of the intake batch — the items whose component could not be isolated in time. Theme: every
+one was a surface that said something untrue. **Located each before editing** (the discipline that found the
+leave defect); one item could not be located and was reported, not guessed.
+
+- **C2 COMPLIANCE-CARDS (first-cycle).** The Payroll Compliance TDS card read `c.tdsAmount` / `c.totalPayable`
+  / `c.challanNumber` — **none are columns** on `tds_challan_records` (columns are `totalTdsDeducted`,
+  `totalTdsDeposited`, `challanSerialNumber`), so every figure rendered ₹0 against a real record. Now reads
+  the real columns and shows **deducted (produced) and deposited (filed) as distinct facts** — never a
+  deposited figure no one deposited. The ECR table had the same bug (read `totalEpfEmployee`/`totalEdli`/
+  `adminCharges`/`totalChallanAmount`, none columns) — mapped to the real contribution columns; EDLI/admin are
+  **not stored**, so they show "—" (not tracked), not a misleading ₹0. (`hr/page.tsx`.)
+- **C1 READINESS-PANEL (first-cycle).** The org-level ESI error named "the India setup wizard" — corrected to
+  "Organisation Settings → Statutory Identity" (same fix as the step-13 refusal). And `run.errors` is stored at
+  generation and never recomputed; `runs.get` now **re-derives the one org condition live** and drops the
+  stale org-ESI error once the number is set, **keeping** the still-true employee-ESI-IP error. Not "clear the
+  panel". Tested (`readiness-panel-recompute.test.ts`). (`payroll-run-aggregates.ts:501`, `payroll.ts` runs.get.)
+- **C4 FORM-SILENT-REFUSAL.** Structure-name field got a helper message; the disabled "Create record" button
+  now **says what is missing** (name+email / state / salary structure) and gates on the now-required structure.
+- **D3 DOC-FACADE.** The employee-documents "Download" button reported `toast.success("Downloading …")` and
+  produced no file → **disabled honestly** ("document storage not yet enabled"). The 7 onboarding/offboarding
+  Upload controls kept `file.name` and discarded the bytes → **disabled** with the same explanation. (Object
+  storage is not wired on the deployed stack; `docker-compose.prod.yml`'s MinIO is referenced by nothing.)
+- **C3 — NOT LOCATED (reported, not guessed).** The employee-form state dropdown uses the already-sorted
+  `INDIAN_STATES` and is now server-guarded by the intake batch; the structure form and Statutory Identity tab
+  have no state dropdown. No unsorted geographic-state dropdown found in the named locations.
+
+**Reads (report-only):**
+- **Payslip PDF is RENDER-ON-THE-FLY** (`http/payroll-payslip-pdf.ts` builds the PDF from the stored payslip
+  row + shared view and streams it) — **no object storage needed, so the first cycle CAN hand employees
+  payslips.** (`payroll.ts:1307`'s `putObject` is a separate archive path, "not pushed to S3 yet".)
+- **LeaveTypeEnum 3-way divergence is NOT reachable via the UI** — the leave form offers only vacation / sick /
+  parental, all in the types enum. Only a direct tRPC call with a db-only value (`"annual"`) hits it (the
+  intake test did, artificially). Aligning types→db is a pure no-migration TS change but not first-cycle.
+- **Gate lint is CACHE-DEPENDENT, not forced.** `pnpm lint` = `turbo run lint`; a warm `.turbo` returns a full
+  cache hit (~59ms), so "cold 9/9" is only cold when the cache is absent. All gate figures this session used
+  `TURBO_FORCE=1 pnpm lint` (genuinely cold). **Recommend the documented gate command adopt `--force` /
+  `TURBO_FORCE=1`** so cold stays cold.
+
+**DISK / never-evicting caches (same class as the Docker image accumulation).** `.turbo` had grown to **54GB**
+of never-evicted Turbo task cache and was deleted. Same lesson as `OUTAGE-2026-08-10` (Docker images) and
+PRUNE-PREFLIGHT: **caches that never evict fill the disk.** Turbo's local cache has no built-in eviction; worth
+a periodic prune or a size cap on any box where the gate runs. (Local dev only — CI runners are ephemeral.)
+
+## INTAKE-BATCH — SHIPPED & DEPLOYED `ec2b7a9` (2026-08-12) — no migration; A cluster + B flags + two ride-alongs
+
+**Status: SHIPPED & DEPLOYED — commit `ec2b7a9`, CI run `31562454012`, `Deploy to Vultr` green on attempt 1,
+no reboot (third clean unattended deploy). Live (`/api/health` → `ec2b7a9…`).** Gate was cold lint 9/9 · full
+suite api 178/1600 + web 6/97. Detail below.
 
 Assessed first (Step-1 pass), then built only the migration-free, reachable set. **No migration.**
 

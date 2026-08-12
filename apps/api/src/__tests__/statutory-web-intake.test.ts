@@ -215,6 +215,10 @@ describe("statutory web intake (the forms' tRPC contract)", () => {
     const out = await payroll.runs.statutoryOutputs({ runId });
     expect(out.epfoEcr).toBeTruthy();
     expect(out.tdsChallan?.formType).toBe("24Q");
+    // COMPLIANCE-CARDS: the card reads totalTdsDeducted (what generateStatutory writes), not the
+    // non-existent tdsAmount it used to read (which rendered ₹0). Assert the field is present on the
+    // produced record so the card shows the real deducted figure, not undefined→0.
+    expect(out.tdsChallan?.totalTdsDeducted).toBeDefined();
     // Monthly gross ₹20,000 (< ₹21,000) makes this employee an ESI member, so an ESI challan is
     // owed — and it generated only because the ESI establishment number is now set. That is the
     // exact case that refused before this screen existed.

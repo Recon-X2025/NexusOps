@@ -809,7 +809,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"
@@ -833,7 +833,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"
@@ -857,7 +857,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"
@@ -881,7 +881,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"
@@ -1455,12 +1455,25 @@ export default function HRPage() {
               </div>
             </div>
             </div>
+            {/* FORM-SILENT-REFUSAL: say what is still missing rather than leaving a disabled button
+                unexplained. Structure is required at create (ADD-EMP-STRUCT), so the button gates on it too. */}
+            {(() => {
+              const missing = [
+                !addEmpForm.userId && (!addEmpForm.userName || !addEmpForm.userEmail) ? "employee name + work email" : null,
+                !addEmpForm.state.trim() ? "state" : null,
+                !addEmpForm.salaryStructureId ? "salary structure" : null,
+              ].filter(Boolean);
+              return missing.length > 0 ? (
+                <p className="px-5 pt-2 text-[11px] text-muted-foreground">Still needed to create this employee: {missing.join(", ")}.</p>
+              ) : null;
+            })()}
             <div className="flex gap-2 p-5 pt-3 border-t border-border shrink-0">
               <button
                 type="button"
                 disabled={
                   (!addEmpForm.userId && (!addEmpForm.userName || !addEmpForm.userEmail)) ||
                   !addEmpForm.state.trim() ||
+                  !addEmpForm.salaryStructureId ||
                   createEmployee.isPending
                 }
                 onClick={() => {
@@ -2788,17 +2801,21 @@ export default function HRPage() {
                           </div>
 
                           <div className="grid grid-cols-2 gap-y-3 gap-x-2 my-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+                            {/* Deducted (what generateStatutory produced) and deposited (what has actually
+                                been filed) are DIFFERENT facts — show both, never collapse them. The card
+                                previously read c.tdsAmount / c.totalPayable, which are not columns on
+                                tds_challan_records, so every figure rendered ₹0 against a real record. */}
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">TDS Amount</p>
-                              <p className="text-[13px] font-mono text-foreground font-medium">₹{Number(c.tdsAmount ?? 0).toLocaleString("en-IN")}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">TDS Deducted</p>
+                              <p className="text-[13px] font-mono text-foreground font-medium">₹{Number(c.totalTdsDeducted ?? 0).toLocaleString("en-IN")}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Interest</p>
-                              <p className="text-[13px] font-mono text-orange-600 font-medium">₹{Number(c.interestAmount ?? 0).toLocaleString("en-IN")}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">TDS Deposited</p>
+                              <p className="text-[13px] font-mono text-foreground font-medium">₹{Number(c.totalTdsDeposited ?? 0).toLocaleString("en-IN")}</p>
                             </div>
                             <div className="col-span-2 pt-2 border-t border-border/50">
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Total Payable</p>
-                              <p className="text-body-lg font-mono text-foreground font-bold">₹{Number(c.totalPayable ?? 0).toLocaleString("en-IN")}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Total Payable (deducted · s.192)</p>
+                              <p className="text-body-lg font-mono text-foreground font-bold">₹{Number(c.totalTdsDeducted ?? 0).toLocaleString("en-IN")}</p>
                             </div>
                           </div>
 
@@ -2815,7 +2832,7 @@ export default function HRPage() {
                             </div>
                             <div className="flex justify-between text-[11px]">
                               <span className="text-muted-foreground">Challan No:</span>
-                              <span className="font-mono text-foreground">{c.challanNumber || "—"}</span>
+                              <span className="font-mono text-foreground">{c.challanSerialNumber || "—"}</span>
                             </div>
                           </div>
                         </div>
@@ -2913,14 +2930,18 @@ export default function HRPage() {
                     {epfoEcrs.map((e: any) => (
                       <React.Fragment key={e.id}>
                       <tr>
-                        <td className="font-mono text-[11px] text-primary">{e.wageMonth}</td>
-                        <td className="text-muted-foreground">{e.fy}</td>
+                        {/* Read the columns epfo_ecr_submissions actually has (employee/employer/EPS/EPF
+                            contributions). EDLI and admin charges are NOT stored on this record, so they
+                            show "—" (not tracked) rather than a misleading ₹0; the card previously read
+                            totalEpfEmployee/totalEdli/adminCharges/totalChallanAmount — none are columns. */}
+                        <td className="font-mono text-[11px] text-primary">{e.month}/{e.year}</td>
+                        <td className="text-muted-foreground">{e.year}</td>
                         <td className="text-center font-semibold">{e.totalEmployees ?? "—"}</td>
-                        <td className="font-mono text-right text-foreground/80">₹{Number(e.totalEpfEmployee ?? 0).toLocaleString("en-IN")}</td>
-                        <td className="font-mono text-right text-foreground/80">₹{Number(e.totalEpsEmployer ?? 0).toLocaleString("en-IN")}</td>
-                        <td className="font-mono text-right text-muted-foreground">₹{Number(e.totalEdli ?? 0).toLocaleString("en-IN")}</td>
-                        <td className="font-mono text-right text-muted-foreground">₹{Number(e.adminCharges ?? 0).toLocaleString("en-IN")}</td>
-                        <td className="font-mono text-right font-semibold text-foreground">₹{Number(e.totalChallanAmount ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(e.totalEmployeeContribution ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(e.totalEpsContribution ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-muted-foreground">—</td>
+                        <td className="font-mono text-right text-muted-foreground">—</td>
+                        <td className="font-mono text-right font-semibold text-foreground">₹{(Number(e.totalEmployeeContribution ?? 0) + Number(e.totalEmployerContribution ?? 0)).toLocaleString("en-IN")}</td>
                         <td className="font-mono text-[11px] text-muted-foreground">{e.dueDateDeposit ? new Date(e.dueDateDeposit).toLocaleDateString("en-IN") : "—"}</td>
                         <td className="font-mono text-[11px] text-muted-foreground">{e.trrn ?? "—"}</td>
                         <td>
@@ -3021,9 +3042,13 @@ export default function HRPage() {
                           <td className="px-4 py-3 text-caption text-muted-foreground capitalize">{doc.category}</td>
                           <td className="px-4 py-3 text-caption font-mono text-muted-foreground">{doc.filename}</td>
                           <td className="px-4 py-3 text-right">
+                            {/* DOC-FACADE: this button reported "Downloading …" and produced no file
+                                (no object storage is wired on the deployed stack). Disabled honestly
+                                until document storage is enabled, rather than faking success. */}
                             <button
-                              onClick={() => toast.success(`Downloading ${doc.filename} (${doc.type})`)}
-                              className="px-2.5 py-1 bg-primary text-primary-foreground text-[10px] rounded hover:bg-primary/95 transition-all font-medium"
+                              disabled
+                              title="Document storage is not yet enabled on this environment — downloads are unavailable."
+                              className="px-2.5 py-1 bg-muted text-muted-foreground text-[10px] rounded font-medium cursor-not-allowed opacity-60"
                             >
                               Download
                             </button>
@@ -3314,7 +3339,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"
@@ -3337,7 +3362,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"
@@ -3360,7 +3385,7 @@ export default function HRPage() {
                         className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label title="Document storage is not yet enabled on this environment — the file is not saved." className="px-2 py-1.5 bg-muted text-muted-foreground text-caption rounded border border-border cursor-not-allowed opacity-60 pointer-events-none">
                         Upload
                         <input
                           type="file"

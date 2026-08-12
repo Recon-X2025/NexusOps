@@ -281,7 +281,24 @@ const runsRouter = router({
         .from(payrollRuns)
         .where(and(eq(payrollRuns.id, input.id), eq(payrollRuns.orgId, org!.id)));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      return mapRunRow(row);
+      const mapped = mapRunRow(row);
+      // READINESS-PANEL recompute: the org-level "no ESI establishment number" error is stored at
+      // payslip generation and goes STALE once the number is later set in Organisation Settings →
+      // Statutory Identity (a different code path that does not touch this run). Re-derive that one org
+      // condition live and drop the resolved error, while KEEPING employee-level errors (e.g. a missing
+      // ESI IP number) that are still true. Targeted — not "clear the panel".
+      if (Array.isArray(mapped.errors) && mapped.errors.length > 0) {
+        const [orgRow] = await db
+          .select({ esi: organizations.esiEstablishmentNumber })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        if (orgRow?.esi?.trim()) {
+          mapped.errors = mapped.errors.filter(
+            (e) => !/ORGANISATION has no ESI establishment/i.test(e.message ?? ""),
+          );
+        }
+      }
+      return mapped;
     }),
 
   create: permissionProcedure("payroll", "write")

@@ -754,7 +754,11 @@ export default function PayrollPage() {
                   onChange={(e) => setStructureEditor({ ...structureEditor, structureName: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
                   placeholder="e.g. Senior Engineer — Band L4"
+                  title="Structure name is required — employees are linked to a structure by this name."
                 />
+                <span className="mt-1 block text-caption text-gray-500 dark:text-gray-400">
+                  Required — employees are linked to a structure by this name, so make it unique and descriptive.
+                </span>
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">

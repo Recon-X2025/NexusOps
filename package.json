@@ -40,6 +40,7 @@
     "scorecard": "node scripts/product-scorecard-compute.mjs",
     "test:local-ready": "bash scripts/local-test-ready.sh",
     "lint": "turbo run lint",
+    "lint:cold": "turbo run lint --force",
     "check:migrations": "node scripts/verify-migration-journal.mjs",
     "coverage": "pnpm --filter @coheronconnect/api exec vitest run --coverage",
     "check:coverage": "node scripts/coverage-floor.mjs",
