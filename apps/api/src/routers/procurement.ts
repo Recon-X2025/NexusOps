@@ -21,6 +21,7 @@ import {
   legalEntities,
   budgetLines,
   chartOfAccounts,
+  gstinRegistry,
   journalEntries,
   journalEntryLines,
   eq,
@@ -31,6 +32,7 @@ import {
   sum,
   sql,
   inArray,
+  type DbOrTx,
 } from "@coheronconnect/db";
 import { CreatePurchaseRequestSchema } from "@coheronconnect/types";
 import {
@@ -40,6 +42,27 @@ import {
 } from "../lib/org-settings";
 import { computeInvoicePoMatch } from "../lib/invoice-po-match";
 import { computeRetainUntil } from "../lib/retention";
+import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/gst-engine";
+
+/**
+ * Allowed GST slabs (percent). Defaults to 0 when OMITTED — the Direct-PO form always sends an
+ * explicit rate (its dropdown defaults to 18%), so this default only governs programmatic callers
+ * that don't model GST; they must get no phantom tax (keeps the accrual total = taxable value).
+ */
+const GST_RATE_INPUT = z
+  .union([z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28)])
+  .default(0);
+
+/** The org's own place-of-supply state, from its primary/first active GSTIN (null ⇒ intra-state split). */
+async function resolveOrgGstState(tx: DbOrTx, orgId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ stateCode: gstinRegistry.stateCode, stateName: gstinRegistry.stateName })
+    .from(gstinRegistry)
+    .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
+    .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
+    .limit(1);
+  return row?.stateCode ?? row?.stateName ?? null;
+}
 
 async function determineApproval(amount: number, orgSettings: unknown): Promise<string> {
   const { prAutoApproveBelow, prDeptHeadMax } = getProcurementApprovalTiers(orgSettings);
@@ -448,6 +471,8 @@ export const procurementRouter = router({
             description: z.string().min(1),
             quantity: z.number().min(1),
             unitPrice: z.number().min(0),
+            hsnSacCode: z.string().optional(),
+            gstRate: GST_RATE_INPUT,
           })).min(1),
           department: z.string().optional(),
           category: z.string().optional(),
@@ -463,13 +488,55 @@ export const procurementRouter = router({
         return await db.transaction(async (tx) => {
           const poNumber = await getNextNumber(tx, org!.id, "PO");
 
+          // ── GST: compute each line's tax server-side (never trust a client total) ──
+          // Place of supply: vendor (supplier) state vs the org's (buyer's) own GST state.
+          // Intra-state ⇒ CGST+SGST; inter-state ⇒ IGST. The TOTAL tax is identical either
+          // way — only the split differs — so an unknown state falls back to the intra split.
+          const [vendorRow] = await tx
+            .select({ gstin: vendors.gstin, state: vendors.state })
+            .from(vendors)
+            .where(and(eq(vendors.id, input.vendorId), eq(vendors.orgId, org!.id)))
+            .limit(1);
+          const orgState = normaliseGstStateOrWarn(await resolveOrgGstState(tx, org!.id), "org");
+          const vendorState = normaliseGstStateOrWarn(vendorRow?.state ?? null, "counterparty") ?? orgState;
+
+          const lineRows = input.items.map((item) => {
+            const taxableValue = Math.round(item.quantity * item.unitPrice * 100) / 100;
+            const gst = computeGST({
+              taxableValue,
+              gstRate: item.gstRate as GSTRate,
+              supplierState: vendorState ?? "",
+              buyerState: orgState ?? "",
+            });
+            return {
+              description: item.description,
+              hsnSacCode: item.hsnSacCode ?? null,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice.toString(),
+              taxableValue: taxableValue.toString(),
+              gstRate: item.gstRate.toString(),
+              cgstAmount: gst.cgstAmount.toString(),
+              sgstAmount: gst.sgstAmount.toString(),
+              igstAmount: gst.igstAmount.toString(),
+              receivedQuantity: 0,
+            };
+          });
+          // Authoritative PO totals: sum of the line taxable values + their tax. This overrides
+          // any client-sent `totalAmount` (kept for compat), so budget + GL never disagree with tax.
+          const poTaxable = Math.round(lineRows.reduce((s, l) => s + Number(l.taxableValue), 0) * 100) / 100;
+          const poGst = Math.round(lineRows.reduce((s, l) => s + Number(l.cgstAmount) + Number(l.sgstAmount) + Number(l.igstAmount), 0) * 100) / 100;
+          const poTotal = Math.round((poTaxable + poGst) * 100) / 100;
+
           const [po] = await tx
             .insert(purchaseOrders)
             .values({
               orgId: org!.id,
               poNumber,
               vendorId: input.vendorId,
-              totalAmount: input.totalAmount.toString(),
+              vendorGstin: vendorRow?.gstin ?? null,
+              taxableValue: poTaxable.toString(),
+              gstAmount: poGst.toString(),
+              totalAmount: poTotal.toString(),
               status: "draft",
               notes: input.notes,
               expectedDelivery: input.expectedDelivery,
@@ -479,20 +546,14 @@ export const procurementRouter = router({
             .returning();
 
           await tx.insert(poLineItems).values(
-            input.items.map((item) => ({
-              poId: po!.id,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice.toString(),
-              receivedQuantity: 0,
-            })),
+            lineRows.map((l) => ({ ...l, poId: po!.id })),
           );
 
           // ── Financial Integration: Budget Commitment ───────────────────────
           if (input.department && input.category) {
             await tx.update(budgetLines)
               .set({
-                committed: sql`${budgetLines.committed} + ${input.totalAmount}`,
+                committed: sql`${budgetLines.committed} + ${poTotal}`,
                 updatedAt: new Date(),
               })
               .where(and(
@@ -511,8 +572,8 @@ export const procurementRouter = router({
             type: "invoice",
             status: "draft",
             description: `Accrual for PO ${po!.poNumber}`,
-            totalDebit: input.totalAmount.toString(),
-            totalCredit: input.totalAmount.toString(),
+            totalDebit: poTotal.toString(),
+            totalCredit: poTotal.toString(),
             createdById: ctx.user!.id,
             retainUntilDate: computeRetainUntil(new Date()),
           }).returning();
@@ -531,14 +592,14 @@ export const procurementRouter = router({
                 journalEntryId: je.id,
                 orgId: org!.id,
                 accountId: expenseAccountId,
-                debitAmount: input.totalAmount.toString(),
+                debitAmount: poTotal.toString(),
                 description: `Expense accrual for PO ${po!.poNumber}`,
               },
               {
                 journalEntryId: je.id,
                 orgId: org!.id,
                 accountId: payableAccountId,
-                creditAmount: input.totalAmount.toString(),
+                creditAmount: poTotal.toString(),
                 description: `Accrued liability for PO ${po!.poNumber}`,
               }
             ]);

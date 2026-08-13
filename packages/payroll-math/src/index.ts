@@ -13,5 +13,6 @@ export * from "./gst-engine";
 export * from "./validators";
 export * from "./gratuity";
 export * from "./leave-accrual";
+export * from "./settlement";
 export * from "./depreciation";
 export * from "./inventory-valuation";

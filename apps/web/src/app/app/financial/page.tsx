@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar, X, Clock } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { downloadCSV, cn } from "@/lib/utils";
+import { downloadCSV, cn, formatInr } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceView } from "@/components/ui/resource-view";
@@ -281,11 +281,11 @@ function FinancialPageInner() {
 
       <DetailGrid
         items={[
-          { label: "FY2026 IT Budget", value: `₹${(totalBudget / 10000000).toFixed(1)}Cr`, icon: Coins },
-          { label: "YTD Actuals", value: `₹${(totalActual / 100000).toFixed(0)}L`, icon: TrendingUp, className: "text-blue-700" },
-          { label: "YTD Committed", value: `₹${(totalCommitted / 100000).toFixed(0)}L`, icon: TrendingDown, className: "text-indigo-700" },
+          { label: "FY2026 IT Budget", value: formatInr(totalBudget), icon: Coins },
+          { label: "YTD Actuals", value: formatInr(totalActual), icon: TrendingUp, className: "text-blue-700" },
+          { label: "YTD Committed", value: formatInr(totalCommitted), icon: TrendingDown, className: "text-indigo-700" },
           { label: "Over Budget Lines", value: overBudget, icon: AlertTriangle, className: overBudget > 0 ? "text-red-700" : "text-green-700" },
-          { label: "Invoices Pending", value: `₹${(totalInvoicePending / 100000).toFixed(0)}L`, icon: Clock, className: "text-orange-700" },
+          { label: "Invoices Pending", value: formatInr(totalInvoicePending), icon: Clock, className: "text-orange-700" },
         ]}
       />
 
@@ -505,8 +505,10 @@ function FinancialPageInner() {
               <tbody>
                 {invoices.map((inv) => {
                   const invStatus = inv.status ?? "";
-                  // DB fields: invoiceNumber (vendor ref), vendorId (UUID), poId, amount (string), dueDate
-                  const invVendor = `Vendor …${inv.vendorId?.slice(-6) ?? "—"}`;
+                  // DB fields: invoiceNumber (vendor ref), vendorId (UUID), poId, amount (string), dueDate.
+                  // listInvoices resolves vendorName (vendors.name) — use it; the truncated-id string
+                  // was a placeholder that ignored the joined name. Fall back to the id only if absent.
+                  const invVendor = inv.vendorName || (inv.vendorId ? `Vendor …${inv.vendorId.slice(-6)}` : "—");
                   const invRef = inv.invoiceNumber ?? "—";
                   const invDate = inv.createdAt ? new Date(inv.createdAt).toISOString().split("T")[0] : "—";
                   const invAmount = Number(inv.amount ?? 0);

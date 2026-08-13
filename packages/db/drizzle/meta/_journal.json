@@ -575,6 +575,13 @@
       "when": 1786538597025,
       "tag": "0081_illegal_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1786615419424,
+      "tag": "0082_chilly_husk",
+      "breakpoints": true
     }
   ]
 }

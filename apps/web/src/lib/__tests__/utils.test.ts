@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cn, formatDate, formatRelativeTime, formatCurrency, truncate, getPriorityColor, getStatusBadgeVariant } from "../utils";
+import { cn, formatDate, formatRelativeTime, formatCurrency, formatInr, pluralize, truncate, getPriorityColor, getStatusBadgeVariant } from "../utils";
 
 // ── cn (classname merger) ──────────────────────────────────────────────────
 
@@ -123,6 +123,51 @@ describe("formatCurrency", () => {
   it("handles negative amounts", () => {
     const result = formatCurrency(-100, "INR");
     expect(result).toMatch(/-/);
+  });
+});
+
+// ── formatInr ──────────────────────────────────────────────────────────────
+// The single whole-rupee formatter the procurement/finance dashboards were missing.
+// Guards the exact faults from the walk: ₹160000K (divide-by-1000+"K") and ₹0.1Cr.
+
+describe("formatInr", () => {
+  it("renders large amounts with Indian grouping, not a broken abbreviation", () => {
+    // ₹16,00,00,000 — the value that rendered as ₹160000K on the dashboard card.
+    expect(formatInr(160000000)).toBe("₹16,00,00,000");
+  });
+
+  it("renders a lakh with Indian grouping", () => {
+    expect(formatInr(100000)).toBe("₹1,00,000");
+  });
+
+  it("drops paise (whole rupees only)", () => {
+    expect(formatInr(1234.56)).toBe("₹1,235");
+  });
+
+  it("accepts a numeric string (decimal column values arrive as strings)", () => {
+    expect(formatInr("2500000")).toBe("₹25,00,000");
+  });
+
+  it("treats null/undefined/NaN as zero rather than printing ₹NaN", () => {
+    expect(formatInr(null)).toBe("₹0");
+    expect(formatInr(undefined)).toBe("₹0");
+    expect(formatInr("not-a-number")).toBe("₹0");
+  });
+});
+
+// ── pluralize ──────────────────────────────────────────────────────────────
+// The account-type filter chips pluralised with a bare "s" → LIABILITYS / INCOMES.
+
+describe("pluralize", () => {
+  it("applies the consonant-y → ies rule", () => {
+    expect(pluralize("liability")).toBe("liabilities");
+    expect(pluralize("equity")).toBe("equities");
+  });
+
+  it("appends s for words not ending in consonant-y", () => {
+    expect(pluralize("asset")).toBe("assets");
+    expect(pluralize("expense")).toBe("expenses");
+    expect(pluralize("income")).toBe("incomes");
   });
 });
 

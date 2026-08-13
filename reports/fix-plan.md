@@ -5087,13 +5087,46 @@ the createOnboarding shape still excluded + flagged; active unchanged). Red-befo
   produce a payable row with no state and a defaulted regime. `payroll-structureless-warning.test.ts`
   matcher updated to the new wording.
 
-### ⚠️ LEAVER GAP — OPEN, payroll-blocking
+### ✅ LEAVER GAP — CLOSED (EXIT-DATE + FULL-AND-FINAL, uncommitted; merged as one unit)
 
-No full-and-final / settlement salary path exists (only gratuity settlement, separate). A
-`resigned`/`terminated`/`offboarded` employee stops being selected — no final payslip for days
-worked. Code on Wages: settlement within two working days of exit. The proper fix is date-range
-run selection (`startDate`/`endDate` exist on `employees` and the run consults NEITHER) plus a
-pro-rata policy. Must be closed before a pilot has a mid-month leaver.
+Was: no full-and-final / settlement salary path existed (only gratuity settlement, separate); a
+`resigned`/`terminated`/`offboarded` employee stopped being selected — no final payslip for days
+worked. Closed by two builds committed together:
+
+- **EXIT-DATE** — `employees.endDate` is now REQUIRED at offboarding (`hr.createOffboarding`,
+  server-validated ≥ startDate, future permitted) and drives BOTH pro-ration and run selection.
+  `buildEmployeePayrollInput` (`payroll-run-aggregates.ts`) computes `daysEmployed` = the UTC
+  date-only overlap of `[startDate, endDate]` with the period and pro-rates earnings by
+  `(daysEmployed − lopDays)/daysInMonth` — the `lopDays>0 ? … : 1` short-circuit that paid a
+  mid-month joiner a full month is gone, and LOP is SUBTRACTED from employed days (one reduction,
+  never a second multiplicative fraction). The run (`computePayrollRunTotals` + write-path
+  `payroll.ts`) now selects a leaver whose `endDate ≥ periodStart` and pays them pro-rata;
+  selection reads `endDate`, not status. Weekends-only calendar (holiday calendar deferred; trigger:
+  holiday calendar verified per tenant). 7 tests (`exit-date-proration.test.ts`).
+- **FULL-AND-FINAL** — a SEPARATE settlement event (the two-working-day exit clock cannot wait for
+  the monthly run). New `final_settlements` table (migration `0082_chilly_husk`, RLS-walled) stores
+  every COMPONENT as it was at settlement (last salary · leave encashment · gratuity · each recovery),
+  not just the total — a settlement is a record with legal weight, disputable part-by-part. Pure
+  `composeSettlement` (`packages/payroll-math/settlement.ts`): `gross = lastSalary + encashment +
+  gratuity`; `net = max(0, gross − recoveries)`; recoveries over the payable parts floor at zero and
+  surface `unrecoveredShortfall` (the SAME invariant the payslip engine uses, not a second mechanism);
+  gratuity/encashment excess above the s.10(10)/s.10(10AA) ceilings surfaced as taxable. `settlement`
+  router (`settle`/`preview`/`get`): last salary via the EXIT-DATE engine, gratuity via
+  `computeGratuity` (5-year gate; Basic+DA base), encashment via `computeLeaveEncashment` (encashability
+  read THROUGH `leavePolicies.encashable`, available balance = total − used − pending). **Idempotent**:
+  the unique `employeeId` index makes a second `settle` a CONFLICT before anything is drawn — settling
+  twice pays once. Settling sets `offboardingDetails.ffStatus = "completed"` + stamps `settledAt`
+  (semi-computed; the manual override on the offboarding form remains for out-of-system settlements).
+- **Double-pay reconciliation** (the merge's load-bearing correctness point): because the settlement
+  pays the last salary within the exit clock, a SETTLED leaver is now EXCLUDED from the monthly run
+  (a `notExists(final_settlements)` predicate in BOTH the lock/totals and write-path selections) — the
+  run never pays that final month twice. An UN-settled leaver still rides the EXIT-DATE arm (safety net).
+- 8 tests (`full-and-final-settlement.test.ts`): component figures + total; encashability filter through
+  the composition; gratuity <5y not paid / ≥5y on Basic+DA; **idempotency (settle twice pays once)**;
+  recoveries exceeding settlement floor + surface shortfall; bare leaver on last salary alone; statutory
+  excess surfaced; and the run-exclusion (no double-paid last salary).
+
+Gate: `lint:cold` 9/9 forced, `check:migrations` in sync. UNCOMMITTED — awaiting owner go + snapshot.
 
 ### ECR verification — DUP-1 `#~#` claim CONFIRMED; delimiter was never the defect
 
@@ -5802,6 +5835,42 @@ composition) and `apps/web/src/lib/__tests__/leave-labels.test.ts`.
 (PR5-blocked); LTA exemption (over-taxed, safe; CA has not ruled); proof capture; casual ≤3-day classification;
 s.18(3); the structure importer.
 
+## DEPLOYED-WALK (2026-08-12) — first full-cycle walk of connect.coheron.tech (SHA `5c5490d`)
+
+Full record: **`docs/audits/deployed-walk_full-cycle_2026-08-12_run-201250.md`** (locked). Tenant "Coheron Tech",
+admin session. No code changed, nothing committed, nothing deleted (Amit-Mehra −1.0 row left intact).
+
+**Central question — mostly YES:** onboarding works; a payroll runs end-to-end (14 steps, HR→Finance→CFO chain,
+**payslip PDF renders on the deployed stack**); a PO can be raised. **But two procurement breakages + one statutory
+gap.** Today's `5c5490d`/`0080`/`0081` features all verified LIVE: entity branch (LLP→LLPIN, prop→neither;
+`legal_entities.llpin` confirmed on prod via getWizardData 200), starter structures, Base-Pay relabel, leave labels,
+**leave.update reversed-date guard (400)**, tax-declaration capture (upsert 200, new-regime warning, 80C cap ₹1,50,000).
+
+**New register items (NOT fixed — for prioritisation):**
+- **WALK-C-BUG2 (HIGH) — PO approval broken.** Dashboard Pending-Actions "Approve" on a PO calls
+  `procurement.purchaseRequests.approve` (the *requisition* approve) with a PO id → **404**. PO detail has no Approve.
+  → no working PO-approve path in the product. Front-end wiring; exact line not read.
+- **WALK-C-BUG1 (HIGH) — COA "Add Account" inert.** Clicking opens no modal/form, fires no request, logs no error.
+  Backend exists (`accounting.ts:159`). Front-end button opens nothing → COA account-create unreachable via UI.
+  (Reproduces the previously-unreproducible "add-account broken" symptom.)
+- **WALK-B-GAP1 (MED) — statutory challan/ECR artefacts not surfaced/reachable.** After a completed run (Step 13 done),
+  Payroll Compliance shows "No TDS challans" / "No ECR"; ECR card names a raw procedure `hr.payroll.generateECR` with
+  no UI button. Cards themselves render honest empty states (SURFACES fix OK); the gap is no artefact row/trigger.
+- **WALK-C-18 (reachability) — invoice↔PO 3-way match is NOT built in the UI.** Invoices (Finance → Financial Mgmt →
+  Invoices/AP, separate from Procurement) have a PO-REF column (all "—") + Pay/Details/Mark-Paid only; no Match/variance
+  action anywhere. The QA-script three-way-match step describes unbuilt UI — **tell testers to stop looking.**
+- **WALK-FMT (Part E, low) — formatting/label bugs:** procurement dashboard `₹160000K` + `₹$1L`/`₹$0L`/`₹$16,00,00,000`
+  (dashboard-cards only; PO list/detail correct); COA chips `LIABILITYS`/`EQUITYS`/`INCOMES`; invoice list vendor shows
+  truncated `Vendor …6cbe58` (detail resolves the name); `FY2026 IT Budget ₹0.1Cr`; structures list still says "Annual
+  CTC"/"CTC templates" (editor says Base Pay); employee TEST joined "10 Aug 2006" (likely 2026 typo);
+  **PR5 visible in prod** — payslip YTD PF=₹0 & YTD Net=₹0 while YTD Gross/TDS populated.
+- **WALK-25 (data) — Amit-Mehra −1.0-day row still on prod** (Sick/Casual, 11→9 Aug, Pending), confirmed present, not
+  deleted. **Its leave balance could not be read from the admin UI** (no per-employee balance view; "No leave policies
+  defined") → capturing it for the `negative-days-cleanup.sql` verification needs a prod DB read.
+- **Coverage NOT walked this pass:** old-regime payslip effects (all employees new-regime on this tenant), non-owner
+  role segregation, readiness-panel trigger, PO-doc-upload honest-failure, the object-storage matrix, goods-receipt
+  creation, journal-from-receipt, stock/valuation, bulk-import name-matching. See the audit's "Coverage gaps".
+
 ## STEP-0 READS (2026-08-12) — eight verifications; several shrink or CLOSE future work
 
 Read before the C1 second half was scoped. Each was traced to code with `file:line`; several items the plan
@@ -6063,3 +6132,131 @@ own docs disagreed, the spec won). All uncommitted; do not commit without the ow
   revocation warns (convention, not statute). **Bonus gate** now reads Basic+DA. (Built earlier this day.)
 - Migrations `0077` (DA/VPF), `0078` (employer rate + Para 26(6) fields), `0079` (reduced-rate reason) —
   each validated against a throwaway prod-shaped schema, applied to dev + test only.
+
+---
+
+## WALK 2 — full-platform browser QA (2026-08-12, localhost SHA `5c5490d`, fresh tenant WALK2 QA Co)
+
+Browser-driven walk (Playwright, screenshots in `docs/audits/walk2-shots/`). Full detail:
+`docs/audits/walk2_part0-setup_2026-08-12.md` and `docs/audits/walk2_part5-payroll-proofs_2026-08-12.md`.
+Built a fresh tenant entirely in the UI: onboarding wizard (7/7), 2 salary structures, 4 role users
+(invite UI), proof-pair employees, 80C declaration, and ran the **full 14-step payroll cycle** across
+distinct HR/Finance/CFO logins to a COMPLETED run + rendered payslip PDF.
+
+### Severity-ordered fix list (pre-25-Aug)
+
+**HIGH — money-path / correctness (payroll):**
+1. **[F9 · CRITICAL] Monthly TDS = ₹0 for EVERY employee onboarded in the current calendar year.**
+   Both old-regime employees (₹12L/yr gross) show **Income Tax (TDS) ₹0** on the rendered payslip PDF +
+   portal + stored `payslips.tds=0`, while the same PDF footer states **Annual Tax Liability ₹1,16,501 /
+   ₹1,63,800**. **ROOT CAUSE ESTABLISHED** (code trace + matching arithmetic): the joining-month heuristic
+   `emp.joiningDate.getFullYear() > new Date().getFullYear() - 1` at
+   `packages/payroll-math/src/payroll-cycle.ts:388-391` is TRUE for any employee whose start date is in the
+   current calendar year, so `computeTax` takes its mid-year branch (`tax-engine.ts:291-301`) and prorates
+   GROSS to `monthsInFY/12` while leaving std deduction / 80C / HRA / PT at full-year values → taxable
+   collapses below ₹5,00,000 → the s.87A rebate (`tax-engine.ts:360-361`) zeroes tax → `monthlyTDS` 0.
+   The display path (`apps/api/src/lib/payslip-tax.ts:68-69`) hardcodes `joiningMonth:1/monthsInFY:12` so it
+   shows the correct large liability — the two paths diverge. **Blast radius: on a 2026 go-live every
+   employee is under-withheld to ₹0.** Fix: FY-based `joiningMonth` derivation + one shared projection helper
+   for run & display + prorate deductions with gross for genuine mid-year joiners.
+2. **[F10] Payslip "taxable income / annual tax" is computed with HRA exemption hardcoded to 0.**
+   `apps/api/src/lib/payslip-tax.ts:63` sets `hraExemption: 0` in the display tax profile, so the payslip
+   PDF's tax view overstates tax AND omits the s.10(13A) exemption — inconsistent with the run path
+   (`payroll-math`, which does compute it). The metro 40%/50% HRA distinction has **no visible effect**.
+   → Proof (b) (KA 40% vs Delhi 50%) is not demonstrable; proof (a) (80C) works only at the annual-liability
+   level, never as a monthly-TDS delta (TDS is ₹0).
+
+**HIGH — front-end wiring (re-confirmed from walk 1):**
+3. **[F2] COA "Add Account" is INERT** — no dialog, no `accounting.coa.create` request. Backend exists
+   (`accounting.ts`); front-end never wired. Re-verified on the fresh tenant.
+
+**MEDIUM — reachability / UX traps:**
+4. **[F13] No admin/HR path to view or download any payslip.** PDF route is self-service-only
+   (`apps/api/src/http/payroll-payslip-pdf.ts:42`, `eq(employees.userId, userId)`); the completed-run
+   detail lists no payslips and none of the generated TDS/ECR/PT challans (only "Export Bank File").
+5. **[F8] A payroll run cannot be deleted/reset in the UI and blocks its month** (`payroll.runs.create`
+   → 409 "A run already exists for this month"). A run created before structures are valid wedges that month.
+6. **[F7] Salary-structure "Effective from" defaults to today**, silently excluding the current month from
+   payroll (0 employees paid; surfaced only as a run error). Default should be the 1st of the month / join date.
+
+**LOW — cosmetic / correct-guard:**
+7. **[F3] COA filter chips render `LIABILITYS` / `EQUITYS` / `INCOMES`** (naive pluralisation).
+8. **[F6] Salary-structure list header "Annual CTC" vs editor "Base Pay"** — same value, two labels.
+9. **[F12] Visible-but-forbidden controls** — CFO-approve Execute shown to Finance (403 on click); statutory
+   Execute shown to CFO who lacks `payroll.write` (403). Correct enforcement, misleading affordance.
+10. **[F1] Onboarding: CIN is required for Private Limited** (contradicts the handoff's "leaving CIN blank
+    completes"; GSTIN/EPF/ESI *are* optional). Likely correct behaviour — recorded for the record.
+11. **[F11] Statutory generation hard-blocks without an EPF establishment code** (correct guard; but the
+    code is optional at onboarding, so the run stalls at CFO-approved until set in Admin → Statutory Identity).
+
+### Positives verified on-screen (not defects)
+SoD 3-approver chain server-enforced (403 on repeat approver); PF ₹1,800 cap (12% of ₹15k); ESI ₹0 above
+₹21k; PT KA ₹200 / Delhi ₹0; payslip tenant identity (TAN/PF code/CIN) renders (C6 holds); 80C reduces
+taxable income; DA→Basic composition derives Basic=50−DA read-only; onboarding COA seed (~47 accounts);
+invite-link user creation; audit log records actions live.
+
+### NOT tested this session (coverage gap — reason, per the mandate)
+The full route/procedure coverage sweep (130 web routes, 57 routers) and the procurement/accounting,
+authz-isolation, negative-testing, and modules audits were **not reached** — the session was spent on
+Part 0 provisioning + the Part 5 payroll crux, which surfaced the headline TDS/HRA defect. The org-B
+tenant-isolation user and the bulk 92-employee CSV import were also not done. These remain open for a
+follow-up walk. No silent skips: this is the explicit gap list.
+
+### WALK 2 — additional findings from the full route/functional sweep (append)
+
+Route coverage: **130/130 routes verdicted** (`docs/audits/walk2_route-coverage_2026-08-12.md`). Functional/isolation/negative
+detail in `docs/audits/walk2_{authz-isolation,procurement-accounting,negative-and-reachability}_2026-08-12.md`.
+
+**MED:**
+- **[F15] Two dead routes** — `/app/devops` and `/app/developer-ops` both render "Something went wrong — NEXT_HTTP_ERROR_FALLBACK;404". page.tsx exists but throws.
+- **[F18] Procurement "+ PO" is INERT** — creating a PO from an approved requisition fires no request, opens no modal, creates no PO (same class as F2 CoA Add-Account).
+- **[F16] CSV importer enum/label mismatch** — requires snake_case (`employmentType=full_time`) but the Add-employee form shows "Full time" and the column hint/template doesn't list allowed values; the Confirm count (19) also drifts from the Done count (18, unknown-structure skipped server-side). Per-row validation itself is solid.
+- **Requisitions auto-approve** with no visible approval gate (Approval Pipeline counters stay 0) — confirm vs intended PR approval design.
+
+**LOW:**
+- **[F14] /app/profile** React duplicate-key warning `admin` (only console-error route found in the sweep).
+- **[F19] `₹$` double currency symbol** (procurement estimate `₹$50,000`, spend tiles `₹$1L/₹$0L`) + truncated raw ids ("…5ecc78") — re-confirms walk-1 format bugs.
+
+**Positives verified this pass (not defects):** Journal-entry debit=credit invariant enforced + posts (`accounting.journal.create` 200); **tenant isolation holds** (org-B sees none of org-A's employees/CoA; cross-tenant payslip PDF → 404); CSV bulk import created 18 employees with precise skip reporting; onboarding COA seed + India holidays; detail-route not-found pages degrade gracefully. Total WALK2 tenant now: **20 employees** (2 form + 18 CSV), 2 salary structures, 4 role users, 1 completed payroll run, org-B for isolation.
+
+**Headline remains [F9 CRITICAL]** — TDS=₹0 for every current-calendar-year hire (root cause `payroll-cycle.ts:388-391`).
+
+---
+
+### ✅ PROCUREMENT UNIT — CLOSED (F18 + F2 + Step 3 + Step 4; uncommitted, merges with the settlement units)
+
+Four defects from the walk, all reproduced on the deployed platform, all fixed:
+
+- **[F18] Pending Actions approved the wrong entity.** The dashboard widget listed draft/sent **POs** and
+  wired Approve/Reject to `procurement.purchaseRequests.approve` with a **PO id** → the id isn't in
+  `purchase_requests` → `NOT_FOUND` (the 404). Established first (Step 1a): a requisition **does** approve
+  correctly; there is **no** PO-approval procedure and the PO enum has **no** approval state; the PO detail
+  page has no Approve. So the code supports the owner's reading (Step 1b) — approval belongs on the
+  **requisition** (`pending`), and a Direct PO with status `sent` has already gone to the vendor.
+  **Fix (owner-chosen: workflow):** the widget + the "Pending Approval" count now list **pending
+  requisitions** and approve those (`procurement/page.tsx`); Direct POs leave the approval queue entirely.
+  Creation-time value/role gating for Direct POs is a **separate follow-up**, not built here.
+- **[F2] Chart-of-Accounts "Add Account" was inert.** The button at `finance/accounting/coa/page.tsx` had
+  **no onClick** at all (backend `accounting.coa.create` existed, unused). Wired a create modal (mirrors the
+  working `accounting/page.tsx` pattern). Audit finding: this was an **isolated instance** — every other
+  accounting create control (journal, vendor, invoice, AR, budget, bank-rec, CSV import) was already wired.
+- **[Step 3] Direct PO: multi-line + GST (owner-chosen: build both).** No migration — `poLineItems` and the
+  `gstRate`/`cgst`/`sgst`/`igst`/`hsnSacCode` columns already existed. The form now takes **N line rows**
+  (add/remove) each with HSN/SAC + a GST slab; the server computes CGST/SGST (intra-state) or IGST
+  (inter-state) by **place of supply** — vendor state vs the org's own GST state (`gstinRegistry`) — stores
+  the per-line breakdown, and rolls **taxable/GST/total** onto the header (authoritative; overrides any
+  client total, so budget + the balanced draft accrual JE agree with the tax). Line gstRate **defaults to 0**
+  when omitted (no phantom tax for programmatic callers; the form's dropdown defaults to 18%).
+  Three-way invoice↔PO match remains **out of scope** (a feature, not a fix).
+- **[F19 / Step 4] Formatting — five independent call sites, not one helper.** A correct `formatCurrency`
+  existed at `utils.ts:151` but the faulty screens never imported it, and the K/L/Cr abbreviation had no
+  shared helper. Added shared `formatInr` + `pluralize` to `utils.ts` and routed all five through them:
+  `₹160000K`→`₹16,00,00,000` (procurement:363), the stray-`$` `₹$1L` (procurement:413/458/527),
+  `LIABILITYS`→`Liabilities` (coa:96), truncated vendor id→`vendorName` (financial:509), `₹0.1Cr`→full
+  grouping (financial:284-288).
+
+Tests: `procurement-po-gst.test.ts` (5 — intra/inter-state GST, multi-line roll-up + balanced accrual,
+no-GST default, requisition-approve + PO-id 404, COA create + posting-against-real-chart); web
+`utils.test.ts` +11 (`formatInr`/`pluralize`). Gate: `lint:cold` 9/9 forced; web suite 108/108; API full
+suite running. **Uncommitted — merges with EXIT-DATE + FULL-AND-FINAL (migration 0082) into one commit,
+pending owner go + snapshot.**

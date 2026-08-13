@@ -9,7 +9,9 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { PermissionGate } from "@/lib/rbac-context";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
+
+const ACCOUNT_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceView } from "@/components/ui/resource-view";
@@ -25,6 +27,9 @@ const TYPE_COLORS: Record<string, string> = {
 export default function CoaPage() {
     const [search, setSearch] = useState("");
     const [filterType, setFilterType] = useState<string | null>(null);
+    const [showNew, setShowNew] = useState(false);
+    const emptyForm = { code: "", name: "", type: "asset", subType: "", description: "", openingBalance: "0" };
+    const [form, setForm] = useState(emptyForm);
 
     const qCoa = trpc.accounting.coa.list.useQuery({
         type: (filterType || undefined) as "asset" | "liability" | "equity" | "income" | "expense" | undefined,
@@ -34,6 +39,16 @@ export default function CoaPage() {
     const mSeed = trpc.accounting.coa.seed.useMutation({
         onSuccess: (data) => {
             toast.success(`Seeded ${data.seeded} accounts successfully`);
+            qCoa.refetch();
+        },
+        onError: (e) => toast.error(e.message),
+    });
+
+    const mCreate = trpc.accounting.coa.create.useMutation({
+        onSuccess: () => {
+            toast.success("Account created");
+            setShowNew(false);
+            setForm(emptyForm);
             qCoa.refetch();
         },
         onError: (e) => toast.error(e.message),
@@ -62,7 +77,10 @@ export default function CoaPage() {
                                 <RefreshCcw className={cn("w-4 h-4", mSeed.isPending && "animate-spin")} />
                                 Seed India COA
                             </button>
-                            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-medium hover:bg-primary/90 transition-colors">
+                            <button
+                                onClick={() => { setForm(emptyForm); setShowNew(true); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-medium hover:bg-primary/90 transition-colors"
+                            >
                                 <Plus className="w-4 h-4" />
                                 Add Account
                             </button>
@@ -84,7 +102,7 @@ export default function CoaPage() {
                     />
                 </div>
                 <div className="flex items-center gap-2 border-l border-border pl-4">
-                    {(["asset", "liability", "equity", "income", "expense"] as const).map(type => (
+                    {ACCOUNT_TYPES.map(type => (
                         <button
                             key={type}
                             onClick={() => setFilterType(filterType === type ? null : type)}
@@ -93,7 +111,7 @@ export default function CoaPage() {
                                 filterType === type ? TYPE_COLORS[type] : "bg-muted text-muted-foreground hover:bg-muted/80"
                             )}
                         >
-                            {type}s
+                            {pluralize(type)}
                         </button>
                     ))}
                 </div>
@@ -162,6 +180,55 @@ export default function CoaPage() {
                     );
                 }}
             </ResourceView>
+
+            {showNew && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6">
+                        <h2 className="text-body-sm font-semibold mb-4">New Account</h2>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Code *</label>
+                                <input value={form.code} onChange={(e) => setForm(f => ({ ...f, code: e.target.value }))} placeholder="1100" className="w-full px-3 py-2 text-body-sm border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Account Name *</label>
+                                <input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Bank — HDFC" className="w-full px-3 py-2 text-body-sm border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Type</label>
+                                <select value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} className="w-full px-3 py-2 text-body-sm border border-border rounded bg-background outline-none capitalize">
+                                    {ACCOUNT_TYPES.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Opening Balance (₹)</label>
+                                <input type="number" value={form.openingBalance} onChange={(e) => setForm(f => ({ ...f, openingBalance: e.target.value }))} className="w-full px-3 py-2 text-body-sm border border-border rounded outline-none" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Description</label>
+                                <input value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 text-body-sm border border-border rounded outline-none" />
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 mt-5">
+                            <button onClick={() => setShowNew(false)} className="px-3 py-1.5 text-body-sm border border-border rounded hover:bg-muted/50">Cancel</button>
+                            <button
+                                disabled={!form.code || !form.name || mCreate.isPending}
+                                onClick={() => mCreate.mutate({
+                                    code: form.code,
+                                    name: form.name,
+                                    type: form.type as "asset" | "liability" | "equity" | "income" | "expense",
+                                    description: form.description || undefined,
+                                    openingBalance: parseFloat(form.openingBalance || "0"),
+                                })}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                            >
+                                {mCreate.isPending ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                Create
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

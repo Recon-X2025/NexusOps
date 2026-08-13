@@ -30,7 +30,10 @@ import {
   gte,
   lte,
   isNull,
+  isNotNull,
   inArray,
+  notExists,
+  finalSettlements,
   max,
   type DbOrTx,
   type PayrollWorkflowMeta,
@@ -55,6 +58,7 @@ import {
   computePayrollRunTotals,
   esiContributionPeriodStart,
   PAYROLL_EMPLOYED_STATUSES,
+  PAYROLL_LEAVER_STATUSES,
 } from "../services/payroll-run-aggregates";
 import { checkDbUserPermission } from "../lib/rbac-db";
 
@@ -462,11 +466,39 @@ const runsRouter = router({
       // inner-join semantics (only employees with an applicable structure are paid).
       const periodDate = new Date(row.year, row.month - 1, 1);
       // Anyone employed during the period is paid (probation + on_leave included, per
-      // PAYROLL_EMPLOYED_STATUSES); leavers stay excluded pending a full-and-final path.
+      // PAYROLL_EMPLOYED_STATUSES). EXIT-DATE: a leaver whose last working day (endDate) falls
+      // in or after this period is also paid — their final month is pro-rated to endDate
+      // (computeGross). A leaver with no endDate, or one who left before this period, stays out.
       const activeEmps = await db
         .select()
         .from(employees)
-        .where(and(eq(employees.orgId, org!.id), inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES])));
+        .where(
+          and(
+            eq(employees.orgId, org!.id),
+            // FULL-AND-FINAL: a settled leaver was already paid via the settlement event (within the
+            // exit clock, not this run) — exclude them so the write path never double-pays the last
+            // month. Mirrors the lock/totals selection in computePayrollRunTotals exactly.
+            notExists(
+              db
+                .select()
+                .from(finalSettlements)
+                .where(and(eq(finalSettlements.employeeId, employees.id), eq(finalSettlements.orgId, org!.id))),
+            ),
+            or(
+              // Employed and not past a recorded exit (endDate null or in/after the period).
+              and(
+                inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES]),
+                or(isNull(employees.endDate), gte(employees.endDate, periodDate)),
+              ),
+              // Leaver whose last working day falls in/after the period — pro-rated to endDate.
+              and(
+                inArray(employees.status, [...PAYROLL_LEAVER_STATUSES]),
+                isNotNull(employees.endDate),
+                gte(employees.endDate, periodDate),
+              ),
+            ),
+          ),
+        );
       const empRows: Array<{ emp: typeof employees.$inferSelect; st: typeof salaryStructures.$inferSelect }> = [];
       // Employees dropped because their structure has no version in effect for the period.
       // Previously a bare `continue` here left the exclusion in NEITHER the empRows nor the

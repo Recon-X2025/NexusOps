@@ -5,11 +5,11 @@ import Link from "next/link";
 import {
   ShoppingCart, Plus, Download, CheckCircle2,
   XCircle, Clock, AlertTriangle, Package,
-  FileText, Send, Loader2,
+  FileText, Send, Loader2, Trash2,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
-import { downloadCSV, cn } from "@/lib/utils";
+import { downloadCSV, cn, formatInr } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
@@ -106,7 +106,7 @@ export default function ProcurementPage() {
   const approvePR  = trpc.procurement.purchaseRequests.approve.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const rejectPR   = trpc.procurement.purchaseRequests.reject.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const createPOFromPR   = trpc.procurement.purchaseOrders.createFromPR.useMutation({ onSuccess: () => { refetchPRs(); refetchPOs(); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
-  const createDirectPO = trpc.procurement.purchaseOrders.create.useMutation({ onSuccess: () => { refetchPOs(); setShowNewPO(false); toast.success("Purchase Order created"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const createDirectPO = trpc.procurement.purchaseOrders.create.useMutation({ onSuccess: () => { refetchPOs(); setShowNewPO(false); setPoForm({ vendorId: "", notes: "", expectedDelivery: "", items: [{ desc: "", qty: "1", price: "", hsn: "", gstRate: "18" }] }); toast.success("Purchase Order created"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   
   const createInventoryItem = trpc.inventory.create.useMutation({ onSuccess: () => { refetchInv(); setShowNewItem(false); toast.success("Item added to catalog"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const updateInventoryItem = trpc.inventory.update.useMutation({ onSuccess: () => { refetchInv(); setEditingItem(null); toast.success("Item updated"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
@@ -129,7 +129,18 @@ export default function ProcurementPage() {
   const [editItemForm, setEditItemForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", minQty: "5", location: "", unitCost: "" });
 
   const [prForm, setPrForm] = useState({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
-  const [poForm, setPoForm] = useState({ vendorId: "", notes: "", expectedDelivery: "", items: [{ desc: "", qty: "1", price: "" }] });
+  const emptyPoItem = { desc: "", qty: "1", price: "", hsn: "", gstRate: "18" };
+  const [poForm, setPoForm] = useState<{ vendorId: string; notes: string; expectedDelivery: string; items: Array<typeof emptyPoItem> }>({ vendorId: "", notes: "", expectedDelivery: "", items: [{ ...emptyPoItem }] });
+  const setPoItem = (i: number, patch: Partial<typeof emptyPoItem>) =>
+    setPoForm((f) => ({ ...f, items: f.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) }));
+  const addPoItem = () => setPoForm((f) => ({ ...f, items: [...f.items, { ...emptyPoItem }] }));
+  const removePoItem = (i: number) => setPoForm((f) => ({ ...f, items: f.items.length > 1 ? f.items.filter((_, idx) => idx !== i) : f.items }));
+  // Live GST-inclusive total preview — the server recomputes authoritatively (place of supply),
+  // this is only what the buyer sees before submitting.
+  const poFormTotal = poForm.items.reduce((s, it) => {
+    const taxable = (Number(it.qty) || 0) * (Number(it.price) || 0);
+    return s + taxable * (1 + (Number(it.gstRate) || 0) / 100);
+  }, 0);
   const [invForm, setInvForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", qty: "0", minQty: "5", unitCost: "", poReference: "" });
   const [policyForm, setPolicyForm] = useState({ itemId: "", thresholdQty: "5", reorderQty: "20", isAutomated: false });
   const [intakeForm, setIntakeForm] = useState({ itemId: "", qty: "1", reference: "", notes: "" });
@@ -160,9 +171,10 @@ export default function ProcurementPage() {
 
   // DB: totalAmount is a decimal string; status uses DB enum values
   const totalPOValue = purchaseOrders.reduce((s, po) => s + Number(po.totalAmount ?? 0), 0);
-  const pendingApproval = purchaseOrders.filter((po) =>
-    po.status === "draft" || po.status === "sent"
-  ).length;
+  // Pending Approval counts REQUISITIONS awaiting approval (status 'pending') — approval is a
+  // pre-PO gate. It previously counted draft/sent POs, which conflated 'already sent to vendor'
+  // with 'needs approval'. (Fix F18 — see the Pending Actions widget below.)
+  const pendingApproval = requisitions.filter((r) => r.status === "pending").length;
   const lowStock = 0;
   // DB PR statuses: "draft" | "pending" | "approved" | "rejected" | "ordered" | "received" | "closed"
   const openPRs = requisitions.filter((r) => !["received","closed","rejected"].includes(r.status ?? "")).length;
@@ -298,55 +310,62 @@ export default function ProcurementPage() {
               />
             </div>
             <div className="md:col-span-3">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Details</label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input 
-                  className="md:col-span-1 text-body-sm border border-border rounded-lg px-3 py-2 bg-background" 
-                  placeholder="Description" 
-                  value={poForm.items[0]?.desc} 
-                  onChange={(e) => {
-                    const newItems = [...poForm.items];
-                    newItems[0]!.desc = e.target.value;
-                    setPoForm({...poForm, items: newItems});
-                  }}
-                />
-                <input 
-                  type="number" 
-                  className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" 
-                  placeholder="Qty" 
-                  value={poForm.items[0]?.qty}
-                  onChange={(e) => {
-                    const newItems = [...poForm.items];
-                    newItems[0]!.qty = e.target.value;
-                    setPoForm({...poForm, items: newItems});
-                  }}
-                />
-                <input 
-                  type="number" 
-                  className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" 
-                  placeholder="Price" 
-                  value={poForm.items[0]?.price}
-                  onChange={(e) => {
-                    const newItems = [...poForm.items];
-                    newItems[0]!.price = e.target.value;
-                    setPoForm({...poForm, items: newItems});
-                  }}
-                />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase block">Line Items</label>
+                <button type="button" onClick={addPoItem} className="flex items-center gap-1 text-[11px] text-primary font-semibold hover:underline">
+                  <Plus className="w-3 h-3" /> Add Line
+                </button>
+              </div>
+              <div className="hidden md:grid grid-cols-[1fr_90px_70px_90px_70px_28px] gap-2 px-1 mb-1">
+                {["Description", "HSN/SAC", "Qty", "Unit Price", "GST %", ""].map((h) => (
+                  <span key={h} className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">{h}</span>
+                ))}
+              </div>
+              <div className="flex flex-col gap-2">
+                {poForm.items.map((it, i) => (
+                  <div key={i} className="grid grid-cols-2 md:grid-cols-[1fr_90px_70px_90px_70px_28px] gap-2 items-center">
+                    <input className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Description" value={it.desc} onChange={(e) => setPoItem(i, { desc: e.target.value })} />
+                    <input className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="HSN/SAC" value={it.hsn} onChange={(e) => setPoItem(i, { hsn: e.target.value })} />
+                    <input type="number" min="1" className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Qty" value={it.qty} onChange={(e) => setPoItem(i, { qty: e.target.value })} />
+                    <input type="number" min="0" className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Price" value={it.price} onChange={(e) => setPoItem(i, { price: e.target.value })} />
+                    <select className="text-body-sm border border-border rounded-lg px-2 py-2 bg-background" value={it.gstRate} onChange={(e) => setPoItem(i, { gstRate: e.target.value })}>
+                      {["0", "5", "12", "18", "28"].map((r) => <option key={r} value={r}>{r}%</option>)}
+                    </select>
+                    <button type="button" disabled={poForm.items.length === 1} onClick={() => removePoItem(i)} className="text-muted-foreground hover:text-red-600 disabled:opacity-30 flex items-center justify-center" title="Remove line">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end mt-3 text-body-sm">
+                <span className="text-muted-foreground mr-2">Total (incl. GST):</span>
+                <span className="font-bold text-foreground">{formatInr(poFormTotal)}</span>
               </div>
             </div>
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setShowNewPO(false)} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
             <button
-              disabled={!poForm.vendorId || !poForm.items[0]?.desc || createDirectPO.isPending}
+              disabled={!poForm.vendorId || !poForm.items.some((it) => it.desc && Number(it.price) > 0) || createDirectPO.isPending}
               onClick={() => {
-                const total = Number(poForm.items[0]!.qty) * Number(poForm.items[0]!.price);
+                const items = poForm.items
+                  .filter((it) => it.desc && Number(it.qty) > 0)
+                  .map((it) => ({
+                    description: it.desc,
+                    quantity: Number(it.qty),
+                    unitPrice: Number(it.price) || 0,
+                    hsnSacCode: it.hsn || undefined,
+                    gstRate: Number(it.gstRate) as 0 | 5 | 12 | 18 | 28,
+                  }));
+                // totalAmount is recomputed authoritatively server-side (with place-of-supply GST);
+                // this value is a compat placeholder only.
+                const taxable = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
                 createDirectPO.mutate({
                   vendorId: poForm.vendorId,
-                  totalAmount: total,
+                  totalAmount: taxable,
                   notes: "Direct PO",
                   expectedDelivery: poForm.expectedDelivery ? new Date(poForm.expectedDelivery) : undefined,
-                  items: [{ description: poForm.items[0]!.desc, quantity: Number(poForm.items[0]!.qty), unitPrice: Number(poForm.items[0]!.price) }]
+                  items,
                 });
               }}
               className="px-6 py-2 rounded-lg bg-primary text-white text-body-sm font-bold hover:bg-primary/90 shadow-md"
@@ -360,7 +379,7 @@ export default function ProcurementPage() {
       <DetailGrid
         items={[
           { label: "Open Purchase Orders", value: purchaseOrders.filter(po => !["received","invoiced","paid","cancelled"].includes(po.status ?? "")).length, icon: Package, className: "text-blue-700" },
-          { label: "Total PO Value", value: `₹${(totalPOValue / 1000).toFixed(0)}K`, icon: ShoppingCart },
+          { label: "Total PO Value", value: formatInr(totalPOValue), icon: ShoppingCart },
           { label: "Pending Approval", value: pendingApproval, icon: Clock, className: pendingApproval > 0 ? "text-orange-700" : "text-green-700" },
           { label: "Open Requisitions", value: openPRs, icon: FileText, className: "text-blue-700" },
           { label: "Low Stock Items", value: lowStock, icon: AlertTriangle, className: lowStock > 0 ? "text-red-700" : "text-green-700" },
@@ -410,7 +429,7 @@ export default function ProcurementPage() {
                       <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
                         <div className="h-full bg-primary rounded-full" style={{ width: `${(row.value / max) * 100}%` }} />
                       </div>
-                      <span className="text-foreground/80 font-mono w-16 text-right">₹${(row.value / 100000).toFixed(0)}L</span>
+                      <span className="text-foreground/80 font-mono w-16 text-right">{formatInr(row.value)}</span>
                     </div>
                   );
                 })}
@@ -440,31 +459,37 @@ export default function ProcurementPage() {
             <div className="border border-border rounded overflow-hidden col-span-2">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Pending Actions</div>
               <div className="divide-y divide-border">
-                {/* DB doesn't return approvalChain in the flat PO list; show POs in draft/sent status as needing action */}
-                {purchaseOrders.filter(po => po.status === "draft" || po.status === "sent").map((po) => (
-                  <div key={po.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-orange-50/30">
+                {/* Approval belongs on the REQUISITION (status 'pending'), before a PO is raised — not
+                    on a Direct PO that has already been 'sent' to the vendor. Earlier this listed
+                    draft/sent POs and passed a PO id to purchaseRequests.approve, which 404'd because
+                    the id isn't in purchase_requests. It now lists pending requisitions and approves
+                    those. A Direct PO is gated at creation, not approved after the fact. */}
+                {requisitions.filter(pr => pr.status === "pending").length === 0 ? (
+                  <div className="px-4 py-6 text-center text-[11px] text-muted-foreground">No requisitions awaiting approval.</div>
+                ) : requisitions.filter(pr => pr.status === "pending").map((pr) => (
+                  <div key={pr.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-orange-50/30">
                     <div className="flex items-center gap-3">
                       <span className="text-orange-500"><Clock className="w-4 h-4" /></span>
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-[11px] text-primary">{po.poNumber ?? po.id}</span>
-                          <span className={`status-badge ${PRIORITY_COLOR["routine"]}`}>routine</span>
+                          <span className="font-mono text-[11px] text-primary">{pr.number ?? pr.id}</span>
+                          <span className={`status-badge ${PRIORITY_COLOR[(pr.priority ?? "routine") as POPriority] ?? ""}`}>{pr.priority ?? "routine"}</span>
                         </div>
-                        <p className="text-[12px] text-foreground">{po.notes ?? "Purchase Order"}</p>
-                        <p className="text-[11px] text-muted-foreground">Status: <strong>{po.status}</strong></p>
+                        <p className="text-[12px] text-foreground">{pr.title ?? "Purchase Requisition"}</p>
+                        <p className="text-[11px] text-muted-foreground">{pr.department ?? "—"} · Awaiting approval</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[11px] text-muted-foreground">₹${Number(po.totalAmount ?? 0).toLocaleString("en-IN")}</span>
-                      <PermissionGate module="purchase_orders" action="approve">
+                      <span className="text-[11px] text-muted-foreground">{formatInr(pr.totalAmount)}</span>
+                      <PermissionGate module="procurement" action="approve">
                         <button
                           disabled={approvePR.isPending}
-                          onClick={() => approvePR.mutate({ id: po.id })}
+                          onClick={() => approvePR.mutate({ id: pr.id })}
                           className="px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200 disabled:opacity-50"
                         >{approvePR.isPending ? "…" : "Approve"}</button>
                         <button
                           disabled={rejectPR.isPending}
-                          onClick={() => rejectPR.mutate({ id: po.id })}
+                          onClick={() => rejectPR.mutate({ id: pr.id })}
                           className="px-2 py-1 bg-red-100 text-red-700 text-[11px] rounded hover:bg-red-200 disabled:opacity-50"
                         >{rejectPR.isPending ? "…" : "Reject"}</button>
                       </PermissionGate>
@@ -524,7 +549,7 @@ export default function ProcurementPage() {
                           <td className="text-muted-foreground">{pr.requesterId ? `…${pr.requesterId.slice(-6)}` : "—"}</td>
                           <td><span className="status-badge text-muted-foreground bg-muted">{pr.department ?? "—"}</span></td>
                           <td className="text-center text-muted-foreground">—</td>
-                          <td className="font-mono text-[11px] text-foreground/80 font-bold">₹${Number(pr.totalAmount ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="font-mono text-[11px] text-foreground/80 font-bold">{formatInr(pr.totalAmount)}</td>
                           <td><span className={`status-badge capitalize ${PRIORITY_COLOR[prPriority]}`}>{prPriority}</span></td>
                           <td><span className={`status-badge ${sCfg?.color ?? ""}`}>{sCfg?.label ?? prState}</span></td>
                           <td className="text-[11px] text-muted-foreground">—</td>

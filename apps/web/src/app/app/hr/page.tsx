@@ -83,6 +83,35 @@ const CASE_STATE_COLOR: Record<string, string> = {
   closed:            "text-muted-foreground bg-muted",
 };
 
+// EXIT-DATE: settlement clock. Full and final settlement is due within two WORKING days of the
+// last working day (Code on Wages). Weekends only for now — the holiday calendar is per-tenant and
+// unverified; feeding it an unverified calendar would show a due date that is a day off, which is
+// worse than one that counts itself. Deferred trigger: holiday calendar verified per tenant.
+function addWorkingDays(from: Date, n: number): Date {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay(); // 0 Sun … 6 Sat
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d;
+}
+
+/** Last working day → settlement due date (+2 working days) → met | outstanding | overdue. */
+function settlementClock(endDate: string | Date | null | undefined, ffStatus: string | null | undefined) {
+  if (!endDate) return null;
+  const lwd = new Date(endDate);
+  if (Number.isNaN(lwd.getTime())) return null;
+  const due = addWorkingDays(lwd, 2);
+  const settled = ffStatus === "completed";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const status: "met" | "outstanding" | "overdue" = settled ? "met" : today > due ? "overdue" : "outstanding";
+  const fmt = (x: Date) => x.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return { lwd: fmt(lwd), due: fmt(due), status };
+}
+
 export default function HRPage() {
   const { can, currentUser, mergeTrpcQueryOpts } = useRBAC();
 
@@ -430,6 +459,7 @@ export default function HRPage() {
   const [offboardingCreateForm, setOffboardingCreateForm] = useState({
     employeeId: "",
     name: "",
+    endDate: "", // EXIT-DATE: last working day (required)
     separationDocs: "",
     clearanceDocs: "",
     securityClearance: "",
@@ -445,6 +475,7 @@ export default function HRPage() {
       setOffboardingCreateForm({
         employeeId: "",
         name: "",
+        endDate: "",
         separationDocs: "",
         clearanceDocs: "",
         securityClearance: "",
@@ -455,6 +486,30 @@ export default function HRPage() {
     onError: (err: any) => {
       toast.error(err?.message ?? "Failed to create offboarding");
     },
+  });
+
+  // FULL-AND-FINAL: settle the exit. A live preview composes the figure (last salary + encashment
+  // + gratuity − recoveries); Confirm persists it (idempotent server-side) and flips the clock to
+  // "met". Recoveries are the only inputs — every other part is computed from the leaver's record.
+  const [settlingEmployee, setSettlingEmployee] = useState<{ id: string; name: string } | null>(null);
+  const [ffRecoveries, setFfRecoveries] = useState({ noticeShortfall: "", advanceRecovery: "", assetRecovery: "" });
+  const ffRecoveryArgs = {
+    noticeShortfall: Number(ffRecoveries.noticeShortfall) || 0,
+    advanceRecovery: Number(ffRecoveries.advanceRecovery) || 0,
+    assetRecovery: Number(ffRecoveries.assetRecovery) || 0,
+  };
+  const settlementPreview = trpc.settlement.preview.useQuery(
+    { employeeId: settlingEmployee?.id ?? "", ...ffRecoveryArgs },
+    { enabled: !!settlingEmployee, retry: false, refetchOnWindowFocus: false },
+  );
+  const settleFF = trpc.settlement.settle.useMutation({
+    onSuccess: () => {
+      toast.success("Full & final settlement recorded");
+      utils.hr.cases.list.invalidate();
+      setSettlingEmployee(null);
+      setFfRecoveries({ noticeShortfall: "", advanceRecovery: "", assetRecovery: "" });
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to settle"),
   });
 
   // Lifecycle Events state & mutations
@@ -2580,6 +2635,7 @@ export default function HRPage() {
                   <thead>
                     <tr className="bg-muted/30 border-b border-border">
                       <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Employee / ID</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Last Working Day / Settlement</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Separation Forms</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Clearance Forms</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Security Clearance</th>
@@ -2594,6 +2650,7 @@ export default function HRPage() {
                       const hasSeparation = !!details?.separationDocs;
                       const hasClearance = !!details?.clearanceDocs;
                       const hasSecurity = !!details?.securityClearance;
+                      const settle = settlementClock((c.employee as any)?.endDate, details?.ffStatus);
 
                       return (
                         <tr key={c.hrCase?.id ?? c.hrCase?.employeeId} className="hover:bg-muted/30 transition-colors">
@@ -2607,6 +2664,19 @@ export default function HRPage() {
                                 <div className="text-[10px] font-mono text-muted-foreground">{c.employee?.employeeId ?? c.hrCase?.employeeId?.slice(0, 8) ?? "—"}</div>
                               </div>
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {settle ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[12px] text-foreground">{settle.lwd}</span>
+                                <span className="text-[10px] text-muted-foreground">Settle by {settle.due}</span>
+                                <span className={`inline-flex w-fit items-center px-2 py-0.5 rounded text-[10px] font-medium capitalize ${settle.status === "met" ? "bg-green-100 text-green-700" : settle.status === "overdue" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                  {settle.status}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">⚠️ No last working day</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${hasSeparation ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
@@ -2647,6 +2717,14 @@ export default function HRPage() {
                               >
                                 Edit Profile
                               </button>
+                              {settle && settle.status !== "met" && c.hrCase?.employeeId && (
+                                <button
+                                  onClick={() => { setFfRecoveries({ noticeShortfall: "", advanceRecovery: "", assetRecovery: "" }); setSettlingEmployee({ id: c.hrCase!.employeeId!, name: details?.name || c.employee?.employeeId || "Employee" }); }}
+                                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] border rounded-lg font-medium transition-all ${settle.status === "overdue" ? "text-red-600 border-red-600/30 hover:bg-red-600/5" : "text-primary border-primary/20 hover:bg-primary/5"}`}
+                                >
+                                  Settle F&amp;F
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -3278,6 +3356,87 @@ export default function HRPage() {
         </div>
       )}
 
+      {/* Full & Final Settlement Modal */}
+      {settlingEmployee && (() => {
+        const p = settlementPreview.data as
+          | { lastSalary: number; leaveEncashment: number; gratuity: number; grossSettlement: number; totalRecoveries: number; netSettlement: number; unrecoveredShortfall: number; taxableGratuity: number; taxableEncashment: number }
+          | undefined;
+        const inr = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
+        const line = (label: string, value: number, opts?: { sign?: "+" | "−"; strong?: boolean; muted?: boolean }) => (
+          <div className={`flex items-center justify-between py-1.5 ${opts?.strong ? "font-semibold text-foreground" : opts?.muted ? "text-muted-foreground" : "text-foreground"}`}>
+            <span className="text-[12px]">{label}</span>
+            <span className="text-[12px] tabular-nums">{opts?.sign === "−" ? "− " : ""}{inr(value)}</span>
+          </div>
+        );
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <h2 className="text-body-sm font-semibold text-foreground">Full &amp; Final — {settlingEmployee.name}</h2>
+                <button onClick={() => setSettlingEmployee(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+              </div>
+              <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                {/* Recoveries — the only inputs; everything else is computed from the record. */}
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    ["Notice shortfall", "noticeShortfall"],
+                    ["Advance", "advanceRecovery"],
+                    ["Asset", "assetRecovery"],
+                  ] as const).map(([label, key]) => (
+                    <div key={key}>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">{label}</label>
+                      <input
+                        type="number" min="0" inputMode="decimal"
+                        value={(ffRecoveries as any)[key]}
+                        onChange={(e) => setFfRecoveries((prev) => ({ ...prev, [key]: e.target.value }))}
+                        className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-card text-foreground"
+                        placeholder="0"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* Composed figure — live from settlement.preview. */}
+                <div className="border border-border rounded-lg p-4 bg-muted/20">
+                  {settlementPreview.isLoading ? (
+                    <div className="text-[12px] text-muted-foreground py-4 text-center">Composing settlement…</div>
+                  ) : settlementPreview.error ? (
+                    <div className="text-[12px] text-red-600 py-4 text-center">{(settlementPreview.error as any)?.message ?? "Could not compose settlement"}</div>
+                  ) : p ? (
+                    <>
+                      {line("Last salary (pro-rated)", p.lastSalary)}
+                      {line("Leave encashment", p.leaveEncashment)}
+                      {line("Gratuity", p.gratuity)}
+                      <div className="border-t border-border my-1" />
+                      {line("Gross settlement", p.grossSettlement, { strong: true })}
+                      {p.totalRecoveries > 0 && line("Recoveries", p.totalRecoveries, { sign: "−", muted: true })}
+                      <div className="border-t border-border my-1" />
+                      {line("Net payable", p.netSettlement, { strong: true })}
+                      {p.unrecoveredShortfall > 0 && (
+                        <p className="text-[11px] text-red-600 mt-2">Recoveries exceed the settlement by {inr(p.unrecoveredShortfall)} — net is floored at zero; the shortfall is recorded as owed.</p>
+                      )}
+                      {(p.taxableGratuity > 0 || p.taxableEncashment > 0) && (
+                        <p className="text-[11px] text-amber-600 mt-2">Taxable excess above the statutory ceilings: {inr(p.taxableGratuity + p.taxableEncashment)} (reconciled at year-end).</p>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+                <p className="text-[10px] text-muted-foreground">Confirming records the settlement (one per employee) and marks F&amp;F complete. The last salary is paid here, not in the monthly run.</p>
+              </div>
+              <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-end gap-2">
+                <button onClick={() => setSettlingEmployee(null)} className="px-3 py-1.5 text-[12px] text-muted-foreground border border-border rounded hover:bg-muted">Cancel</button>
+                <button
+                  disabled={settleFF.isPending || settlementPreview.isLoading || !!settlementPreview.error}
+                  onClick={() => settleFF.mutate({ employeeId: settlingEmployee.id, ...ffRecoveryArgs })}
+                  className="px-4 py-1.5 text-[12px] bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {settleFF.isPending ? "Settling…" : "Confirm Settlement"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Start New Offboarding Modal */}
       {showOffboardingForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -3321,6 +3480,16 @@ export default function HRPage() {
                   className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
                   placeholder="Employee Name"
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Last Working Day *</label>
+                <input
+                  type="date"
+                  value={offboardingCreateForm.endDate}
+                  onChange={(e) => setOffboardingCreateForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                  className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Employment ends on this date. Pay for the final month is pro-rated to it, and the two-working-day settlement clock starts here. A future date is allowed for a notice period.</p>
               </div>
               <div className="border-t border-border pt-4">
                 <h3 className="text-caption font-semibold text-foreground mb-3 uppercase tracking-wider">Offboarding Attachments</h3>
@@ -3425,7 +3594,7 @@ export default function HRPage() {
             <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-end gap-2">
               <button onClick={() => setShowOffboardingForm(false)} className="px-3 py-1.5 text-[12px] text-muted-foreground border border-border rounded hover:bg-muted">Cancel</button>
               <button
-                disabled={createOffboarding.isPending || !offboardingCreateForm.employeeId}
+                disabled={createOffboarding.isPending || !offboardingCreateForm.employeeId || !offboardingCreateForm.endDate}
                 onClick={() => createOffboarding.mutate(offboardingCreateForm)}
                 className="px-4 py-1.5 text-[12px] bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1"
               >

@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, organizations, taxDeclarations, eq, and, or, isNull, isNotNull, inArray } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, organizations, taxDeclarations, finalSettlements, eq, and, or, gte, isNull, isNotNull, inArray, notExists } from "@coheronconnect/db";
 import { resolveSalaryStructureForPeriod, structureNotEffectiveError } from "../lib/india/salary-structure-resolver";
 import {
   computeEmployeePayslip,
@@ -215,10 +215,26 @@ export function buildEmployeePayrollInput(
   // does not belong in the earnings residual.)
   const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - daMonthly - hraMonthly - ltaMonthly);
   const daysInMonth = new Date(year, month, 0).getDate();
-  // G8: LOP derived from attendance. Absent a record, treat as a full paid month.
-  const daysWorked = attendance ? attendance.daysWorked : daysInMonth;
-  const lopDays = attendance ? attendance.lopDays : 0;
   const join = emp.startDate ? new Date(emp.startDate) : new Date(year, month - 1, 1);
+
+  // EXIT-DATE: days the employee is EMPLOYED within this period (calendar days, inclusive),
+  // and the paid-days figure that pro-rates earnings. A joiner is employed startDate→period
+  // end; a leaver period start→endDate; both, the overlap. Computed on UTC date-only so a
+  // stored timestamp's time/zone can't shift a day. LOP is SUBTRACTED from employed days
+  // (additive — one reduction), never applied as a second multiplicative fraction.
+  const DAY_MS = 86_400_000;
+  const dayUtc = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const periodStartMs = Date.UTC(year, month - 1, 1);
+  const periodEndMs = Date.UTC(year, month - 1, daysInMonth);
+  const endBound = emp.endDate ? new Date(emp.endDate) : null;
+  const employedStartMs = Math.max(dayUtc(join), periodStartMs);
+  const employedEndMs = Math.min(endBound ? dayUtc(endBound) : periodEndMs, periodEndMs);
+  const daysEmployed =
+    employedEndMs < employedStartMs ? 0 : Math.round((employedEndMs - employedStartMs) / DAY_MS) + 1;
+  // G8: LOP derived from attendance; clamped to the employed span so paid days can't go
+  // negative and LOP is never counted on days the person was not employed.
+  const lopDays = Math.min(attendance ? attendance.lopDays : 0, daysEmployed);
+  const daysWorked = Math.max(0, daysEmployed - lopDays); // PAID days feeding the earnings pro-ration
 
   // Statutory state drives PT slab selection. There is no safe default — a silent
   // fallback (previously "Maharashtra") files the wrong PT with a state regulator, and
@@ -338,8 +354,36 @@ export async function computePayrollRunTotals(
     .where(
       and(
         eq(employees.orgId, orgId),
-        inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES]),
         isNotNull(employees.salaryStructureId),
+        // FULL-AND-FINAL: a settled leaver was already paid their final salary via the settlement
+        // event (disbursed within the two-working-day exit clock, NOT the monthly run) — exclude
+        // them so the run never double-pays that last month. An UN-settled leaver still rides the
+        // EXIT-DATE arm below; the settlement is what moves them off the run, not their status.
+        notExists(
+          db
+            .select()
+            .from(finalSettlements)
+            .where(and(eq(finalSettlements.employeeId, employees.id), eq(finalSettlements.orgId, orgId))),
+        ),
+        // EXIT-DATE: pay the employed AND any leaver whose last working day (endDate) falls
+        // in or after this period — they worked part of it and are owed a pro-rated final
+        // payslip (computeGross pro-rates to endDate). A leaver who left BEFORE the period,
+        // or has no endDate on record, stays excluded (and is surfaced in the flag below).
+        or(
+          // Employed — and, if a future exit is already on record, still employed at/after the
+          // period start (an endDate that has passed drops them out with no zero payslip, even
+          // if the status has not yet flipped). Selection reads endDate, not status.
+          and(
+            inArray(employees.status, [...PAYROLL_EMPLOYED_STATUSES]),
+            or(isNull(employees.endDate), gte(employees.endDate, periodDate)),
+          ),
+          // Leaver whose last working day falls in or after this period — paid pro-rata to endDate.
+          and(
+            inArray(employees.status, [...PAYROLL_LEAVER_STATUSES]),
+            isNotNull(employees.endDate),
+            gte(employees.endDate, periodDate),
+          ),
+        ),
       ),
     );
   const rows: Array<{ emp: typeof employees.$inferSelect; st: typeof salaryStructures.$inferSelect }> = [];
@@ -397,26 +441,27 @@ export async function computePayrollRunTotals(
     });
   }
 
-  // Leavers — flag, never silently drop. A resigned/terminated/offboarded employee is not selected
-  // for pay (they are not in PAYROLL_EMPLOYED_STATUSES), but if they worked part of THIS period they
-  // are owed a final payslip. There is no last-working-day recorded anywhere (employees.endDate is
-  // never written; offboarding stores only a status), so final pay cannot be computed and must not
-  // be guessed — surface each such employee so an admin settles them by hand (Code on Wages: within
-  // two working days of exit). We skip any leaver who already has a payslip for this period (e.g. a
-  // re-run). NOTE: with no departure date the run cannot tell a THIS-period leaver from one who left
-  // long ago, so this flags every unpaid leaver; populating endDate is the follow-up that both pays
-  // them pro-rata and bounds this flag.
+  // Leavers with NO last working day — flag, never silently drop. A resigned/terminated/offboarded
+  // employee with an `endDate` in/after this period is now SELECTED and paid pro-rata above; one who
+  // left BEFORE the period is done. What remains is a leaver with no `endDate` on record: final pay
+  // cannot be computed and must not be guessed — surface them so an admin records the last working
+  // day and settles by hand (Code on Wages: within two working days of exit). We also skip any leaver
+  // already holding a payslip for this period (e.g. a re-run). EXIT-DATE bounded this flag: it no
+  // longer fires for every leaver, only those missing the datum the run needs.
   const paidThisPeriod = await db
     .select({ employeeId: payslips.employeeId })
     .from(payslips)
     .where(and(eq(payslips.orgId, orgId), eq(payslips.month, month), eq(payslips.year, year)));
   const paidIds = new Set(paidThisPeriod.map((p: { employeeId: string }) => p.employeeId));
   const leavers = await db
-    .select({ id: employees.id, code: employees.employeeId, status: employees.status })
+    .select({ id: employees.id, code: employees.employeeId, status: employees.status, endDate: employees.endDate })
     .from(employees)
     .where(and(eq(employees.orgId, orgId), inArray(employees.status, [...PAYROLL_LEAVER_STATUSES])));
   for (const l of leavers) {
     if (paidIds.has(l.id)) continue;
+    // A recorded last working day means this leaver is either paid pro-rata above (endDate in/after
+    // the period) or genuinely gone (endDate before it) — no manual-settlement flag needed.
+    if (l.endDate) continue;
     errors.push({
       employeeId: l.id,
       message:

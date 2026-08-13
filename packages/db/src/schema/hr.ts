@@ -677,6 +677,60 @@ export const gratuitySettlements = pgTable(
   }),
 );
 
+// Full-and-final settlement composed at exit: last salary + leave encashment + gratuity −
+// recoveries. One per employee (unique index → idempotent). COMPONENT figures are stored as
+// they were AT settlement — not just the total — so the record is disputable and auditable and
+// does not move when a rate later changes. Net floors at zero; any excess of recoveries over the
+// payable parts is surfaced as `unrecoveredShortfall` (money must not vanish), the same
+// invariant the payslip engine uses.
+export const finalSettlements = pgTable(
+  "final_settlements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    // ── Payable components (as at settlement) ──
+    lastSalary: decimal("last_salary", { precision: 14, scale: 2 }).notNull().default("0"),
+    leaveEncashment: decimal("leave_encashment", { precision: 14, scale: 2 }).notNull().default("0"),
+    gratuity: decimal("gratuity", { precision: 14, scale: 2 }).notNull().default("0"),
+    // ── Recoveries (each line stored; total derived) ──
+    noticeShortfall: decimal("notice_shortfall", { precision: 14, scale: 2 }).notNull().default("0"),
+    advanceRecovery: decimal("advance_recovery", { precision: 14, scale: 2 }).notNull().default("0"),
+    assetRecovery: decimal("asset_recovery", { precision: 14, scale: 2 }).notNull().default("0"),
+    totalRecoveries: decimal("total_recoveries", { precision: 14, scale: 2 }).notNull().default("0"),
+    // ── Composition ──
+    grossSettlement: decimal("gross_settlement", { precision: 14, scale: 2 }).notNull().default("0"),
+    netSettlement: decimal("net_settlement", { precision: 14, scale: 2 }).notNull().default("0"),
+    /** Recoveries in excess of the payable parts — a debt the ex-employee owes; never lost. */
+    unrecoveredShortfall: decimal("unrecovered_shortfall", { precision: 14, scale: 2 }).notNull().default("0"),
+    // ── Statutory (Decision 1: settled as a separate event, so TDS is handled here) ──
+    /** Gratuity above the ₹20,00,000 s.10(10) exemption. */
+    taxableGratuity: decimal("taxable_gratuity", { precision: 14, scale: 2 }).notNull().default("0"),
+    /** Leave encashment above the ₹25,00,000 s.10(10AA) exemption. */
+    taxableEncashment: decimal("taxable_encashment", { precision: 14, scale: 2 }).notNull().default("0"),
+    tds: decimal("tds", { precision: 14, scale: 2 }).notNull().default("0"),
+    reason: text("reason"), // resignation | retirement | death | disablement | termination
+    settledAt: timestamp("settled_at", { withTimezone: true }).notNull().defaultNow(),
+    settledById: uuid("settled_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    empIdx: uniqueIndex("final_settlements_emp_idx").on(t.employeeId),
+    orgIdx: index("final_settlements_org_idx").on(t.orgId),
+  }),
+);
+
+export const finalSettlementsRelations = relations(finalSettlements, ({ one }) => ({
+  employee: one(employees, {
+    fields: [finalSettlements.employeeId],
+    references: [employees.id],
+  }),
+}));
+
 export const gratuityAccrualsRelations = relations(gratuityAccruals, ({ one }) => ({
   employee: one(employees, {
     fields: [gratuityAccruals.employeeId],

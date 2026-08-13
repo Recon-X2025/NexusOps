@@ -1370,6 +1370,10 @@ export const hrRouter = router({
         z.object({
           employeeId: z.string().uuid(),
           name: z.string(),
+          // EXIT-DATE: the last working day is REQUIRED — an offboarding without a date is the
+          // defect this closes. Validated server-side (below), not only in the form, because the
+          // form rule is bypassable by any tRPC caller.
+          endDate: z.string().min(1, "Last working day is required"),
           separationDocs: z.string().optional(),
           clearanceDocs: z.string().optional(),
           securityClearance: z.string().optional(),
@@ -1379,6 +1383,23 @@ export const hrRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+
+        // EXIT-DATE: validate the last working day server-side before writing anything. It must
+        // parse, and must be on/after the join date. A FUTURE date is permitted (notice periods
+        // legitimately fix an exit in advance) — the employee stays in an employed status until
+        // the day passes; pro-ration and run-selection read employees.endDate, not the status.
+        const lastWorkingDay = new Date(input.endDate);
+        if (Number.isNaN(lastWorkingDay.getTime())) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Last working day is not a valid date." });
+        }
+        const [emp] = await db
+          .select({ startDate: employees.startDate })
+          .from(employees)
+          .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
+        if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
+        if (emp.startDate && lastWorkingDay < new Date(emp.startDate)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Last working day cannot be before the join date." });
+        }
 
         // 1. Create HR case of type "offboarding"
         const [hrCase] = await db
@@ -1407,13 +1428,19 @@ export const hrRouter = router({
           })
           .returning();
 
-        // 3. Mark employee status as "offboarded" if status is completed
-        if (input.status === "completed") {
-          await db
-            .update(employees)
-            .set({ status: "offboarded", updatedAt: new Date() })
-            .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
-        }
+        // 3. EXIT-DATE: record the last working day on the employee — this is the field the
+        // payroll engine reads to pro-rate the final month and select the leaver into the run.
+        // Flip status to "offboarded" ONLY once the last working day has passed; a future-dated
+        // exit stays in its current status (working out notice) while endDate does the work.
+        const hasLeft = lastWorkingDay.getTime() <= Date.now();
+        await db
+          .update(employees)
+          .set({
+            endDate: lastWorkingDay,
+            ...(input.status === "completed" && hasLeft ? { status: "offboarded" as const } : {}),
+            updatedAt: new Date(),
+          })
+          .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
 
         return { hrCase, details };
       }),

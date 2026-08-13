@@ -154,6 +154,29 @@ export function formatCurrency(amount: number | string, currency = "INR"): strin
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(num);
 }
 
+/**
+ * Rupees with Indian digit grouping and no paise — `₹16,00,00,000`, `₹1,00,000`.
+ * The single source of truth for whole-rupee display on the procurement/finance
+ * dashboards, which previously hand-rolled abbreviations like `₹160000K` (divide-by-1000
+ * + "K", which never actually abbreviates) and `₹0.1Cr`, and pasted `₹${…}` template
+ * literals into JSX so a stray `$` printed (`₹$1L`). Route those call sites through this.
+ */
+export function formatInr(amount: number | string | null | undefined): string {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount ?? 0;
+  const safe = Number.isFinite(num as number) ? (num as number) : 0;
+  return `₹${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(safe)}`;
+}
+
+/**
+ * English pluralisation for the account-type filter chips, which pluralised by appending a
+ * bare `s` (`liability` → `LIABILITYS`, `income` → `INCOMES`). Applies the consonant-`y` → `ies`
+ * rule; everything else takes `s`. `liability`→`liabilities`, `income`→`incomes`, `asset`→`assets`.
+ */
+export function pluralize(word: string): string {
+  if (/[^aeiou]y$/i.test(word)) return word.slice(0, -1) + "ies";
+  return word + "s";
+}
+
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
   return str.slice(0, maxLength) + "…";

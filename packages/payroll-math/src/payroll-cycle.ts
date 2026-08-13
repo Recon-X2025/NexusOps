@@ -267,8 +267,13 @@ export function computeGross(emp: EmployeePayrollInput): {
   ltaEarned: number;
   grossEarnings: number;
 } {
-  const lopFactor =
-    emp.lopDays > 0 ? (emp.daysWorked / emp.daysInMonth) : 1;
+  // EXIT-DATE: earnings pro-rate by PAID days over the calendar month. The caller sets
+  // `daysWorked` to paid days = (days employed in the period − LOP days), so a joiner or
+  // leaver is pro-rated by their employment span AND their LOP in one additive figure — no
+  // double-count. The old `lopDays > 0 ? … : 1` short-circuit ignored `daysWorked` whenever
+  // there was no LOP, which is why a mid-month joiner with no absence was paid a full month.
+  // A full-period employee has daysWorked = daysInMonth ⇒ factor 1 (byte-identical).
+  const lopFactor = emp.daysWorked / Math.max(1, emp.daysInMonth);
 
   const basicEarned = Math.round(emp.basicMonthly * lopFactor);
   // DA is carved out of the special-allowance residual by the caller, so adding it here as its

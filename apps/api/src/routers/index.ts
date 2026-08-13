@@ -56,6 +56,7 @@ import { ingestRouter } from "./ingest";
 import { teamsRouter } from "./teams";
 import { complianceRouter } from "./compliance";
 import { onboardingRouter } from "./onboarding";
+import { settlementRouter } from "./settlement";
 
 export const appRouter = router({
   mac: macRouter,
@@ -112,6 +113,8 @@ export const appRouter = router({
   payroll: payrollRouter,
   // Sprint 1.4 — Payment of Gratuity Act 1972: accrual provisioning + settlement
   gratuity: gratuityRouter,
+  // FULL-AND-FINAL — composed exit settlement (last salary + encashment + gratuity − recoveries)
+  settlement: settlementRouter,
   // Sprint 1.5 — Leave accrual / carry-forward / encashment engine
   leaveAccrual: leaveAccrualRouter,
   /** Finance expense reports (`expense_reports`) — distinct from `hr.expenses` (claims). */
