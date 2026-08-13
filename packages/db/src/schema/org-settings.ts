@@ -27,6 +27,13 @@ export type OrgProcurementSettings = {
   prAutoApproveBelow?: number;
   /** PR total below this (and ≥ prAutoApproveBelow) → dept_head path; else vp_finance (default 750_000). */
   prDeptHeadMax?: number;
+  /**
+   * Max taxable value (pre-GST, same basis as PR line totals) of a Direct PO that may be raised
+   * WITHOUT a requisition. Above it the create procedure refuses and points to the requisition path.
+   * Default = `prAutoApproveBelow` (a direct, un-approved PO is capped at what the org already passes
+   * without approval). 0 = force every PO through a requisition.
+   */
+  directPoMaxValue?: number;
 };
 
 export type OrgFinancialSettings = {

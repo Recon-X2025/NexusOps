@@ -2154,6 +2154,7 @@ function ProcurementPolicyTab() {
   const [deptMax, setDeptMax] = useState("");
   const [matchTol, setMatchTol] = useState("");
   const [dupPolicy, setDupPolicy] = useState<"off" | "warn" | "block">("warn");
+  const [directMax, setDirectMax] = useState("");
 
   useEffect(() => {
     if (q.data) {
@@ -2161,6 +2162,7 @@ function ProcurementPolicyTab() {
       setDeptMax(String(q.data.prDeptHeadMax));
       setMatchTol(String(q.data.poMatchToleranceAbs ?? 1));
       setDupPolicy(q.data.duplicatePayableInvoicePolicy ?? "warn");
+      setDirectMax(String(q.data.directPoMaxValue));
     }
   }, [q.data]);
 
@@ -2220,6 +2222,23 @@ function ProcurementPolicyTab() {
       </div>
 
       <div className="border-t border-border pt-4 space-y-2">
+        <h3 className="text-[12px] font-semibold text-foreground">Direct purchase order limit</h3>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          A Direct PO bypasses requisition approval. Above this taxable value (pre-GST) a Direct PO is refused and the
+          buyer is sent to raise a requisition. Leave at the auto-approve ceiling to keep the two aligned; set <code className="text-[10px]">0</code> to route every PO through a requisition.
+        </p>
+        <label className="block text-[11px] font-medium text-foreground">Max direct PO value</label>
+        <input
+          type="number"
+          min={0}
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={directMax}
+          onChange={(e) => setDirectMax(e.target.value)}
+          disabled={q.isLoading}
+        />
+      </div>
+
+      <div className="border-t border-border pt-4 space-y-2">
         <h3 className="text-[12px] font-semibold text-foreground">AP controls (US-CRM-004 / US-FIN-004)</h3>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           <strong>PO vs invoice match</strong> uses absolute tolerance in the same currency as totals (see <code className="text-[10px]">procurement.invoices.matchToOrder</code>).
@@ -2263,11 +2282,17 @@ function ProcurementPolicyTab() {
             toast.error("Match tolerance must be a non-negative number.");
             return;
           }
+          const dm = Number(directMax);
+          if (!Number.isFinite(dm) || dm < 0) {
+            toast.error("Max direct PO value must be a non-negative number.");
+            return;
+          }
           save.mutate({
             prAutoApproveBelow: a,
             prDeptHeadMax: d,
             poMatchToleranceAbs: tol,
             duplicatePayableInvoicePolicy: dupPolicy,
+            directPoMaxValue: dm,
           });
         }}
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"

@@ -129,6 +129,11 @@ export default function ProcurementPage() {
   const [editItemForm, setEditItemForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", minQty: "5", location: "", unitCost: "" });
 
   const [prForm, setPrForm] = useState({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
+  // PO-GATE: the direct-order value limit (default = the org's PR auto-approve line). The server is
+  // the rule; this query lets the form warn + block before a user fills a ₹16cr PO and is refused.
+  const { data: approvalRules } = trpc.procurement.approvalRules.get.useQuery(undefined, mergeTrpcQueryOpts("procurement.approvalRules.get", { refetchOnWindowFocus: false }));
+  const directPoMax = approvalRules?.directPoMaxValue;
+
   const emptyPoItem = { desc: "", qty: "1", price: "", hsn: "", gstRate: "18" };
   const [poForm, setPoForm] = useState<{ vendorId: string; notes: string; expectedDelivery: string; items: Array<typeof emptyPoItem> }>({ vendorId: "", notes: "", expectedDelivery: "", items: [{ ...emptyPoItem }] });
   const setPoItem = (i: number, patch: Partial<typeof emptyPoItem>) =>
@@ -141,6 +146,9 @@ export default function ProcurementPage() {
     const taxable = (Number(it.qty) || 0) * (Number(it.price) || 0);
     return s + taxable * (1 + (Number(it.gstRate) || 0) / 100);
   }, 0);
+  // PO-GATE: gate on the pre-GST taxable total, the same basis the server + requisition tiers use.
+  const poFormTaxable = poForm.items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
+  const poOverLimit = directPoMax !== undefined && poFormTaxable > directPoMax;
   const [invForm, setInvForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", qty: "0", minQty: "5", unitCost: "", poReference: "" });
   const [policyForm, setPolicyForm] = useState({ itemId: "", thresholdQty: "5", reorderQty: "20", isAutomated: false });
   const [intakeForm, setIntakeForm] = useState({ itemId: "", qty: "1", reference: "", notes: "" });
@@ -341,12 +349,18 @@ export default function ProcurementPage() {
                 <span className="text-muted-foreground mr-2">Total (incl. GST):</span>
                 <span className="font-bold text-foreground">{formatInr(poFormTotal)}</span>
               </div>
+              {poOverLimit && (
+                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
+                  This order (₹{poFormTaxable.toLocaleString("en-IN")}) exceeds the {formatInr(directPoMax!)} limit for direct purchase orders.
+                  Raise a <button type="button" onClick={() => { setShowNewPO(false); setShowNewPR(true); }} className="font-semibold underline hover:text-amber-900">purchase requisition</button> instead — it routes through approval before a PO is created.
+                </div>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setShowNewPO(false)} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
             <button
-              disabled={!poForm.vendorId || !poForm.items.some((it) => it.desc && Number(it.price) > 0) || createDirectPO.isPending}
+              disabled={poOverLimit || !poForm.vendorId || !poForm.items.some((it) => it.desc && Number(it.price) > 0) || createDirectPO.isPending}
               onClick={() => {
                 const items = poForm.items
                   .filter((it) => it.desc && Number(it.qty) > 0)

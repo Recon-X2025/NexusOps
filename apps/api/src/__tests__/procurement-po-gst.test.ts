@@ -157,4 +157,66 @@ describe("PROCUREMENT: Direct PO multi-line + GST, requisition-only approval (F1
       .where(and(eq(chartOfAccounts.orgId, orgId), inArray(chartOfAccounts.id, jl.map((l) => l.accountId))));
     expect(accts.length).toBe(2); // both JE legs resolve to real accounts
   });
+
+  // ── PO-GATE — creation-time value control on Direct POs ────────────────────
+
+  // Default: a tenant that never configured a threshold behaves per prAutoApproveBelow (₹75,000).
+  it("creates a Direct PO within the default limit (₹75,000)", async () => {
+    const vendorId = await seedVendor("Maharashtra");
+    const caller = await authedCaller(adminToken);
+    const po = await caller.procurement.purchaseOrders.create({
+      vendorId, totalAmount: 0, items: [{ description: "A", quantity: 1, unitPrice: 70000, gstRate: 18 }],
+    });
+    expect(po!.id).toBeTruthy(); // taxable 70,000 < 75,000
+  });
+
+  // Over the limit → refused, AT THE PROCEDURE (called directly), with a message naming the path out.
+  it("refuses a Direct PO above the default limit and names the requisition path", async () => {
+    const vendorId = await seedVendor("Maharashtra");
+    const caller = await authedCaller(adminToken);
+    await expect(
+      caller.procurement.purchaseOrders.create({
+        vendorId, totalAmount: 0, items: [{ description: "A", quantity: 1, unitPrice: 80000, gstRate: 18 }],
+      }),
+    ).rejects.toThrow(/requisition/i); // taxable 80,000 > 75,000; server refuses, not just the form
+  });
+
+  // A configured threshold wins over the default (raise it → a previously-blocked value now passes).
+  it("respects a configured directPoMaxValue", async () => {
+    const caller = await authedCaller(adminToken);
+    await caller.procurement.approvalRules.update({ prAutoApproveBelow: 75000, prDeptHeadMax: 750000, directPoMaxValue: 200000 });
+    const vendorId = await seedVendor("Maharashtra");
+    const po = await caller.procurement.purchaseOrders.create({
+      vendorId, totalAmount: 0, items: [{ description: "A", quantity: 1, unitPrice: 150000, gstRate: 18 }],
+    });
+    expect(po!.id).toBeTruthy(); // 150,000 was over the ₹75k default but is under the configured ₹200k
+    await expect(
+      caller.procurement.purchaseOrders.create({
+        vendorId, totalAmount: 0, items: [{ description: "B", quantity: 1, unitPrice: 250000, gstRate: 18 }],
+      }),
+    ).rejects.toThrow(/requisition/i); // 250,000 > 200,000
+  });
+
+  // directPoMaxValue = 0 forces every PO through a requisition (an explicit, valid setting).
+  it("directPoMaxValue = 0 forces every PO through a requisition", async () => {
+    const caller = await authedCaller(adminToken);
+    await caller.procurement.approvalRules.update({ prAutoApproveBelow: 75000, prDeptHeadMax: 750000, directPoMaxValue: 0 });
+    const vendorId = await seedVendor("Maharashtra");
+    await expect(
+      caller.procurement.purchaseOrders.create({
+        vendorId, totalAmount: 0, items: [{ description: "A", quantity: 1, unitPrice: 100, gstRate: 18 }],
+      }),
+    ).rejects.toThrow(/requisition/i); // even ₹100 must go via a requisition
+  });
+
+  // Regression guard: the gate touches Direct POs ONLY — a large requisition is unaffected.
+  it("does not gate the requisition path — a large requisition still creates", async () => {
+    const caller = await authedCaller(adminToken);
+    const pr = await caller.procurement.purchaseRequests.create({
+      title: "Big buy", priority: "medium",
+      items: [{ description: "Servers", quantity: 1, unitPrice: 5000000 }],
+    });
+    expect((pr as { id: string }).id).toBeTruthy();
+    expect((pr as { status: string }).status).toBe("pending"); // routed to approval, not blocked
+  });
 });

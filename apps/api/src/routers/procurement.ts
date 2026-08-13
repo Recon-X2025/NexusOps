@@ -39,6 +39,7 @@ import {
   getProcurementMatchToleranceAbs,
   getProcurementApprovalTiers,
   getDuplicatePayablePolicy,
+  getDirectPoMaxValue,
 } from "../lib/org-settings";
 import { computeInvoicePoMatch } from "../lib/invoice-po-match";
 import { computeRetainUntil } from "../lib/retention";
@@ -480,6 +481,29 @@ export const procurementRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+
+        // ── PO-GATE: creation-time value control on Direct POs ──────────────
+        // A Direct PO bypasses the requisition approval flow entirely, so it may be raised WITHOUT a
+        // requisition only up to `directPoMaxValue` (default = the org's PR auto-approve line). Above
+        // it, refuse here — server-side, the real rule (the form check is only a courtesy) — and name
+        // the path out rather than bare-refusing. Gated on the pre-GST taxable value, the same numeric
+        // basis the requisition tiers use. Checked BEFORE the transaction so a refusal consumes no PO
+        // number. The write permission still governs WHO may raise; this governs HOW MUCH un-approved.
+        const requestedTaxable = input.items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+        const [orgRow] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const directPoMax = getDirectPoMaxValue(orgRow?.settings ?? org!.settings);
+        if (requestedTaxable > directPoMax) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              `This purchase order of ₹${requestedTaxable.toLocaleString("en-IN")} exceeds the ` +
+              `₹${directPoMax.toLocaleString("en-IN")} limit for direct orders. Raise a purchase ` +
+              `requisition instead — it routes through approval before a PO is created.`,
+          });
+        }
 
         // PO header, line items, budget commitment, and the draft accrual JE
         // (+ its lines) form one financial event. A partial write would commit
@@ -1060,6 +1084,7 @@ export const procurementRouter = router({
         ...tiers,
         poMatchToleranceAbs: getProcurementMatchToleranceAbs(settings),
         duplicatePayableInvoicePolicy: getDuplicatePayablePolicy(settings),
+        directPoMaxValue: getDirectPoMaxValue(settings),
         currencyNote: "Amounts use the same numeric basis as PR line totals (org default: INR-style integers in product copy).",
       };
     }),
@@ -1073,6 +1098,8 @@ export const procurementRouter = router({
           poMatchToleranceAbs: z.coerce.number().min(0).max(1e9).optional(),
           /** Payable invoice: duplicate vendor + invoice # — `off` (no check), `warn` (allow + flag), `block` (reject). */
           duplicatePayableInvoicePolicy: z.enum(["off", "warn", "block"]).optional(),
+          /** PO-GATE: max taxable value of a Direct PO raisable without a requisition (0 = always require one). */
+          directPoMaxValue: z.coerce.number().min(0).max(1e12).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -1100,6 +1127,9 @@ export const procurementRouter = router({
         if (input.duplicatePayableInvoicePolicy !== undefined) {
           procurement.duplicatePayableInvoicePolicy = input.duplicatePayableInvoicePolicy;
         }
+        if (input.directPoMaxValue !== undefined) {
+          procurement.directPoMaxValue = input.directPoMaxValue;
+        }
         await db
           .update(organizations)
           .set({
@@ -1116,11 +1146,13 @@ export const procurementRouter = router({
           prDeptHeadMax: input.prDeptHeadMax,
           poMatchToleranceAbs: procurement.poMatchToleranceAbs,
           duplicatePayableInvoicePolicy: procurement.duplicatePayableInvoicePolicy,
+          directPoMaxValue: procurement.directPoMaxValue,
           previous: {
             prAutoApproveBelow: prevProc.prAutoApproveBelow,
             prDeptHeadMax: prevProc.prDeptHeadMax,
             poMatchToleranceAbs: prevProc.poMatchToleranceAbs,
             duplicatePayableInvoicePolicy: prevProc.duplicatePayableInvoicePolicy,
+            directPoMaxValue: prevProc.directPoMaxValue,
           },
         };
       }),

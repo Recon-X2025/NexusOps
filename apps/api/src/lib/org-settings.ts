@@ -123,6 +123,18 @@ export function getProcurementApprovalTiers(orgSettings: unknown): {
   return { prAutoApproveBelow, prDeptHeadMax };
 }
 
+/**
+ * Max taxable value of a Direct PO that may be raised WITHOUT a requisition (PO-GATE). An explicit
+ * `directPoMaxValue` (including 0 — "force every PO through a requisition") wins; otherwise it
+ * defaults to `prAutoApproveBelow` — a direct, un-approved PO is capped at what the org already
+ * passes without approval, so the two gates move together and there is no second magic number.
+ */
+export function getDirectPoMaxValue(orgSettings: unknown): number {
+  const raw = parseOrgSettings(orgSettings).procurement?.directPoMaxValue;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return raw;
+  return getProcurementApprovalTiers(orgSettings).prAutoApproveBelow;
+}
+
 const DEFAULT_DEAL_NO_APPROVAL_BELOW = 500_000;
 const DEFAULT_DEAL_EXECUTIVE_ABOVE = 5_000_000;
 
