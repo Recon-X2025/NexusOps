@@ -41,7 +41,7 @@ import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { decryptPan } from "../lib/pan";
 import { router, permissionProcedure, anyPermissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, computeHRAExemption, type EmployeeTaxProfile } from "../lib/india-tax-engine";
-import { computePayslipTaxFigures } from "../lib/payslip-tax";
+import { computePayslipTaxFigures, type PayslipEmployeeContext } from "../lib/payslip-tax";
 import { buildPayslipView, payslipViewToPortalRow } from "../lib/payslip-view";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
@@ -136,11 +136,21 @@ type DeclarationDeductions = {
   section24b: number;
 };
 
-function taxComputationFromPayslip(p: typeof payslips.$inferSelect, declarations?: DeclarationDeductions) {
-  return computePayslipTaxFigures(p, declarations);
+function taxComputationFromPayslip(
+  p: typeof payslips.$inferSelect,
+  declarations?: DeclarationDeductions,
+  employee?: PayslipEmployeeContext,
+) {
+  return computePayslipTaxFigures(p, declarations, employee);
 }
 
-function mapPayslipRow(p: typeof payslips.$inferSelect, declarations?: DeclarationDeductions) {
+function mapPayslipRow(
+  p: typeof payslips.$inferSelect,
+  declarations?: DeclarationDeductions,
+  // F9: the employee context so the portal list's annual figure is projected on the actual
+  // FY span with real HRA — the same projection as the run/PDF. Absent ⇒ legacy full-year view.
+  employee?: PayslipEmployeeContext,
+) {
   // C6: read from the SHARED payslip view (no tenant identity — the portal shows amounts +
   // attendance only) so the on-screen breakdown and the statutory PDF cannot drift. This is
   // where ESI and LOP were previously hardcoded to 0; the builder reads the stored columns.
@@ -149,7 +159,7 @@ function mapPayslipRow(p: typeof payslips.$inferSelect, declarations?: Declarati
     id: p.id,
     // C1 residual fix: pass the employee's declared deductions for this payslip's FY so the portal
     // list's annual tax projection matches the actual TDS deducted (and the PDF). Was hardcoded 0.
-    taxComputation: taxComputationFromPayslip(p, declarations),
+    taxComputation: taxComputationFromPayslip(p, declarations, employee),
     pdfUrl: p.pdfUrl,
   });
 }
@@ -1028,7 +1038,16 @@ const payslipsRouter = router({
           ]),
       );
       const fyOf = (p: typeof payslips.$inferSelect) => (p.month >= 4 ? p.year : p.year - 1);
-      return rows.map((p) => mapPayslipRow(p, declByFy.get(fyOf(p))));
+      // F9: this list already fetched `emp` (the payslips are this employee's own) — pass its
+      // context so each row's annual projection matches the run/PDF, not a blind full year.
+      const empContext: PayslipEmployeeContext = {
+        startDate: emp.startDate,
+        city: emp.city,
+        rentPaidAnnual: Number(emp.rentPaidAnnual || 0),
+        previousEmployerIncome: Number(emp.previousEmployerIncome || 0),
+        previousEmployerTds: Number(emp.previousEmployerTds || 0),
+      };
+      return rows.map((p) => mapPayslipRow(p, declByFy.get(fyOf(p)), empContext));
     }),
 });
 

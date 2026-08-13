@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, organizations, eq, and, or, isNull, isNotNull, inArray } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, organizations, taxDeclarations, eq, and, or, isNull, isNotNull, inArray } from "@coheronconnect/db";
 import { resolveSalaryStructureForPeriod, structureNotEffectiveError } from "../lib/india/salary-structure-resolver";
 import {
   computeEmployeePayslip,
@@ -454,9 +454,36 @@ export async function computePayrollRunTotals(
     .limit(1);
   const orgEsiEstablishmentNumber = orgRow?.esiEstablishmentNumber?.trim() || null;
 
+  // F9/C1: old-regime declared deductions for the FY, so the PREVIEW totals match the run's
+  // actual TDS (the run threads these at payroll.ts; the preview previously passed none →
+  // zero declarations → a different TDS from the run). `lapsed` treated as 0, per the CA rule.
+  const fyStartYear = month >= 4 ? year : year - 1;
+  const previewDeclRows = await db
+    .select()
+    .from(taxDeclarations)
+    .where(and(eq(taxDeclarations.orgId, orgId), eq(taxDeclarations.fiscalYear, fyStartYear)));
+  const previewDeclMap = new Map<string, {
+    section80C: number; section80D: number; section80CCD1B: number; section80TTA: number; section24b: number;
+  }>(
+    previewDeclRows
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((d: any) => d.provenance !== "lapsed")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((d: any) => [
+        d.employeeId,
+        {
+          section80C: Number(d.section80C || 0),
+          section80D: Number(d.section80D || 0),
+          section80CCD1B: Number(d.section80CCD1B || 0),
+          section80TTA: Number(d.section80TTA || 0),
+          section24b: Number(d.section24B || 0),
+        },
+      ]),
+  );
+
   for (const { emp, st } of rows) {
     try {
-      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id));
+      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), previewDeclMap.get(emp.id));
       const slip = computeEmployeePayslip(input, fyMonth, ceilings);
 
       // An unknown/misspelled state (e.g. "Karnatak") resolves to ₹0 PT — the same

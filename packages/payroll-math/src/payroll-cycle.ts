@@ -385,9 +385,19 @@ export function computeEmployeePayslip(
   // Step 7: TDS
   // Build annualised tax profile
   const monthsInFY = fyMonth <= 12 ? 12 - fyMonth + 1 : 12;
-  const joiningMonth =
-    emp.joiningDate.getFullYear() > new Date().getFullYear() - 1
-      ? emp.joiningDate.getMonth() + 1 - 3 // Rough FY month
+  // F9: derive the FY joining month DETERMINISTICALLY from the join date and the run's
+  // own month/year (April = 1 … March = 12). A start date on/before 1 April of the run's
+  // FY — or none — is a full-year employee (joiningFyMonth 1). This replaces a calendar-
+  // year heuristic (`getFullYear() > new Date().getFullYear() - 1`, with `getMonth()+1-3`)
+  // that misclassified every current-CALENDAR-year start as a mid-year joiner, tested the
+  // wrong year (the tax year is April–March), broke for Jan–Mar, and used a non-
+  // deterministic `new Date()`. Only genuine mid-FY joiners (May–Dec) get a non-1 month.
+  const fyStartYear = emp.month >= 4 ? emp.year : emp.year - 1;
+  const fyStartDate = new Date(fyStartYear, 3, 1); // 1 April of the run's FY (local)
+  const joinCalMonth = emp.joiningDate.getMonth() + 1;
+  const joiningFyMonth =
+    emp.joiningDate > fyStartDate
+      ? Math.min(12, Math.max(1, joinCalMonth >= 4 ? joinCalMonth - 3 : joinCalMonth + 9))
       : 1;
 
   // ── A12-D: split-logic annual projection ──────────────────────────────────
@@ -419,7 +429,11 @@ export function computeEmployeePayslip(
   // `lopDays == 0` the current month equals contracted and the blend collapses to
   // `contracted × 12` — BYTE-IDENTICAL to A12 for every non-LOP payslip.
   const fyMonthClamped = Math.min(12, Math.max(1, fyMonth));
-  const monthsBeforeCurrent = fyMonthClamped - 1; // April → 0 … March → 11
+  // F9: months of THIS employer's pay already earned this FY before the current month —
+  // from the join month, not from April, so a mid-year joiner projects only their actual
+  // employment span (join → March), never a full 12 months. joiningFyMonth 1 ⇒ fyMonth-1
+  // (byte-identical to the prior full-year behaviour).
+  const monthsBeforeCurrent = Math.max(0, fyMonthClamped - joiningFyMonth); // full-year: fyMonth-1
   const monthsRemaining = 12 - fyMonthClamped; //    April → 11 … March → 0
   /** Blend one salary component: contracted for every month but this one, actual now. */
   const projectAnnualComponent = (contractedMonthly: number, earnedThisMonth: number): number =>
@@ -455,7 +469,10 @@ export function computeEmployeePayslip(
     // `earned*12`, which projected a single LOP month across the whole year and
     // under-collected TDS. When `lopDays == 0` the blend equals `contracted*12`, so the
     // non-LOP payslip is byte-identical to A12. See the split-logic block above.
-    annualCTC: annualProjectedIncome,
+    // F9: the projection IS the annual base — fold in prior-employer income (Form 12B) and
+    // pass joiningMonth 1 (below) so computeTax uses this figure DIRECTLY. It must not
+    // re-scale by monthsInFY (that scaled gross but not deductions → collapse-to-zero).
+    annualCTC: annualProjectedIncome + emp.previousEmployerIncome,
     basicMonthly: emp.basicMonthly,
     hraMonthly: emp.hraMonthly,
     specialAllowance: emp.specialAllowance,
@@ -470,7 +487,11 @@ export function computeEmployeePayslip(
     employeePFMonthly: statutory.pf.totalEmployee,
     employerPFMonthly: statutory.pf.totalEmployer,
     professionalTax: statutory.pt.annualPT,
-    joiningMonth: Math.max(1, joiningMonth),
+    // F9: always 1 — the annual base above is already the correctly-projected FY income,
+    // so computeTax must take its `annualCTC` branch (no gross-only scaling). The
+    // employment span lives in `annualCTC` via `monthsBeforeCurrent`; `monthsInFY` below
+    // stays the run-month spread divisor (months left in the FY to deduct over).
+    joiningMonth: 1,
     monthsInFY: Math.max(1, monthsInFY),
     previousEmployerIncome: emp.previousEmployerIncome,
     previousEmployerTDS: emp.previousEmployerTDS,

@@ -80,7 +80,16 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
               section24b: Number(decl.section24B || 0),
             }
           : undefined;
-      const taxFigures = computePayslipTaxFigures(row.slip, declarations);
+      // F9: pass the employee context so the printed annual liability is projected on the
+      // employee's actual FY span (join → March) with the real HRA exemption — the SAME
+      // projection the run used for the deducted TDS, so the two figures on the PDF agree.
+      const taxFigures = computePayslipTaxFigures(row.slip, declarations, {
+        startDate: row.emp.startDate,
+        city: row.emp.city,
+        rentPaidAnnual: Number(row.emp.rentPaidAnnual || 0),
+        previousEmployerIncome: Number(row.emp.previousEmployerIncome || 0),
+        previousEmployerTds: Number(row.emp.previousEmployerTds || 0),
+      });
 
       const view = buildPayslipView({
         slip: row.slip,
