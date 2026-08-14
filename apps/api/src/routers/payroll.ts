@@ -54,6 +54,7 @@ import { computeRetainUntil } from "../lib/retention";
 import {
   buildEmployeePayrollInput,
   buildPtHalfYearlyContext,
+  buildYtdContext,
   calendarToFyMonth,
   computePayrollRunTotals,
   esiContributionPeriodStart,
@@ -175,8 +176,18 @@ function buildTaxProfileFromEmployee(args: {
   monthsWithData: number;
   /** Calendar year the India FY starts in (e.g. 2026 for FY 2026-2027). */
   fyStart: number;
+  /** Old-regime declared deductions (Chapter VI-A + 24b) — the SAME figures the run path feeds.
+   *  Absent ⇒ 0. Without this the on-screen regime comparison over-stated old-regime tax and could
+   *  recommend NEW when the employee's real declarations favour OLD (the fifth, formerly-divergent site). */
+  declarations?: {
+    section80C: number;
+    section80D: number;
+    section80CCD1B: number;
+    section80TTA: number;
+    section24b: number;
+  };
 }): EmployeeTaxProfile {
-  const { employee, structure, fyGross, monthsWithData, fyStart } = args;
+  const { employee, structure, fyGross, monthsWithData, fyStart, declarations } = args;
   // PT1: reconcile the screen's tax basis to the run path. The run
   // (`payroll-run-aggregates` → `computeEmployeePayslip`) taxes the SUM OF ACTUAL PAID
   // COMPONENTS, never the contracted CTC — that is the only legally correct TDS basis
@@ -236,15 +247,14 @@ function buildTaxProfileFromEmployee(args: {
     hraMonthly,
     specialAllowance: specialMonthly,
     lta: ltaAnnual,
-    // TODO(compliance): Wire up actual employee tax declarations intake table.
-    // section80C/D/CCD1B/TTA/24b still hardcoded to 0 (no declaration intake table yet);
-    // old-regime Chapter VI-A is over-deducted until that ships. HRA exemption IS now
-    // computed above from the employee's declared rent + metro flag.
-    section80C: 0,
-    section80D: 0,
-    section80CCD1B: 0,
-    section80TTA: 0,
-    section24b: 0,
+    // Old-regime Chapter VI-A + 24b from the employee's real declarations (the intake table now
+    // exists — C1). Absent ⇒ 0. computeTax applies the statutory caps and ignores these for NEW.
+    // HRA exemption is computed above from the declared rent + metro flag.
+    section80C: declarations?.section80C ?? 0,
+    section80D: declarations?.section80D ?? 0,
+    section80CCD1B: declarations?.section80CCD1B ?? 0,
+    section80TTA: declarations?.section80TTA ?? 0,
+    section24b: declarations?.section24b ?? 0,
     hraExemption,
     otherExemptions: 0,
     employeePFMonthly: basicMonthly * 0.12 > 1800 ? 1800 : Math.round(basicMonthly * 0.12),
@@ -524,6 +534,9 @@ const runsRouter = router({
       // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — period income from payslip history,
       // resolved before the transaction (reads earlier months, untouched by this run's delete).
       const ptHalfYearlyMap = await buildPtHalfYearlyContext(db, org!.id, empRows, row.month, row.year);
+      // PR5: prior YTD (this FY) from earlier payslips, resolved before the transaction (reads earlier
+      // months, untouched by this run's delete). The engine adds the current month → true running YTD.
+      const ytdMap = await buildYtdContext(db, org!.id, empRows, row.month, row.year);
 
       // C1 Piece 1: old-regime declared deductions for the run's fiscal year (Apr–Mar). `lapsed`
       // declarations are treated as 0 (values zeroed per the CA rule); provisional + proven count.
@@ -568,7 +581,7 @@ const runsRouter = router({
         for (const { emp, st } of empRows) {
           let slip: ReturnType<typeof computeEmployeePayslip>;
           try {
-            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), declMap.get(emp.id));
+            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), declMap.get(emp.id), ytdMap.get(emp.id));
             slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
           } catch (e) {
             // One employee's bad data must NOT roll back the transaction and leave every
@@ -1663,12 +1676,33 @@ export const payrollRouter = router({
       );
       const monthsWithData = slipRows.length;
 
+      // The SAME declarations the run path feeds (fifth-site consistency): non-lapsed old-regime
+      // deductions for this FY, so the on-screen comparison matches the actual TDS basis.
+      const [declRow] = await db
+        .select()
+        .from(taxDeclarations)
+        .where(and(
+          eq(taxDeclarations.orgId, org.id),
+          eq(taxDeclarations.employeeId, employee.id),
+          eq(taxDeclarations.fiscalYear, fyStart),
+        ));
+      const declarations = declRow && declRow.provenance !== "lapsed"
+        ? {
+            section80C: Number(declRow.section80C || 0),
+            section80D: Number(declRow.section80D || 0),
+            section80CCD1B: Number(declRow.section80CCD1B || 0),
+            section80TTA: Number(declRow.section80TTA || 0),
+            section24b: Number(declRow.section24B || 0),
+          }
+        : undefined;
+
       const oldProfile = buildTaxProfileFromEmployee({
         employee: { ...employee, taxRegime: "old" },
         structure,
         fyGross,
         monthsWithData,
         fyStart,
+        declarations,
       });
       const newProfile = buildTaxProfileFromEmployee({
         employee: { ...employee, taxRegime: "new" },
@@ -1676,6 +1710,7 @@ export const payrollRouter = router({
         fyGross,
         monthsWithData,
         fyStart,
+        declarations,
       });
 
       const oldRegime = regimeSlice(computeTax({ ...oldProfile, regime: "OLD" }));

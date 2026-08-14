@@ -94,8 +94,11 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   (C1-CORE) adds `organizations.entity_type` (an 8-value `entity_type` enum) + the `tax_declarations` table
   (per-employee/per-FY investment declarations: 80C/80D/80CCD(1B)/80TTA/24b + a `declaration_provenance` enum,
   cascade FKs, unique `(employee_id, fiscal_year)`, **RLS-walled** — ENABLE+FORCE+`tenant_isolation` in the
-  same migration, per the `0052`/`0061` convention) — the +1 that took base tables 238→239. **Live head is
-  `0080`; base tables 239.**
+  same migration, per the `0052`/`0061` convention) — the +1 that took base tables 238→239. `0081_illegal_stick`
+  adds no table; `0082_chilly_husk` (FULL-AND-FINAL) adds the RLS-walled **`final_settlements`** table (+1).
+  **Do not trust a head number quoted here — read it from `packages/db/drizzle/meta/_journal.json` (as of
+  2026-08-14 it was `0082`, base tables 240). A hardcoded "live head is X" is exactly the per-commit state
+  that does not belong in this file.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -256,6 +259,12 @@ before severity").
   either. Three instances in two days (silent-regime-default import test; a metro test that set `isMetroCity`
   and expected it to thread; leave fixtures created without a salary structure). See `reports/fix-plan.md`
   → `TESTS-ENCODE-DEFECTS`.
+- **A check that appears to exist may not run.** `.turbo` made "cold lint" warm; a duplicate route in the
+  shared `ALL_ROUTES` made 699 `tests/full-qa` tests collect-fail silently, so every green CI run was green
+  without them. **Verify that a gate executes, not merely that it is configured** (2026-08-14).
+- **A mass failure with a uniform signature is one cause, not many.** Fifty-five modules do not break
+  identically at the same moment — the full-qa "55 module list APIs fail" was one `apiCall` tRPC-encoding
+  bug, not 55 broken modules. **Establish the cause before recording the count** (2026-08-14).
 
 ## Gap analysis (where the product actually stands)
 

@@ -66,7 +66,7 @@ export default function ResetPasswordPage() {
                 Must be at least 8 characters with an uppercase letter and number.
               </p>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <input type="hidden" {...register("token")} />
 
                 <div>

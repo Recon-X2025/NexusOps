@@ -115,7 +115,7 @@ export default function LedgerPage() {
                         </div>
                         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Account Type</p>
-                            <p className="text-h4 font-bold text-foreground capitalize">{selectedAccount?.type} / {selectedAccount?.subType.replace("_", " ")}</p>
+                            <p className="text-h4 font-bold text-foreground capitalize">{selectedAccount?.type} / {(selectedAccount?.subType ?? "—").replace("_", " ")}</p>
                         </div>
                     </div>
 

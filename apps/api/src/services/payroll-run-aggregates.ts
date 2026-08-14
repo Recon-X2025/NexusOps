@@ -136,6 +136,75 @@ export async function buildPtHalfYearlyContext(
   return result;
 }
 
+/** Prior year-to-date totals (this employer, this FY) fed to the engine as the running base. */
+export type YtdPriorContext = { ytdGross: number; ytdPF: number; ytdTDS: number; ytdNetPay: number };
+
+/**
+ * PR5 — prior YTD from payslip history. For a run in (`month`, `year`), sum each employee's EARLIER
+ * fiscal-year payslips (April … the month before this one) into gross / employee-PF / TDS / net.
+ * The engine adds the current month on top (`payroll-cycle.ts`: `ytdGross = emp.ytdGross + …`), so
+ * the stored payslip's YTD is the true running FY figure. Previously the run passed `ytd*=0`, so
+ * every payslip's YTD equalled that ONE month — the defect that read as ₹0/one-month on a document.
+ *
+ * FY runs April→March: an April run (fyMonth 1) has no earlier months → YTD = this month, and it
+ * does NOT carry the prior year's March forward (that March is a different `year`, not in range).
+ * A mid-year joiner has no earlier payslips → prior YTD 0. Prior-EMPLOYER income is deliberately
+ * excluded — it is a tax-projection input, not "YTD with this employer"; the two legitimately differ.
+ * Same reasoning as `buildPtHalfYearlyContext`: the history already lives in `payslips`, no new table.
+ */
+export async function buildYtdContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  orgId: string,
+  empRows: Array<{ emp: typeof employees.$inferSelect }>,
+  month: number,
+  year: number,
+): Promise<Map<string, YtdPriorContext>> {
+  const fyMonth = calendarToFyMonth(month);
+  const result = new Map<string, YtdPriorContext>();
+  if (fyMonth <= 1 || empRows.length === 0) return result; // April → no prior FY months
+  const fyStartYear = month >= 4 ? year : year - 1;
+  const calPairs = Array.from({ length: fyMonth - 1 }, (_, i) => fyMonthToCalendar(i + 1, fyStartYear));
+  const empIds = new Set(empRows.map((r) => r.emp.id));
+
+  const rows = await db
+    .select({
+      employeeId: payslips.employeeId,
+      month: payslips.month,
+      gross: payslips.grossEarnings,
+      pf: payslips.pfEmployee,
+      tds: payslips.tds,
+      net: payslips.netPay,
+    })
+    .from(payslips)
+    .where(
+      and(
+        eq(payslips.orgId, orgId),
+        or(...calPairs.map((p) => and(eq(payslips.month, p.month), eq(payslips.year, p.year)))),
+      ),
+    );
+
+  // One entry per (employee, FY month): the lock deletes+rewrites, so a month has one payslip, but
+  // if one were ever written twice we take the latest here rather than double-count it in the sum.
+  const perMonth = new Map<string, { employeeId: string; v: YtdPriorContext }>();
+  for (const r of rows) {
+    if (!empIds.has(r.employeeId)) continue;
+    perMonth.set(`${r.employeeId}:${calendarToFyMonth(r.month)}`, {
+      employeeId: r.employeeId,
+      v: { ytdGross: Number(r.gross || 0), ytdPF: Number(r.pf || 0), ytdTDS: Number(r.tds || 0), ytdNetPay: Number(r.net || 0) },
+    });
+  }
+  for (const { employeeId, v } of perMonth.values()) {
+    const acc = result.get(employeeId) ?? { ytdGross: 0, ytdPF: 0, ytdTDS: 0, ytdNetPay: 0 };
+    acc.ytdGross += v.ytdGross;
+    acc.ytdPF += v.ytdPF;
+    acc.ytdTDS += v.ytdTDS;
+    acc.ytdNetPay += v.ytdNetPay;
+    result.set(employeeId, acc);
+  }
+  return result;
+}
+
 /**
  * Start date (1 Apr / 1 Oct) of the ESI six-month contribution period a given
  * calendar month falls in. Apr–Sep → 1 Apr of that year; Oct–Dec → 1 Oct of that
@@ -194,6 +263,9 @@ export function buildEmployeePayrollInput(
     section80TTA: number;
     section24b: number;
   },
+  // PR5: prior YTD (this employer, this FY) from payslip history; the engine adds the current month.
+  // Absent ⇒ 0 (first FY run / mid-year joiner's first run / paths that don't render a running total).
+  ytdPrior?: YtdPriorContext,
 ): EmployeePayrollInput {
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
@@ -315,10 +387,10 @@ export function buildEmployeePayrollInput(
     // A 0 default (no 12B on file) is correct and unchanged for existing employees.
     previousEmployerIncome: Number(emp.previousEmployerIncome || 0),
     previousEmployerTDS: Number(emp.previousEmployerTds || 0),
-    ytdGross: 0,
-    ytdPF: 0,
-    ytdTDS: 0,
-    ytdNetPay: 0,
+    ytdGross: ytdPrior?.ytdGross ?? 0,
+    ytdPF: ytdPrior?.ytdPF ?? 0,
+    ytdTDS: ytdPrior?.ytdTDS ?? 0,
+    ytdNetPay: ytdPrior?.ytdNetPay ?? 0,
     // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — the caller-resolved period income the
     // system holds. Undefined for monthly states and non-collection months; the engine then
     // deducts nothing (non-collection) or, in a collection month with no context, flags it.
@@ -490,6 +562,9 @@ export async function computePayrollRunTotals(
   // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — the period income each employee's
   // payslip history supports, only in a state's collection month (empty otherwise).
   const ptHalfYearlyMap = await buildPtHalfYearlyContext(db, orgId, rows, month, year);
+  // PR5: prior YTD (this FY) so the preview totals' per-employee slips carry the same running YTD as
+  // the write path — figures don't jump between the lock preview and the stored payslip.
+  const ytdMap = await buildYtdContext(db, orgId, rows, month, year);
   // C6: the org's ESI employer establishment number — mandatory on the payslip for any ESI
   // member. Resolved once; a missing value is surfaced per ESI-member employee below.
   const [orgRow] = await db
@@ -528,7 +603,7 @@ export async function computePayrollRunTotals(
 
   for (const { emp, st } of rows) {
     try {
-      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), previewDeclMap.get(emp.id));
+      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), previewDeclMap.get(emp.id), ytdMap.get(emp.id));
       const slip = computeEmployeePayslip(input, fyMonth, ceilings);
 
       // An unknown/misspelled state (e.g. "Karnatak") resolves to ₹0 PT — the same

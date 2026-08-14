@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
                 Enter your work email and we&apos;ll send you a link to choose a new password.
               </p>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Email</label>
                   <input

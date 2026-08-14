@@ -41,5 +41,8 @@ export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
 // CreateLeaveRequestSchema is canonical in `@coheronconnect/types` (packages/types/src/hr.ts),
 // which is the copy `leave.create` actually imports. A duplicate lived here with a date-order
 // refine the live path never applied — removed to end the drift. Do NOT re-add a second copy;
-// extend the types one. (Note: `LeaveTypeEnum` still diverges across validators/types/db — a
-// separate consolidation, out of this change's scope.)
+// extend the types one. `LeaveTypeEnum` is now single-sourced: this file re-exports it from
+// `@coheronconnect/types`, whose value set mirrors the db `leaveTypeEnum` (8 values) exactly, and
+// the API's leave-accrual router aliases the same import — the value sets no longer diverge. (The
+// deferred LEAVE-ENUM-REBUILD is separate: RENAMING stored values, e.g. `vacation`→`annual_leave`,
+// a data migration blocked on prod row counts — not this.)

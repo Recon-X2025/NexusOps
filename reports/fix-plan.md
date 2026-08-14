@@ -6,6 +6,82 @@ No code has been changed by this document — it is the plan, not the work._
 
 ---
 
+## ⭐ STATE REFRESH & CORRECTIONS — 2026-08-14 (read this first)
+
+**Live:** `f487ee8` (verified `/api/health`), migration head **`0082_chilly_husk`** (240 base tables),
+last deploy CI `31701625521` `Deploy to Vultr` success attempt 1, pre-flight **42GB free**, **retention
+prune reclaimed nothing** (no image past 168h; no deploy since — first reclaim still unobserved).
+
+### Corrections to the record — each was recorded as true and is NOT. Retired deliberately:
+
+1. **"83 unwalked routes" → 130 web routes** (+4 API handlers, 23 dynamic). Undercounted by ~57. The
+   "83" figure is not in this file or CONTEXT.md (it was quoted in prompts/handoffs); the real inventory
+   is `docs/audits/qa-full_part1-inventories_2026-08-13.md`.
+2. **`LeaveTypeEnum` "diverges 3 ways" → already aligned.** All four copies (db, `types`, `validators`,
+   `leave-accrual.ts`) single-source the db's 8 values via `packages/types`. Only a stale comment in
+   `validators/src/hr.ts` remained (corrected, uncommitted). See the SCHEMA-DRIFT section below, now amended.
+3. **Procurement PO-document upload "fakes success" → it does NOT.** It uses the real `documents.upload`
+   and **fails honestly** with an error toast. Residual: a dangling stub `documents` row (the mutation
+   isn't transactional). Detail: `docs/audits/qa-full_walk2-reconciliation_2026-08-13.md`.
+4. **"Six object-storage paths" → only FOUR are real S3 uploads** (DMS, Form 16, avatar, procurement PO
+   doc). Offboarding attachments are **text fields**; e-sign is a **pass-through stub**. See the "ALL SIX
+   FAIL" line below, now amended, and `docs/OBJECT_STORAGE_DECISION.md`.
+5. **`payroll.runs.approve` "unprotected" → it is NOT.** The permission check is in the **handler body**
+   (`payroll.ts:728-737`: `hr/write` for HR step, `financial/write` for FINANCE/CFO) + SoD, not the
+   builder. **Standing lesson: the authz review must read handler bodies, not signatures.**
+6. **CT-CNC-QA-001 "is a repo document" → it is NOT in the repo** (`reports/qa-walk2-handoff.md:116`).
+   External tester doc; its 66 items cannot be enumerated from source.
+7. **F2 (CoA Add Account inert), F18 (+PO inert), F3/F19 (formatting) → FIXED and verified live** in
+   `d59d6f7`. Do not re-file.
+8. **F9 headline "every 2026 hire withholds ₹0" → May–December joiners only.** April lands on FY-month 1
+   by luck; Jan–Mar clamp to 1. The figure was **arbitrary, not systematically zero**.
+9. **PR5 cause "YTD partially zero" → the run passed `ytd*=0` to the engine**, so **every stored payslip's
+   YTD equalled ONE month**. The observed partial ₹0 was a column-addition artifact, not the defect. Real
+   site: `payroll-run-aggregates.ts:318-321` (**not `:87-90`**).
+
+### New defects (severity-ordered)
+
+| Ref | What | Sev |
+|---|---|---|
+| **LOGIN-PASSWORD-IN-URL** | The login form does a **native GET with the password in the query string** when submitted before React hydrates → passwords in browser history, server access logs, any intermediate proxy. Reproducible on a slow connection / by a fast typist. Fix: `method="post"` + `preventDefault`. **Product defect, not a test artifact.** | **HIGH** |
+| **COA-NULL-SUBTYPE** | `coa/page.tsx:169` renders `acct.subType.replace()` unguarded → an account created without a sub-type **crashes the list on every load**; currently breaking `/finance/accounting/coa` on the live tenant (from the walk test account). Guard written, uncommitted. The sibling `/app/accounting` page already guards it. | **HIGH** |
+| **STATUTORY-IDENTITY-UNGATED** | `onboarding.updateStatutoryIdentity` is `protectedProcedure` with **no in-body permission check** — any authenticated org member can change the org's **PF rate / EPF code** (`onboarding.ts:379-418`). Org-scoped (no cross-tenant leak), **but PF rate is money.** The 894-procedure inventory makes a sweep for other ungated mutations a query, not a hunt. | **MED** |
+| **F12** | Forbidden controls rendered to roles that can't use them (RBAC drift). | **MED** |
+| **F13** | No admin path to payslips/challans. First-cycle: someone must hand the CA the ECR after the first run. | **MED** |
+| **F8** | A wedged payroll run cannot be reset. | **MED** |
+| **F15** | `/app/devops` + `/app/developer-ops` are dead routes — establish whether any nav links to them (customer-visible) vs orphan (register noise). | **LOW** |
+| — | 3 button-interaction crashes (tickets/problems/changes); `dashboard.getMetrics` unexpected shape; a wrong-password error not surfaced. | **triage** |
+
+### The QA suite is broken and has never run — the most consequential finding
+
+`tests/full-qa` (12 specs, 699 tests) has **never executed** — five self-inflicted harness faults:
+(1) a **duplicate route** in shared `ALL_ROUTES` (`/app/knowledge` ×2) aborted collection entirely;
+(2) the **global-setup login hydration race** (= LOGIN-PASSWORD-IN-URL); (3) its **`apiCall` tRPC GET
+encoding doesn't match tRPC v11**, so **every** module list assertion fails uniformly across ~55 modules;
+(4) the **session token isn't attached** to direct API mutation calls → false "Not authenticated";
+(5) **empty-seed-data assumptions**. **Every green CI run has been green without these tests contributing
+anything** — same class as `.turbo` making "cold lint" warm.
+- **Dev mode, 8 workers:** 379 pass / 178 fail / 98 flaky / 54.9 min, 215 timeouts — **not a defect count**
+  (dev-mode per-route compile manufactures timeouts on routes that work).
+- **Production build, 3 workers:** 581 pass / 70 fail / 4 flaky / 9.9 min, 3 timeouts — **~64 of 70 are
+  harness artifacts, ~6 genuine candidates.**
+- **Standing conclusion: not a release gate as authored; its numbers mean nothing until the harness is
+  repaired.** Full detail: `docs/audits/qa-full_part2-4-fullqa-run_2026-08-13.md`.
+
+### Deferrals with triggers
+- **LEAVE-ENUM-REBUILD** — blocked on **prod row counts** (dev has zero leave rows). Labels ship
+  display-only; stored values stay `vacation`/`sick`/`other`; display deliberately diverges. Existing
+  `other` rows migrate to **`unpaid`** by owner decision.
+- **Object storage** — deferred by owner until the platform matures. **Configuration, not building**
+  (~½ day + owner-provisioned bucket; S3 client exists). **Not a first-cycle blocker** (Form 16 is
+  post-year-end; offboarding notes work as text).
+- **Settlement has no reversal path** — one per employee (unique constraint). If ever wrong, **no redo.**
+  Record before it's discovered in a dispute.
+- **Direct PO creation-time gating shipped (PO-GATE); approval on a Direct PO no longer exists anywhere,
+  by design** — approval belongs on the requisition.
+
+---
+
 ## How this plan is ordered, and why
 
 The work runs in **three phases**, and the order matters more than it might look.
@@ -4989,6 +5065,13 @@ upload paths**. VERIFIED (imported + called).
 
 Then the truth, in three layers:
 
+> **CORRECTION (2026-08-14):** the "six paths / ALL SIX FAIL" framing below is **retired**. Only **FOUR**
+> are real S3 uploads (DMS, Form 16, avatar, procurement PO doc); **payslip PDF is render-on-the-fly and
+> WORKS** (never needed storage); **offboarding attachments are text fields**, and **e-sign is a
+> pass-through stub** — neither is an S3 upload. The PO-doc upload **fails honestly** (error toast), it does
+> not fake success. See `docs/OBJECT_STORAGE_DECISION.md`. Object storage is deferred by owner decision and
+> is **not a first-cycle blocker**. Original text retained below for history.
+
 **Layer 1 — ~6 surfaces genuinely store bytes, and ALL SIX FAIL IN PRODUCTION.** DMS `documents.upload`,
 Form 16 PDF, payslip PDF, avatar, procurement PO document, e-sign key. The deployed stack composes
 **`docker-compose.vultr-test.yml`**, which ships **no object-storage service** (verified at
@@ -6097,7 +6180,14 @@ now-consolidated `CreateLeaveRequestSchema`).
 consolidation must touch all four code copies (and, for the destructive rename, four *tables* — see
 `LEAVE-ENUM-REBUILD` below).
 
-**`LeaveTypeEnum` diverges 3 ways:**
+> **CORRECTION (2026-08-14): the value sets NO LONGER diverge.** All four copies now single-source the db's
+> 8 values via `@coheronconnect/types` — `validators/src/hr.ts` re-exports `LeaveTypeEnum`, and
+> `leave-accrual.ts` aliases the same import. The "3-way divergence" below is **retired** (it described a
+> pre-consolidation state). Only a stale comment in `validators/src/hr.ts` remained, corrected (uncommitted).
+> The still-open item is `LEAVE-ENUM-REBUILD` (RENAMING the stored values, a data migration blocked on prod
+> row counts) — a different thing. Original divergence text kept below for history.
+
+**`LeaveTypeEnum` diverges 3 ways [RETIRED — see correction above]:**
 - `types`: `vacation, sick, parental, bereavement, unpaid, other` (6)
 - `validators`: `annual, sick, casual, maternity, paternity, bereavement, compensatory, unpaid` (8)
 - `db` `leave_type`: `primary, annual, vacation, sick, parental, bereavement, unpaid, other` (8)

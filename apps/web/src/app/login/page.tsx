@@ -134,7 +134,7 @@ export default function LoginPage() {
                   : "Enter the 6-digit code from your authenticator app."}
               </p>
 
-              <form onSubmit={onVerifyMfa} className="space-y-4" data-testid="mfa-form">
+              <form method="post" onSubmit={onVerifyMfa} className="space-y-4" data-testid="mfa-form">
                 <div>
                   <label className="mb-1.5 block text-body-sm font-medium text-slate-300">
                     {useBackupCode ? "Backup code" : "Authentication code"}
@@ -187,7 +187,10 @@ export default function LoginPage() {
           <h2 className="mb-1 text-h4 font-semibold text-white">Welcome back</h2>
           <p className="mb-6 text-body-sm text-slate-400">Sign in to your workspace</p>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
+          {/* method="post" is the belt: if this submits before React hydrates (slow load, cold cache,
+              Enter before JS attaches), a native submit must NOT put email/password in the URL query
+              string. handleSubmit() already preventDefaults on the hydrated path (the braces). */}
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
             <div>
               <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Email</label>
               <input

@@ -83,7 +83,7 @@ export default function AcceptInvitePage() {
                 Set your name and password to activate your account.
               </p>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-body-sm font-medium text-slate-300">
                     Full name

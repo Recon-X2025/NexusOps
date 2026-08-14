@@ -38,21 +38,32 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `362abc5`** — migration head
-  **`0080_worried_firestar`**, 239 base tables (`0080` added `tax_declarations`) — verified through the
-  terminal **`Deploy to Vultr` job of CI run `31584256191`** (`success` on **attempt 1, no reboot** under
-  PRUNE-PREFLIGHT; pre-flight read `45GB free`) and `/api/health` returning `version: 362abc5…`. `362abc5`
-  is **C1-CORE** (migration `0080`: `organizations.entity_type` + `tax_declarations` with the RLS wall; HRA
-  metro derived from city; investment-declaration capture wired at the run and the payslip PDF). It includes
-  `1e42d6e` (SURFACES), `ec2b7a9` (intake), `db37bb4` (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING),
-  `adeb2be` (Base Pay), `8b4191a` (statutory wage config) and earlier as ancestors.
+- **LIVE on `connect.coheron.tech` = `origin/main` = `f487ee8`** — migration head
+  **`0082_chilly_husk`**, **240 base tables** (`0082` added `final_settlements`; `0081_illegal_stick`
+  added no table) — verified 2026-08-14 through the terminal **`Deploy to Vultr` job of CI run
+  `31701625521`** (`success` on **attempt 1**; pre-flight read **`42GB free ≥ 10GB — no prune needed`**)
+  and `/api/health` returning `version: f487ee81b2…`. `f487ee8` is **PO-GATE** (creation-time value
+  threshold on Direct POs; stored in `organizations.settings.procurement` JSON, no migration). Its
+  ancestors on this deploy: `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + procurement F18/F2/multi-line-GST +
+  migration `0082`), `f534f7b` (F9 TDS projection), `5c5490d`/`362abc5` (C1 declarations) and earlier.
+  _**Retention prune (Change E):** on this deploy it ran but **reclaimed nothing** (no output) — no
+  image had crossed 168h at deploy time. No deploy has happened since, so its first real reclaim is
+  still unobserved; the next deploy is the test. (The old `47→46→45GB` series is stale — actual is 42GB.)_
   _**This bullet duplicates the "Last validated deployment (exit point)" line at the very
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **Working tree (as of this writing): this deploy-state refresh, UNCOMMITTED** — docs only
-  (CONTEXT / fix-plan / CLAUDE) recording the SURFACES + C1-CORE deploys. `origin/main` is at `362abc5`;
-  per rule 6 the deploy-state refresh rides the next code change (the second half of C1), not its own commit.
+- **Working tree (as of 2026-08-14): UNCOMMITTED, three code units + docs.** `origin/main` = `f487ee8`
+  (0 ahead/0 behind); nothing is committed on top. The uncommitted set, by unit:
+  - **PR5 (YTD)** — `services/payroll-run-aggregates.ts` (`buildYtdContext` + `ytdPrior` param),
+    `routers/payroll.ts` (write-path + preview threading), `routers/hr.ts` (two single-payslip previews),
+    `__tests__/pr5-ytd.test.ts`. Fixes payslip YTD being one month instead of the running FY total.
+  - **Regime-comparison fifth site** — `routers/payroll.ts` (`buildTaxProfileFromEmployee` now reads the
+    employee's non-lapsed declarations), `__tests__/regime-comparison-declarations.test.ts`.
+  - **COA-NULL-SUBTYPE guard** — `app/finance/accounting/coa/page.tsx` (null-guard on `subType`).
+  - Unit-5 comment fix in `packages/validators/src/hr.ts`; QA-harness dedup in `tests/full-qa/helpers.ts`
+    (a test-enabler, not product); overnight docs `docs/MANUAL_SET.md`, `docs/OBJECT_STORAGE_DECISION.md`.
+  Per rule 6 this deploy-state refresh rides the next code change, not its own commit.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -66,7 +77,38 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   server accepts traffic); the Vultr deploy uses `docker-compose.vultr-test.yml` +
   `docker-compose.vultr.images.yml`, **not** `docker-compose.prod.yml`'s `migrator` service.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
-  count = head-number + 1 files (`0000`…`0080`).
+  count = head-number + 1 files (`0000`…`0082`).
+
+## 2026-08-13 → 08-14 — the two-day run (F9 · EXIT-DATE · FULL-AND-FINAL · procurement · PO-GATE)
+
+_Detail + rupee figures in `reports/fix-plan.md`. Map-level summary:_
+
+- **F9 — TDS projection rewrite (`f534f7b`, deployed).** Monthly TDS was arbitrary (not systematically ₹0)
+  for **May–December** current-year joiners; the old `joiningMonth` heuristic was replaced with deterministic
+  FY-month derivation from the employee's join month/year. **Correction to the record:** the prior headline
+  "every 2026 hire withholds ₹0" was wrong — April lands on FY-month 1 by luck, Jan–Mar clamp to 1, so only
+  genuine mid-year (May–Dec) joiners were affected, and the figure was **arbitrary, not zero**.
+- **EXIT-DATE (`d59d6f7`, deployed).** `employees.endDate` is required at offboarding (server-validated,
+  future permitted); it drives BOTH pro-ration (joiners and leavers, `daysEmployed − lopDays`) and payroll-run
+  selection. Settlement clock (2 working days from the last working day) on the offboarding table.
+- **FULL-AND-FINAL (`d59d6f7`, migration `0082`).** Composed exit settlement (`final_settlements`, RLS-walled):
+  last salary (pro-rated) + leave encashment + gratuity − recoveries, floored at 0 with `unrecoveredShortfall`.
+  Idempotent (unique `employeeId`). Sets `ffStatus=completed` + `settledAt`. **Double-pay reconciliation:** a
+  settled leaver is excluded from the monthly run (`notExists(final_settlements)`) so the last salary is not
+  paid twice. **Known limitation:** one settlement per employee, **no reversal path** — if one is ever wrong
+  it cannot be redone.
+- **Procurement (`d59d6f7`).** **F18** — the Pending Actions widget now lists pending **requisitions** (was
+  approving Direct POs with the wrong procedure → 404); **approval on a Direct PO no longer exists anywhere,
+  by design** (approval belongs on the requisition). **F2** — CoA "Add Account" wired (was inert). **Multi-line
+  + GST on the Direct PO** (schema pre-existed, no migration). **Formatting** — shared `formatInr` + `pluralize`
+  fixed `₹160000K`/`₹$1L`/`LIABILITYS`/truncated vendor ids (F3/F19).
+- **PO-GATE (`f487ee8`, LIVE head).** Creation-time value threshold on Direct POs: above `directPoMaxValue`
+  (default = the org's PR auto-approve line) the create refuses and names the requisition path. Server-enforced;
+  stored in `organizations.settings.procurement` JSON — **no migration**.
+
+**Uncommitted on top (working tree, not deployed):** **PR5** (payslip YTD = running FY total, not one month),
+the **regime-comparison fifth site** (`buildTaxProfileFromEmployee` now reads real declarations), and the
+**COA-NULL-SUBTYPE** guard. See the working-tree bullet above and `reports/fix-plan.md`.
 
 ## 2026-08-12 — C1-CORE: declaration capture + HRA metro derivation SHIPPED (`362abc5`)
 
@@ -716,20 +758,22 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31584256191` — commit `362abc5` (C1-CORE: migration `0080` adds `organizations.entity_type` +
-the `tax_declarations` table with its RLS wall; HRA metro derived from city; investment-declaration capture
-wired at the payroll run and the payslip PDF) — terminal `Deploy to Vultr` job `success` on **attempt 1, no
-reboot** — 2026-08-12 — migration head `0080_worried_firestar`, 239 base tables.** Verified via `gh run view
-31584256191 --json jobs` (all five jobs `success`; terminal `Deploy to Vultr` = `success`) and
-`connect.coheron.tech/api/health` returning `version: 362abc5c839…`. This is LIVE on `connect.coheron.tech`.
-The api container is running image `362abc5` **healthy**; its `CMD` is `node dist/migrate.mjs && node
-dist/index.mjs` (`apps/api/Dockerfile:62`, exit 1 on migrate failure), so a booted server means `0080`
-applied — **including the ENABLE + FORCE ROW LEVEL SECURITY + `tenant_isolation` policy on `tax_declarations`,
-which are in the same `0080.sql` file** (lines 36–49). A direct prod `pg_class.relforcerowsecurity` query was
-**not** run (needs DB credentials this environment does not hold); the boot-implies-applied chain plus the
-migration-file contents are the verification of record. `362abc5` includes `1e42d6e` (SURFACES), `ec2b7a9`
-(intake), `db37bb4` (PRUNE-PREFLIGHT), `807aa19` (DEPLOY-HARDENING), `adeb2be` (Base Pay composition),
-`8b4191a` (statutory wage config), `6b08414` (statutory-filing loop) and earlier as ancestors.
+**CI run `31701625521` — commit `f487ee8` (PO-GATE: creation-time value threshold on Direct POs, stored in
+`organizations.settings.procurement` JSON — no migration) — terminal `Deploy to Vultr` job `success` on
+**attempt 1** — 2026-08-14 — migration head `0082_chilly_husk`, 240 base tables.** Verified via `gh run view
+31701625521 --json jobs` (all five jobs `success`; terminal `Deploy to Vultr` = `success`) and
+`connect.coheron.tech/api/health` returning `version: f487ee81b2…`. This is LIVE on `connect.coheron.tech`.
+The api container runs image `f487ee8` **healthy**; its `CMD` is `node dist/migrate.mjs && node dist/index.mjs`
+(`apps/api/Dockerfile:62`, exit 1 on migrate failure), so a booted server means `0082` applied — **including
+the ENABLE + FORCE ROW LEVEL SECURITY + `tenant_isolation` policy on `final_settlements`, which are in the
+same `0082.sql`** (a direct prod `pg_class.relforcerowsecurity` query was **not** run — no DB credentials
+here; boot-implies-applied plus the migration-file contents are the verification of record). Pre-flight disk
+read **`42GB free`**; the retention prune ran and **reclaimed nothing** (no image past 168h yet). `f487ee8`
+includes `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + procurement F18/F2/multi-line-GST + migration `0082`),
+`f534f7b` (F9 TDS projection), `5c5490d`/`362abc5` (C1 declarations, migration `0080`/`0081`) and earlier as
+ancestors.
+
+**Superseded exit points (decision-history):** CI `31584256191` / `362abc5` / head `0080` (C1-CORE, 2026-08-12).
 
 _**PRUNE-PREFLIGHT trend — disk gently declining, not refilling.** Verified pre-flight `df` reads across the
 run: `ec2b7a9` **47GB** → `1e42d6e` **46GB** → `362abc5` **45GB** (each `≥ 10GB — no prune needed`), on top of

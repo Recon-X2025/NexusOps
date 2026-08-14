@@ -69,7 +69,8 @@ export default function SignupPage() {
           <h2 className="mb-1 text-h4 font-semibold text-white">Create your workspace</h2>
           <p className="mb-6 text-body-sm text-slate-400">Free forever. No credit card required.</p>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* method="post": a pre-hydration native submit must not put the password in the URL. */}
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Your name</label>

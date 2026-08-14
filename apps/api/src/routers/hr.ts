@@ -1599,10 +1599,12 @@ export const hrRouter = router({
         // matches what a real run writes. `slip` is remapped to the previous response
         // shape so the endpoint contract is unchanged.
         const { computeEmployeePayslip } = await import("../lib/payroll-cycle.js");
-        const { buildEmployeePayrollInput } = await import("../services/payroll-run-aggregates.js");
+        const { buildEmployeePayrollInput, buildYtdContext } = await import("../services/payroll-run-aggregates.js");
         const { resolveStatutoryCeilings } = await import("../lib/india/statutory-ceilings.js");
         const ceilings = await resolveStatutoryCeilings(db, org!.id, new Date(year, month - 1, 1));
-        const empInput = buildEmployeePayrollInput(emp, structure, month, year);
+        // PR5: this preview must show the same running YTD as the stored payslip.
+        const ytd = (await buildYtdContext(db, org!.id, [{ emp }], month, year)).get(emp.id);
+        const empInput = buildEmployeePayrollInput(emp, structure, month, year, undefined, undefined, undefined, ytd);
         const ps = computeEmployeePayslip(empInput, fyMonth, ceilings);
         const tc = ps.taxComputation;
 
@@ -1739,10 +1741,12 @@ export const hrRouter = router({
         // `payroll.runs.computePayslips`). Remapped to the previous `SalarySlipOutput`
         // shape so the endpoint contract is unchanged.
         const { computeEmployeePayslip } = await import("../lib/payroll-cycle.js");
-        const { buildEmployeePayrollInput } = await import("../services/payroll-run-aggregates.js");
+        const { buildEmployeePayrollInput, buildYtdContext } = await import("../services/payroll-run-aggregates.js");
         const { resolveStatutoryCeilings } = await import("../lib/india/statutory-ceilings.js");
         const ceilings = await resolveStatutoryCeilings(db, org!.id, new Date(input.year, input.month - 1, 1));
-        const empInput = buildEmployeePayrollInput(emp, structure, input.month, input.year);
+        // PR5: this preview must show the same running YTD as the stored payslip.
+        const ytd = (await buildYtdContext(db, org!.id, [{ emp }], input.month, input.year)).get(emp.id);
+        const empInput = buildEmployeePayrollInput(emp, structure, input.month, input.year, undefined, undefined, undefined, ytd);
         const ps = computeEmployeePayslip(empInput, fyMonth, ceilings);
 
         return {
