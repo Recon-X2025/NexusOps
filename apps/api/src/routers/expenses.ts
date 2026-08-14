@@ -190,10 +190,23 @@ export const expensesRouter = router({
   addItem: protectedProcedure
     .input(expenseItemInput)
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       // Insert + total recompute + report update must be atomic: a failure
       // between them would leave the report total out of sync with its items.
       return db.transaction(async (tx) => {
+        // AUTHZ (sweep): confine item writes to the caller's OWN draft report, mirroring
+        // updateReport (submittedById + status=draft). Without this any member could add
+        // line items to ANY report by reportId and move its money total.
+        const [owned] = await tx
+          .select({ id: expenseReports.id })
+          .from(expenseReports)
+          .where(and(
+            eq(expenseReports.id, input.reportId),
+            eq(expenseReports.orgId, org!.id),
+            eq(expenseReports.submittedById, user!.id),
+            eq(expenseReports.status, "draft"),
+          ));
+        if (!owned) throw new TRPCError({ code: "NOT_FOUND" });
         const [item] = await tx
           .insert(expenseItems)
           .values({
@@ -231,10 +244,21 @@ export const expensesRouter = router({
   deleteItem: protectedProcedure
     .input(z.object({ id: z.string().uuid(), reportId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       // Delete + total recompute + report update must be atomic: a failure
       // between them would leave the report total out of sync with its items.
       return db.transaction(async (tx) => {
+        // AUTHZ (sweep): confine item deletes to the caller's OWN draft report (see addItem).
+        const [owned] = await tx
+          .select({ id: expenseReports.id })
+          .from(expenseReports)
+          .where(and(
+            eq(expenseReports.id, input.reportId),
+            eq(expenseReports.orgId, org!.id),
+            eq(expenseReports.submittedById, user!.id),
+            eq(expenseReports.status, "draft"),
+          ));
+        if (!owned) throw new TRPCError({ code: "NOT_FOUND" });
         await tx
           .delete(expenseItems)
           .where(and(

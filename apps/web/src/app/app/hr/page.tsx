@@ -567,9 +567,11 @@ export default function HRPage() {
     })
   );
 
-  // India payroll compliance — TDS challans + EPFO ECR
+  // India payroll compliance — TDS challans + EPFO ECR (+ ESI/PT, read-only: F13)
   const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.tdsChallans.list", { refetchOnWindowFocus: false }));
   const epfoEcrQuery     = trpc.indiaCompliance.epfoEcr.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.epfoEcr.list", { refetchOnWindowFocus: false }));
+  const esiChallansQuery = trpc.indiaCompliance.esiChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.esiChallans.list", { refetchOnWindowFocus: false }));
+  const ptChallansQuery  = trpc.indiaCompliance.ptChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.ptChallans.list", { refetchOnWindowFocus: false }));
   const markTdsPaid      = trpc.indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const markEcrSubmitted = trpc.indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const createHRCase = trpc.hr.cases.create.useMutation({
@@ -610,6 +612,8 @@ export default function HRPage() {
   const [archiveNote, setArchiveNote] = useState("");
   const tdsChallans: any[] = tdsChallansQuery.data ?? [];
   const epfoEcrs: any[]    = epfoEcrQuery.data ?? [];
+  const esiChallans: any[] = esiChallansQuery.data ?? [];
+  const ptChallans: any[]  = ptChallansQuery.data ?? [];
 
   const [tdsPanel, setTdsPanel]   = useState<string | null>(null);
   const [tdsForm, setTdsForm]     = useState({ bsrCode: "", challanNumber: "", paymentDate: new Date().toISOString().split("T")[0], totalDeposited: "" });
@@ -3053,6 +3057,67 @@ export default function HRPage() {
                         </tr>
                       )}
                       </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* ESI challans (read-only — F13: generateStatutory writes esi_challan_records;
+                surfaced here so all four statutory artefacts are reachable). No markPaid
+                procedure exists for ESI/PT yet, hence read-only. */}
+            <div className="border border-border rounded overflow-hidden">
+              <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">ESI Challans</span>
+                {esiChallansQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+              </div>
+              {esiChallans.length === 0 && !esiChallansQuery.isLoading ? (
+                <div className="py-6 text-center text-[12px] text-muted-foreground/50">No ESI challans recorded — generated when payroll statutory generation runs.</div>
+              ) : (
+                <table className="ent-table w-full">
+                  <thead><tr>
+                    <th>Wage Month</th><th>Employees</th><th>ESI (Employee)</th><th>ESI (Employer)</th><th>Total</th><th>Challan #</th><th>Status</th>
+                  </tr></thead>
+                  <tbody>
+                    {esiChallans.map((c: any) => (
+                      <tr key={c.id}>
+                        <td className="font-mono text-[11px] text-primary">{c.month}/{c.year}</td>
+                        <td className="text-center font-semibold">{c.totalEmployees ?? "—"}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(c.totalEmployeeContribution ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(c.totalEmployerContribution ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right font-semibold text-foreground">₹{(Number(c.totalEmployeeContribution ?? 0) + Number(c.totalEmployerContribution ?? 0)).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{c.challanNumber ?? "—"}</td>
+                        <td><span className={`status-badge text-[10px] ${c.submittedAt ? "text-green-700 bg-green-100" : "text-orange-700 bg-orange-100"}`}>{c.submittedAt ? "submitted" : "pending"}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Professional Tax challans (read-only — F13) */}
+            <div className="border border-border rounded overflow-hidden">
+              <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">Professional Tax Challans</span>
+                {ptChallansQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+              </div>
+              {ptChallans.length === 0 && !ptChallansQuery.isLoading ? (
+                <div className="py-6 text-center text-[12px] text-muted-foreground/50">No PT challans recorded — generated when payroll statutory generation runs.</div>
+              ) : (
+                <table className="ent-table w-full">
+                  <thead><tr>
+                    <th>State</th><th>Wage Month</th><th>Employees</th><th>PT Deducted</th><th>Challan #</th><th>Status</th>
+                  </tr></thead>
+                  <tbody>
+                    {ptChallans.map((c: any) => (
+                      <tr key={c.id}>
+                        <td className="font-mono text-[11px]">{c.stateCode ?? "—"}</td>
+                        <td className="font-mono text-[11px] text-primary">{c.month}/{c.year}</td>
+                        <td className="text-center font-semibold">{c.totalEmployees ?? "—"}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(c.totalPtDeducted ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{c.challanNumber ?? "—"}</td>
+                        <td><span className={`status-badge text-[10px] ${c.submittedAt ? "text-green-700 bg-green-100" : "text-orange-700 bg-orange-100"}`}>{c.submittedAt ? "submitted" : "pending"}</span></td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>

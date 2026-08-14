@@ -204,6 +204,28 @@ export const accountingRouter = router({
       const { org, db } = ctx;
       const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const { id, ...updates } = input;
+      // F15/COA: SYSTEM accounts (CGST/SGST/IGST ITC, TDS Receivable, the roll-up parents…) are
+      // resolved by CODE for GST/TDS/invoice postings. code/type/subType are already immutable here
+      // (not in the input), but a rename or deactivate of a system account is still wrong — it makes
+      // a posting account vanish from the UI and rewrites what past journal lines appear to mean.
+      // Refuse any edit to a system account. (Balance is never editable — it is derived from journal
+      // entries and is not a column on this update.)
+      // Guard ONLY the system-account case — leave the not-found / cross-tenant path as the
+      // existing silent no-op (the orgId in the update's where-clause already gives tenant
+      // isolation; tenant-isolation.test relies on that no-op, so do not turn it into a throw).
+      const [target] = await db
+        .select({ isSystem: chartOfAccounts.isSystem })
+        .from(chartOfAccounts)
+        .where(dbAnd(dbEq(chartOfAccounts.id, id), dbEq(chartOfAccounts.orgId, org!.id)))
+        .limit(1);
+      if (target?.isSystem) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "This is a system account (used by automated GST/TDS/invoice postings) and cannot be " +
+            "renamed or deactivated. Create a separate account if you need a custom one.",
+        });
+      }
       const [acct] = await db.update(chartOfAccounts).set({ ...updates, updatedAt: new Date() })
         .where(dbAnd(dbEq(chartOfAccounts.id, id), dbEq(chartOfAccounts.orgId, org!.id))).returning();
       return acct!;

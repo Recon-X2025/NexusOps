@@ -582,6 +582,27 @@
       "when": 1786615419424,
       "tag": "0082_chilly_husk",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1786715920914,
+      "tag": "0083_wooden_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1786720375844,
+      "tag": "0084_bright_roland_deschain",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1786721721122,
+      "tag": "0085_cloudy_jack_murdock",
+      "breakpoints": true
     }
   ]
 }

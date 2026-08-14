@@ -26,6 +26,22 @@ import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
 import { panColumnsTolerant, employeePanField } from "../lib/pan";
 import { currentFY } from "./accounting";
+import { SalaryStructureFormSchema } from "./payroll";
+
+/**
+ * Salary-structure import template — the SINGLE source for both the downloadable template and
+ * the importer's required-column check, so the two cannot drift (SHA-DRIFT precedent). Basic is
+ * derived (50 − DA), so it is deliberately NOT a column.
+ */
+const STRUCTURE_TEMPLATE_COLUMNS = [
+  { key: "structure_name", required: true, note: "The employee importer links on this — must match exactly" },
+  { key: "base_pay_annual", required: true, note: "The payslip's Gross Earnings × 12. Includes the employee's own PF; excludes employer PF, gratuity, bonus" },
+  { key: "da_percent", required: true, note: "0 for basic-alone. Basic is derived as 50 − DA, not supplied" },
+  { key: "hra_percent_of_basic", required: true, note: "40 or 50 typical — what is paid, unrelated to the exemption cap" },
+  { key: "lta_annual", required: false, note: "Default 0. Sits inside Base Pay" },
+  { key: "effective_from", required: true, note: "YYYY-MM-DD" },
+  { key: "effective_to", required: false, note: "Blank = open-ended" },
+] as const;
 
 const MatterIngestSchema = z.object({
     title: z.string().min(1),
@@ -773,4 +789,144 @@ export const ingestRouter = router({
                 wouldImport: input.dryRun ? wouldImport : ids.length,
             };
         }),
+
+    /**
+     * Bulk-create salary structures (UNIT B). Same posture as importEmployees: DRY RUN BY
+     * DEFAULT, skip-the-bad-row-and-report, never abort the batch. Validation goes through the
+     * form's own `SalaryStructureFormSchema` (not a copy) so a rule cannot live on one path and
+     * not the other. Basic is DERIVED (50 − DA) — the template never asks for it. Structures must
+     * be imported BEFORE employees, because the employee importer links to a structure by name.
+     */
+    importStructures: permissionProcedure("payroll", "write")
+        .input(z.object({
+            dryRun: z.boolean().default(true),
+            columns: z.array(z.string()),
+            rows: z.array(z.record(z.string(), z.string().nullish())).min(1),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { db, org } = ctx;
+            const orgId = org!.id;
+
+            // File-level: every REQUIRED template column must be present (nothing written).
+            const missingCols = STRUCTURE_TEMPLATE_COLUMNS
+                .filter((c) => c.required && !input.columns.includes(c.key))
+                .map((c) => c.key);
+            if (missingCols.length > 0) {
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: `The uploaded file is missing required column(s): ${missingCols.join(", ")}. Nothing was imported.`,
+                });
+            }
+
+            // Existing family names (case-insensitive). A duplicate name would make the employee
+            // importer's name→family lookup AMBIGUOUS (it refuses >1 family per name), so an
+            // existing name is a per-row skip — consistent with the system's existing handling of
+            // duplicate structure names, not a new rule. (The form itself has no name uniqueness.)
+            const existing = await db
+                .select({ name: salaryStructures.structureName })
+                .from(salaryStructures)
+                .where(and(eq(salaryStructures.orgId, orgId), eq(salaryStructures.isArchived, false)));
+            const existingNames = new Set(existing.map((s) => s.name.trim().toLowerCase()));
+            const seenNames = new Set<string>();
+
+            const reqNum = (v: unknown, label: string): number => {
+                const t = required(cleanStr(v as string | undefined), `${label} is required`);
+                const n = Number(t);
+                if (!Number.isFinite(n)) throw new EmployeeRowError(`${label} must be a number (got "${t}")`);
+                return n;
+            };
+
+            const ids: string[] = [];
+            const skipped: Array<{ row: number; identifier: string; reason: string }> = [];
+            let wouldImport = 0;
+            let rowNum = 0;
+
+            for (const raw of input.rows) {
+                rowNum++;
+                const nameRaw = cleanStr(raw.structure_name as string | undefined);
+                const identifier = nameRaw ?? `row ${rowNum}`;
+                try {
+                    const structureName = required(nameRaw, "structure_name is required");
+                    const key = structureName.toLowerCase();
+                    if (existingNames.has(key)) {
+                        throw new EmployeeRowError(
+                            `a salary structure named "${structureName}" already exists — importing would create a duplicate the employee importer cannot resolve by name`,
+                        );
+                    }
+                    if (seenNames.has(key)) {
+                        throw new EmployeeRowError(`structure name "${structureName}" is duplicated earlier in this file`);
+                    }
+
+                    // Composition rule, named explicitly (not a generic rejection): Basic is DERIVED
+                    // as 50 − DA, so DA must be 0–50. A migrating customer whose old Basic was 20–35%
+                    // sets DA 15–30; a value outside the range is what this refuses.
+                    const daPercent = reqNum(raw.da_percent, "da_percent");
+                    if (daPercent < 0 || daPercent > 50) {
+                        throw new EmployeeRowError(
+                            `DA % must be between 0 and 50 — Basic is derived as 50 − DA (you gave DA ${daPercent}%, which makes Basic ${50 - daPercent}%). A typical IT/retail Basic of 20–35% means a DA of 15–30.`,
+                        );
+                    }
+                    const ltaRaw = cleanStr(raw.lta_annual as string | undefined);
+                    const candidate = {
+                        structureName,
+                        ctcAnnual: reqNum(raw.base_pay_annual, "base_pay_annual"),
+                        basicPercent: 50 - daPercent, // DERIVED
+                        daPercent,
+                        hraPercentOfBasic: reqNum(raw.hra_percent_of_basic, "hra_percent_of_basic"),
+                        ltaAnnual: ltaRaw ? Number(ltaRaw) : 0,
+                        effectiveFrom: required(cleanStr(raw.effective_from as string | undefined), "effective_from is required"),
+                        effectiveTo: cleanStr(raw.effective_to as string | undefined),
+                    };
+                    // Validate through the FORM's schema — the one object, not a copy.
+                    const parsed = SalaryStructureFormSchema.safeParse(candidate);
+                    if (!parsed.success) {
+                        const issue = parsed.error.issues[0]!;
+                        throw new EmployeeRowError(`${(issue.path ?? []).join(".") || "row"}: ${issue.message}`);
+                    }
+
+                    wouldImport++;
+                    seenNames.add(key);
+                    if (!input.dryRun) {
+                        const v = parsed.data;
+                        const newId = crypto.randomUUID();
+                        await db.insert(salaryStructures).values({
+                            id: newId,
+                            orgId,
+                            familyId: newId,
+                            structureName: v.structureName,
+                            ctcAnnual: v.ctcAnnual.toFixed(2),
+                            basicPercent: v.basicPercent.toFixed(2),
+                            daPercent: v.daPercent.toFixed(2),
+                            hraPercentOfBasic: v.hraPercentOfBasic.toFixed(2),
+                            ltaAnnual: v.ltaAnnual.toFixed(2),
+                            effectiveFrom: v.effectiveFrom,
+                            effectiveTo: v.effectiveTo ?? null,
+                        });
+                        ids.push(newId);
+                    }
+                } catch (e) {
+                    if (e instanceof EmployeeRowError) {
+                        skipped.push({ row: rowNum, identifier, reason: e.message });
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+
+            return {
+                imported: ids.length,
+                ids,
+                skipped,
+                dryRun: input.dryRun,
+                wouldImport: input.dryRun ? wouldImport : ids.length,
+            };
+        }),
+
+    /** Downloadable structure-import template — GENERATED from STRUCTURE_TEMPLATE_COLUMNS, so it
+     *  cannot drift from what importStructures accepts. */
+    structureImportTemplate: permissionProcedure("payroll", "read").query(() => ({
+        columns: STRUCTURE_TEMPLATE_COLUMNS.map((c) => ({ key: c.key, required: c.required, note: c.note })),
+        headerRow: STRUCTURE_TEMPLATE_COLUMNS.map((c) => c.key),
+        note: "Import structures BEFORE employees — the employee importer links to a structure by its exact name. Basic is derived as 50 − DA and is not a column.",
+    })),
 });

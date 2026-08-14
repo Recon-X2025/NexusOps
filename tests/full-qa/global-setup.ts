@@ -7,6 +7,7 @@
 import { chromium, type FullConfig } from "@playwright/test";
 import * as path from "path";
 import * as fs from "fs";
+import { loginAs } from "./helpers";
 
 const BASE_URL =
   process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
@@ -29,14 +30,10 @@ export default async function globalSetup(_config: FullConfig) {
 
   try {
     console.log(`🔑 Global setup: logging in to ${BASE_URL}...`);
-    await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 30_000 });
-
-    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-    const pwInput    = page.locator('input[type="password"]').first();
-    await emailInput.fill("admin@coheron.com", { timeout: 10_000 });
-    await pwInput.fill("demo1234!", { timeout: 5_000 });
-    await page.locator('button[type="submit"]').first().click({ timeout: 5_000 });
-    await page.waitForURL(/\/app\//, { timeout: 30_000 });
+    // Programmatic login (shared helper), NOT the UI form — see loginAs in helpers.ts
+    // for why the form races here. loginAs installs the session cookie via the context
+    // jar + localStorage; storageState then persists both for every test.
+    await loginAs(page);
 
     // Save auth state (cookies + localStorage)
     fs.mkdirSync(path.dirname(AUTH_STATE_FILE), { recursive: true });

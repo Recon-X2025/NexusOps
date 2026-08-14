@@ -1126,6 +1126,35 @@ async function versionHasPayslips(
   });
 }
 
+/**
+ * Server-side salary-structure validation — the ONE schema, shared by the form's `upsert`
+ * AND the bulk importer (ingest.structures), so a rule cannot live on a copy the other path
+ * skips (the class of defect behind the leave-date refine). `ctcAnnual` is Base Pay (gross).
+ * Basic is DERIVED (50 − DA) and rendered read-only in the form; the refine is the backstop.
+ */
+export const SalaryStructureFormSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    structureName: z.string().min(1).max(200),
+    ctcAnnual: z.coerce.number().nonnegative(),
+    basicPercent: z.coerce.number().min(0).max(100).default(50),
+    daPercent: z.coerce.number().min(0).max(100).default(0),
+    hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
+    ltaAnnual: z.coerce.number().nonnegative().default(0),
+    medicalAllowanceAnnual: z.coerce.number().nonnegative().default(0),
+    conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(0),
+    bonusAnnual: z.coerce.number().nonnegative().default(0),
+    effectiveFrom: z.coerce.date(),
+    effectiveTo: z.coerce.date().nullish(),
+  })
+  // Composition guard: Basic + DA is the statutory 50% wage-base core, so Basic % + DA % must
+  // equal 50. Basic is derived 50 − DA and read-only in the form; this is the backstop for any
+  // direct caller (and the importer, which derives Basic before validating here).
+  .refine((d) => Math.abs(d.basicPercent + d.daPercent - 50) < 0.001, {
+    message: "Basic % + DA % must equal 50 (Basic is derived as 50 − DA).",
+    path: ["basicPercent"],
+  });
+
 const salaryStructuresRouter = router({
   // Assign-time list: one row per FAMILY (the latest live version), so a superseded
   // version is readable elsewhere but never appears as a selectable option here.
@@ -1161,30 +1190,7 @@ const salaryStructuresRouter = router({
     }),
 
   upsert: permissionProcedure("payroll", "write")
-    .input(
-      z
-        .object({
-          id: z.string().uuid().optional(),
-          structureName: z.string().min(1).max(200),
-          ctcAnnual: z.coerce.number().nonnegative(),
-          basicPercent: z.coerce.number().min(0).max(100).default(50),
-          daPercent: z.coerce.number().min(0).max(100).default(0),
-          hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
-          ltaAnnual: z.coerce.number().nonnegative().default(0),
-          medicalAllowanceAnnual: z.coerce.number().nonnegative().default(0),
-          conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(0),
-          bonusAnnual: z.coerce.number().nonnegative().default(0),
-          effectiveFrom: z.coerce.date(),
-          effectiveTo: z.coerce.date().nullish(),
-        })
-        // Composition guard (server-side, not only the form): Basic + DA is the statutory 50%
-        // wage-base core, so Basic % + DA % must equal 50. The form derives Basic = 50 − DA and
-        // renders it read-only; this refine is the backstop for any direct tRPC caller.
-        .refine((d) => Math.abs(d.basicPercent + d.daPercent - 50) < 0.001, {
-          message: "Basic % + DA % must equal 50 (Basic is derived as 50 − DA).",
-          path: ["basicPercent"],
-        }),
-    )
+    .input(SalaryStructureFormSchema)
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const values = {

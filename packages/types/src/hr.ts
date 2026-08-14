@@ -20,6 +20,8 @@ export const HRCaseTypeEnum = z.enum([
 // "correct" the labels back to the stored values; the taxonomy rename is the deferred LEAVE-ENUM-REBUILD.
 export const LeaveTypeEnum = z.enum([
   "primary", "annual", "vacation", "sick", "parental", "bereavement", "unpaid", "other",
+  // LEAVE-MODEL additions — must track leaveTypeEnum in packages/db (schema/hr.ts).
+  "casual", "maternity", "paternity", "marriage", "compensatory_off",
 ]);
 export const LeaveStatusEnum = z.enum(["pending", "approved", "rejected", "cancelled"]);
 

@@ -17,7 +17,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { BASE_URL, apiCall, extractTrpcJson, pageHasCrash } from "./helpers";
+import { BASE_URL, apiCall, extractTrpcJson, pageHasCrash, loginAs } from "./helpers";
 
 // ── Role credentials ──────────────────────────────────────────────────────────
 const ROLES = {
@@ -34,13 +34,10 @@ type RoleKey = keyof typeof ROLES;
 
 async function loginRole(page: Page, role: RoleKey) {
   const { email, password } = ROLES[role];
-  await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-  const pwInput    = page.locator('input[type="password"]').first();
-  await emailInput.fill(email, { timeout: 10_000 });
-  await pwInput.fill(password, { timeout: 5_000 });
-  await page.locator('button[type="submit"]').first().click();
-  await page.waitForURL(/\/app\//, { timeout: 25_000 });
+  // Programmatic login (see loginAs) — the UI form races on pre-hydration submit.
+  // loginAs replaces the ambient admin session (from the global storageState) with
+  // this role's session via the context cookie jar + localStorage.
+  await loginAs(page, email, password);
 }
 
 // ── Helper: expect 200 ────────────────────────────────────────────────────────
@@ -317,19 +314,19 @@ test.describe("09-H Unauthenticated: all API calls return 401", () => {
 
   test("unauthenticated: tickets.list → 401", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-    const res = await apiCall(page, "tickets.list");
+    const res = await apiCall(page, "tickets.list", {}, "GET", { auth: false });
     expect([401, 403]).toContain(res.status);
   });
 
   test("unauthenticated: admin.users.list → 401", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-    const res = await apiCall(page, "admin.users.list");
+    const res = await apiCall(page, "admin.users.list", {}, "GET", { auth: false });
     expect([401, 403]).toContain(res.status);
   });
 
   test("unauthenticated: financial.listInvoices → 401", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-    const res = await apiCall(page, "financial.listInvoices");
+    const res = await apiCall(page, "financial.listInvoices", {}, "GET", { auth: false });
     expect([401, 403]).toContain(res.status);
   });
 });

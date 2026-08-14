@@ -18,6 +18,7 @@ import {
 } from "@coheronconnect/db";
 
 import { writeWizardData, DuplicateGstinError } from "../services/orgWizardWrite";
+import { checkDbUserPermission } from "../lib/rbac-db";
 import { PAYROLL_EMPLOYED_STATUSES } from "../services/payroll-run-aggregates";
 
 export const profileSchema = z.object({
@@ -352,6 +353,19 @@ export const onboardingRouter = router({
       const { db, org, user } = ctx;
       const orgId = org!.id;
 
+      // AUTHZ (sweep): writeWizardData writes org-wide statutory identity — GSTIN
+      // registry, PF, entity config. Gate on payroll.write, the same money-domain gate
+      // as onboarding.updateStatutoryIdentity; requester/member is denied, admin +
+      // hr_manager/hr_analyst pass.
+      const role = String(user!.role ?? "");
+      const matrixRole = user!.matrixRole as string | null | undefined;
+      if (!checkDbUserPermission(role, "payroll", "write", matrixRole)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Permission denied: payroll.write required to write onboarding / statutory config",
+        });
+      }
+
       try {
         await writeWizardData(db, orgId, input, {
           type: "tenant_user",
@@ -391,6 +405,21 @@ export const onboardingRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      // AUTHZ (STATUTORY-IDENTITY-UNGATED): this writes org-level statutory config —
+      // EPF code and the PF contribution RATE among them. Without an in-body check any
+      // authenticated org member could change the PF rate and silently miscompute every
+      // employee's provident fund. Gate on payroll.write (the money domain being
+      // protected): requester/member lacks it, admin/owner + hr_manager/hr_analyst have
+      // it — same shape as payroll.runs.approve (payroll.ts:731). Org-scoped, no cross-
+      // tenant reach; the RLS wall does not stop a same-org member, so this gate is it.
+      const role = String(ctx.user!.role ?? "");
+      const matrixRole = ctx.user!.matrixRole as string | null | undefined;
+      if (!checkDbUserPermission(role, "payroll", "write", matrixRole)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Permission denied: payroll.write required to change statutory identity / PF configuration",
+        });
+      }
       const updateFields: Record<string, unknown> = {};
       if (input.epfCode !== undefined) updateFields.epfCode = input.epfCode || null;
       if (input.esiEstablishmentNumber !== undefined)
@@ -426,6 +455,16 @@ export const onboardingRouter = router({
     .mutation(async ({ ctx }) => {
       const { db, org, user } = ctx;
       const orgId = org!.id;
+      // AUTHZ (sweep): flips org-wide onboarding-completion state. Gate on
+      // onboarding.write — requester/member denied, admin + hr roles pass.
+      const role = String(user!.role ?? "");
+      const matrixRole = user!.matrixRole as string | null | undefined;
+      if (!checkDbUserPermission(role, "onboarding", "write", matrixRole)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Permission denied: onboarding.write required to complete onboarding",
+        });
+      }
       await db.update(organizations).set({
         onboardingStep: 7,
         onboardingCompletedAt: new Date(),

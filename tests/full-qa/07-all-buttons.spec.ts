@@ -34,8 +34,13 @@ async function clickAllButtons(page: Page, context: string) {
   const btns = await page.locator("button:visible:not([disabled])").all();
   for (const btn of btns) {
     const text = (await btn.textContent().catch(() => "")).trim().slice(0, 40);
-    // Skip destructive-looking buttons to avoid data damage
+    // Skip destructive-looking buttons to avoid data damage.
     if (/delete|remove|destroy|purge|drop/i.test(text)) continue;
+    // Skip session/identity controls too: signing out or changing the logged-in
+    // user's role/status calls auth.logout / admin.updateUser, which delete the
+    // SHARED session every other spec relies on (deletes by userId, not sessionId),
+    // 401-ing the whole suite mid-run. Not this spec's job to test those here.
+    if (/sign\s?out|log\s?out|logout|deactivate|suspend|disable user|revoke|change role|reset password/i.test(text)) continue;
     await btn.click({ force: true, timeout: 2_000 }).catch(() => {});
     await page.waitForTimeout(300);
     await crashCheck(page, `${context} → button "${text}"`);
@@ -57,7 +62,9 @@ async function clickAllTabs(page: Page, context: string) {
 // ── Suite ─────────────────────────────────────────────────────────────────────
 test.describe("07 — All Buttons & Interactive Elements", () => {
   test.describe.configure({ mode: "parallel" });
-  test.setTimeout(90_000);
+  // Clicking every button on a dense page (300ms settle each) + tab sweep is slow,
+  // and slower still under full-suite load; 90s times out on the busiest pages.
+  test.setTimeout(180_000);
 
   // Helper: navigate, click every button, check tabs
   async function testPageInteractivity(page: Page, path: string, label: string) {
@@ -292,6 +299,9 @@ test.describe("07 — All Buttons & Interactive Elements", () => {
 
   // ── Navigation sidebar links ──────────────────────────────────────────────
   test("all sidebar navigation links are clickable and don't 404", async ({ page }) => {
+    // Sweeps EVERY sidebar route; against a Next dev server each first visit compiles
+    // the route on demand (seconds), so the full sweep can take minutes on a cold run.
+    test.setTimeout(300_000);
     await goto(page, "/app/dashboard");
     const navLinks = await page.locator("nav a[href], aside a[href]").all();
     const visited = new Set<string>();
@@ -304,7 +314,6 @@ test.describe("07 — All Buttons & Interactive Elements", () => {
       visited.add(href);
 
       await page.goto(`${BASE_URL}${href}`, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
-      await page.waitForTimeout(300);
       const body = await page.locator("body").innerText({ timeout: 3_000 }).catch(() => "");
       const has404 = body.includes("404") && body.includes("not found");
       if (has404) {

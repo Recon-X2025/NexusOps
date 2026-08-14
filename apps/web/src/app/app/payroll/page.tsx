@@ -465,17 +465,23 @@ export default function PayrollPage() {
                             Step {idx + 1}: {step.label}
                           </span>
 
-                          {/* Action button for current step. Per-step authority
-                              mirrors the API: Finance/CFO approval needs
-                              financial.write; every other step (lock, compute,
-                              HR approve, generate, complete) stays on the payroll
-                              operator's hr.write. This lets the Finance/CFO
-                              approver reach their own control without widening
-                              any compute/lock/generate path. */}
+                          {/* Action button for current step. Per-step authority must
+                              MIRROR the API (F12 — a coarser gate shows the control to
+                              roles that then 403 on click):
+                                • FINANCE/CFO approval → financial.write (approveRun)
+                                • HR approval          → hr.write        (approveRun)
+                                • every operational step (lock, compute, generate,
+                                  complete) → payroll.write — those procedures are
+                                  permissionProcedure("payroll","write"). Previously
+                                  they gated on hr.write, so a user with hr.write but
+                                  not payroll.write (e.g. a CFO) saw the statutory
+                                  Execute and got a 403. */}
                           {isCurrent && run.status !== "COMPLETED" && run.status !== "FAILED" &&
                             (step.key === "FINANCE_APPROVED" || step.key === "CFO_APPROVED"
                               ? can("financial", "write")
-                              : can("hr", "write")) && (
+                              : step.key === "HR_APPROVED"
+                              ? can("hr", "write")
+                              : can("payroll", "write")) && (
                             <button
                               onClick={() => {
                                 if (step.key === "PERIOD_LOCKED") {

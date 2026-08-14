@@ -130,9 +130,9 @@ test.describe("12-A ITSM Full Cycle", () => {
       page,
       "workOrders.create",
       {
-        title: `E2E-WorkOrder-${suffix}`,
+        shortDescription: `E2E-WorkOrder-${suffix}`,
         description: "Field service work order for E2E journey",
-        priority: "medium",
+        priority: "3_moderate",
         type: "corrective",
       },
       "POST",
@@ -219,10 +219,11 @@ test.describe("12-C Procurement-to-Pay Journey", () => {
       "procurement.purchaseRequests.create",
       {
         title: `E2E-PR-${suffix}`,
-        description: "E2E procurement journey test",
-        amount: 5000,
-        currency: "INR",
         justification: "Required for E2E testing",
+        priority: "medium",
+        items: [
+          { description: "E2E procurement journey item", quantity: 1, unitPrice: 5000 },
+        ],
       },
       "POST",
     );
@@ -250,21 +251,27 @@ test.describe("12-C Procurement-to-Pay Journey", () => {
     await nav(page, "/app/dashboard");
     const res = await apiCall(page, "vendors.list");
     expect(res.status).toBe(200);
-    const rows = extractTrpcJson(res.data) as unknown[];
+    // vendors.list is paginated: { items, nextCursor } (unlike bare-array lists).
+    const data = extractTrpcJson(res.data) as { items?: unknown[] } | unknown[];
+    const rows = Array.isArray(data) ? data : (data?.items ?? []);
     expect(Array.isArray(rows)).toBe(true);
   });
 
   test("p2p: financial invoice creation works", async ({ page }) => {
     await nav(page, "/app/dashboard");
     const suffix = Date.now();
+    // createInvoice requires a real vendorId FK — fetch a seeded vendor.
+    const vres = await apiCall(page, "vendors.list");
+    const vendors = extractTrpcJson(vres.data) as { items?: Array<{ id: string }> };
+    const vendorId = vendors.items?.[0]?.id;
+    expect(vendorId, "need a seeded vendor for the invoice FK").toBeTruthy();
     const res = await apiCall(
       page,
       "financial.createInvoice",
       {
-        number: `INV-E2E-${suffix}`,
-        vendorName: "E2E Test Vendor",
-        amount: 5000,
-        currency: "INR",
+        vendorId,
+        invoiceNumber: `INV-E2E-${suffix}`,
+        amount: "5000",
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       },
       "POST",
@@ -293,11 +300,12 @@ test.describe("12-D CRM Lifecycle Journey", () => {
       page,
       "crm.createLead",
       {
-        name: `E2E Lead ${suffix}`,
+        firstName: "E2E",
+        lastName: `Lead ${suffix}`,
         company: "E2E Test Co",
         email: `e2e-lead-${suffix}@test.com`,
-        source: "web",
-        status: "new",
+        phone: "+91-9000000000",
+        source: "website",
       },
       "POST",
     );
@@ -314,11 +322,9 @@ test.describe("12-D CRM Lifecycle Journey", () => {
       page,
       "crm.createDeal",
       {
-        name: `E2E Deal ${suffix}`,
-        stage: "qualification",
-        value: 50000,
-        currency: "INR",
-        closeDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        title: `E2E Deal ${suffix}`,
+        value: "50000",
+        expectedClose: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       },
       "POST",
     );
@@ -353,12 +359,11 @@ test.describe("12-D CRM Lifecycle Journey", () => {
       "contracts.create",
       {
         title: `E2E Contract ${suffix}`,
-        type: "service",
-        value: 50000,
-        currency: "INR",
+        counterparty: "E2E Counterparty Inc",
+        type: "msa",
+        value: "50000",
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "draft",
       },
       "POST",
     );
@@ -558,9 +563,8 @@ test.describe("12-G Security Incident Lifecycle", () => {
         title: `E2E Vuln ${suffix}`,
         description: "E2E vulnerability lifecycle test",
         severity: "high",
-        cvssScore: 7.5,
-        status: "open",
-        affectedAsset: "api-server",
+        cvssScore: "7.5",
+        affectedAssets: ["api-server"],
       },
       "POST",
     );

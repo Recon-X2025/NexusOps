@@ -1,5 +1,6 @@
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
+import { checkDbUserPermission } from "../lib/rbac-db";
 import { z } from "zod";
 import {
   reviewCycles,
@@ -166,8 +167,31 @@ export const performanceRouter = router({
       status: z.enum(["draft","self_review","peer_review","manager_review","calibration","completed"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const { id, ...data } = input;
+      // AUTHZ (sweep): without a scope check any member could rewrite ANY user's review
+      // (overallRating, managerComments, flip status to completed). NOTE hr.write is NOT
+      // a valid gate here — every member holds it (requester). Allow only an HR manager
+      // (hr.admin, which requester lacks) OR a party to THIS review (its reviewee or
+      // reviewer); a plain member is thus confined to their own review row.
+      const [existing] = await db
+        .select({
+          revieweeId: performanceReviews.revieweeId,
+          reviewerId: performanceReviews.reviewerId,
+        })
+        .from(performanceReviews)
+        .where(and(eq(performanceReviews.id, id), eq(performanceReviews.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      const role = String(user!.role ?? "");
+      const matrixRole = user!.matrixRole as string | null | undefined;
+      const isHrManager = checkDbUserPermission(role, "hr", "admin", matrixRole);
+      const isParty = existing.revieweeId === user!.id || existing.reviewerId === user!.id;
+      if (!isHrManager && !isParty) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Permission denied: only an HR manager or a party to this review may update it",
+        });
+      }
       const updates: Partial<typeof performanceReviews.$inferInsert> = { ...data, updatedAt: new Date() };
       if (data.status === "completed") updates.completedAt = new Date();
       const [review] = await db
@@ -253,12 +277,15 @@ export const performanceRouter = router({
       currentValue: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const { id, ...data } = input;
+      // AUTHZ (sweep): owner-scope, mirroring deleteGoal/createGoal — a member may only
+      // edit their OWN goal/OKR, not a colleague's progress/status. (No ownerId filter
+      // previously; orgId-only.)
       const [goal] = await db
         .update(goals)
         .set({ ...data, updatedAt: new Date() })
-        .where(and(eq(goals.id, id), eq(goals.orgId, org!.id)))
+        .where(and(eq(goals.id, id), eq(goals.orgId, org!.id), eq(goals.ownerId, user!.id)))
         .returning();
       if (!goal) throw new TRPCError({ code: "NOT_FOUND" });
       return goal;

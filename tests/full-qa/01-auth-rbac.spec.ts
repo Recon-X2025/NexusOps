@@ -32,21 +32,33 @@ test.describe("A — Login Validation", () => {
 
   test("valid admin login → redirects to /app/", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-    const pwInput = page.locator('input[type="password"]').first();
-    await emailInput.fill(ADMIN_EMAIL);
-    await pwInput.fill(ADMIN_PASSWORD);
-    await page.locator('button[type="submit"]').first().click();
-    await page.waitForURL(/\/app\//, { timeout: 25_000 });
+    // Login is a client-side tRPC mutation that only exists after React hydration; a
+    // pre-hydration submit does a native POST to /login that never authenticates (the
+    // app's method="post" fallback only keeps the password out of the URL). Wait for
+    // hydration, and retry the submit once if the first raced it.
+    const submit = async () => {
+      await page.locator('input[type="email"], input[name="email"]').first().fill(ADMIN_EMAIL);
+      await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD);
+      await page.locator('button[type="submit"]').first().click();
+    };
+    await page.waitForTimeout(1500);
+    await submit();
+    try {
+      await page.waitForURL(/\/app\//, { timeout: 12_000 });
+    } catch {
+      await page.waitForTimeout(1500);
+      await submit();
+      await page.waitForURL(/\/app\//, { timeout: 25_000 });
+    }
     expect(page.url()).toMatch(/\/app\//);
   });
 
   test("wrong password → error message shown, no redirect", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-    const pwInput = page.locator('input[type="password"]').first();
-    await emailInput.fill(ADMIN_EMAIL);
-    await pwInput.fill("WrongPassword999!");
+    // The error surfaces via a client-side toast, which only fires post-hydration.
+    await page.waitForTimeout(1500);
+    await page.locator('input[type="email"], input[name="email"]').first().fill(ADMIN_EMAIL);
+    await page.locator('input[type="password"]').first().fill("WrongPassword999!");
     await page.locator('button[type="submit"]').first().click();
     await page.waitForTimeout(3000);
     // Must stay on login page

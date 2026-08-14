@@ -289,8 +289,10 @@ test.describe("06 — All tRPC Endpoints", () => {
         // Should not be 404 (missing procedure) or 500 (server crash)
         expect(result.status, `${proc} → ${result.status}: ${JSON.stringify(result.data).slice(0, 200)}`).not.toBe(404);
         expect(result.status, `${proc} → 500 server error`).not.toBe(500);
-        // Should return 200 or 401 (if permissions differ) but NOT 404
-        expect([200, 401, 403], `${proc} returned unexpected ${result.status}`).toContain(result.status);
+        // Should return 200 or 401/403 (if permissions differ), or 429 when the
+        // per-user rate limiter trips under the suite's shared-account load
+        // (dashboard.getMetrics is capped at 60/min) — but NOT 404/500.
+        expect([200, 401, 403, 429], `${proc} returned unexpected ${result.status}`).toContain(result.status);
       });
     }
   });

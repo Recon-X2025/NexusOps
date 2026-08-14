@@ -15,9 +15,29 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: false,
   retries: 1,
-  workers: process.env.WORKERS ? parseInt(process.env.WORKERS) : 8,
+  // Default 2 (not 8): the suite drives a single dev API instance as ONE shared
+  // admin account. Higher concurrency saturates per-user rate limits (dashboard
+  // getMetrics is 60/min) and induces a session-wipe race, producing failures that
+  // vanish at lower concurrency (10+12 together: 0 fail @2, dozens @4). Override with
+  // WORKERS=N when pointing at a beefier/isolated target.
+  workers: process.env.WORKERS ? parseInt(process.env.WORKERS) : 2,
   timeout: 60_000,
   globalSetup: require.resolve("./global-setup"),
+  // Production-build target (NEXUS_QA_BUILT=1): serve the web app from `next build`
+  // + `next start` instead of `next dev`. Next dev compiles each route lazily on first
+  // visit, which inflates route-sweep tests to minutes and causes "Verifying session"
+  // stalls; a precompiled build removes that entirely (warm dev: 685 pass / 44 min vs a
+  // built target which should run in minutes). The API (port 3001) is assumed running.
+  webServer: process.env["NEXUS_QA_BUILT"]
+    ? {
+        command: "pnpm --filter @coheronconnect/web build && pnpm --filter @coheronconnect/web start --port 3000",
+        url: QA_BASE,
+        timeout: 300_000,
+        reuseExistingServer: false,
+        stdout: "pipe",
+        stderr: "pipe",
+      }
+    : undefined,
   reporter: [
     ["list"],
     ["json", { outputFile: "results/raw-results.json" }],

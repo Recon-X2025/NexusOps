@@ -26,10 +26,21 @@ import {
   leavePolicies,
   leaveAccrualEvents,
   leaveBalances,
+  attendanceRecords,
+  publicHolidays,
   eq,
   and,
   desc,
+  gte,
+  lte,
+  isNotNull,
+  sql,
 } from "@coheronconnect/db";
+
+/** Date → 'YYYY-MM-DD' key so two events on the same calendar day compare equal (ignores time). */
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 import {
   computeMonthlyLeaveAccrual,
   computeCarryForward,
@@ -93,10 +104,33 @@ export const leaveAccrualRouter = router({
           monthlyAccrualDays: z.number().min(0).nullish(),
           maxCarryForwardDays: z.number().min(0),
           encashable: z.boolean(),
+          // Year-end treatment of the balance ABOVE the cap — encash or forfeit,
+          // independent of the cap. Defaults to "forfeit" (today's behaviour) when omitted.
+          yearEndTreatment: z.enum(["forfeit", "encash"]).default("forfeit"),
+          // Exit treatment — how much is encashed on offboarding. Defaults to "encash_all"
+          // (the whole balance; behaviour-preserving and never underpays a leaver).
+          exitTreatment: z.enum(["encash_all", "capped", "accrued_only"]).default("encash_all"),
+          // LEAVE-MODEL axes — all default to today's behaviour.
+          encashmentBasis: z.enum(["basic_da", "gross"]).default("basic_da"),
+          encashmentDivisor: z.union([z.literal(26), z.literal(30)]).default(26),
+          debitsBalance: z.boolean().default(true),
+          expiryMode: z.enum(["year_end", "window_weeks"]).default("year_end"),
+          expiryWindowWeeks: z.number().int().min(1).max(52).nullish(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        // LEAVE-MODEL: maternity is a CENTRAL statutory floor (Maternity Benefit Act 1961 —
+        // 26 weeks = 182 days). A tenant may exceed it but not go below; the quantum does NOT
+        // vary by state. (Non-debiting / non-encashable are the tenant's to set, defaulted so.)
+        if (input.type === "maternity" && input.annualEntitlementDays < 182) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Maternity leave is a central statutory floor of 26 weeks (182 days) under the " +
+              "Maternity Benefit Act 1961 — a company may grant more but not less.",
+          });
+        }
         const [existing] = await db
           .select({ id: leavePolicies.id })
           .from(leavePolicies)
@@ -110,6 +144,13 @@ export const leaveAccrualRouter = router({
             input.monthlyAccrualDays == null ? null : String(input.monthlyAccrualDays),
           maxCarryForwardDays: String(input.maxCarryForwardDays),
           encashable: input.encashable,
+          yearEndTreatment: input.yearEndTreatment,
+          exitTreatment: input.exitTreatment,
+          encashmentBasis: input.encashmentBasis,
+          encashmentDivisor: input.encashmentDivisor,
+          debitsBalance: input.debitsBalance,
+          expiryMode: input.expiryMode,
+          expiryWindowWeeks: input.expiryWindowWeeks ?? null,
           updatedAt: new Date(),
         };
         if (existing) {
@@ -401,7 +442,13 @@ export const leaveAccrualRouter = router({
           ? roundDays(Number(bal.totalDays) - Number(bal.usedDays))
           : 0;
         const cf = computeCarryForward(closing, toPolicyConfig(policy));
-        return { closingBalance: closing, ...cf };
+        // Surface how the excess (cf.lapsed) will be treated: encashed (encashable type
+        // only) or forfeited. Rupee value is resolved by close.run, not this read path.
+        const excessTreatment =
+          cf.lapsed > 0 && policy.yearEndTreatment === "encash" && policy.encashable
+            ? "encash"
+            : "forfeit";
+        return { closingBalance: closing, ...cf, yearEndTreatment: policy.yearEndTreatment, excessTreatment };
       }),
 
     // Persist the year-end carry-forward: writes carry_forward + lapse ledger
@@ -419,7 +466,7 @@ export const leaveAccrualRouter = router({
         const { db, org, user } = ctx;
         return db.transaction(async (tx) => {
           const [emp] = await tx
-            .select({ id: employees.id })
+            .select({ id: employees.id, salaryStructureId: employees.salaryStructureId })
             .from(employees)
             .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)))
             .limit(1);
@@ -468,7 +515,13 @@ export const leaveAccrualRouter = router({
             : 0;
           const cf = computeCarryForward(closing, toPolicyConfig(policy));
 
-          await tx.insert(leaveAccrualEvents).values([
+          // The retained (capped) balance always carries forward. The EXCESS (cf.lapsed)
+          // is then either encashed or forfeited per the tenant's year-end treatment —
+          // independent of the cap. Encash applies only to an encashable type; a
+          // non-encashable type set to "encash" still lapses (encashability wins, matching
+          // encash.run's refusal). Idempotency is the carry_forward guard above: a second
+          // close throws CONFLICT, so the excess is never encashed twice.
+          const events: (typeof leaveAccrualEvents.$inferInsert)[] = [
             {
               orgId: org!.id,
               employeeId: input.employeeId,
@@ -479,7 +532,36 @@ export const leaveAccrualRouter = router({
               days: String(cf.carriedForward),
               createdById: (user?.id as string) ?? null,
             },
-            {
+          ];
+
+          let encashedExcess: ReturnType<typeof computeLeaveEncashment> | null = null;
+          if (cf.lapsed > 0 && policy.yearEndTreatment === "encash" && policy.encashable) {
+            // Encash the excess at the FY-start structure version's basic+DA — the same
+            // wage basis encash.run uses (anchored to 1 April of the leave year).
+            const struct = emp.salaryStructureId
+              ? await resolveSalaryStructureForPeriod(
+                  tx,
+                  org!.id,
+                  emp.salaryStructureId,
+                  new Date(input.year, 3, 1),
+                )
+              : null;
+            const wages = monthlyBasicPlusDA(struct ?? undefined);
+            encashedExcess = computeLeaveEncashment(cf.lapsed, wages, { encashable: true });
+            events.push({
+              orgId: org!.id,
+              employeeId: input.employeeId,
+              type: input.type,
+              eventType: "encashment" as const,
+              year: input.year,
+              month: null,
+              days: String(-encashedExcess.encashableDays),
+              amount: String(encashedExcess.amount),
+              createdById: (user?.id as string) ?? null,
+            });
+          } else {
+            // Forfeit: lapse the excess (also the fallback for a non-encashable type).
+            events.push({
               orgId: org!.id,
               employeeId: input.employeeId,
               type: input.type,
@@ -488,8 +570,10 @@ export const leaveAccrualRouter = router({
               month: null,
               days: String(-cf.lapsed),
               createdById: (user?.id as string) ?? null,
-            },
-          ]);
+            });
+          }
+
+          await tx.insert(leaveAccrualEvents).values(events);
 
           // Seed next year's opening balance with the carried-forward days.
           const nextYear = input.year + 1;
@@ -523,7 +607,14 @@ export const leaveAccrualRouter = router({
             });
           }
 
-          return { closingBalance: closing, ...cf, nextYear };
+          return {
+            closingBalance: closing,
+            ...cf,
+            nextYear,
+            yearEndTreatment: policy.yearEndTreatment,
+            // Present only when the excess was encashed (rupee amount for the run/ledger).
+            encashedExcess,
+          };
         });
       }),
   }),
@@ -657,6 +748,150 @@ export const leaveAccrualRouter = router({
 
           return { ...enc, event };
         });
+      }),
+  }),
+
+  // ── Comp-off: earn from worked holidays/weekends, expire on a rolling window ──
+  // Comp-off is the one type that does NOT lapse at year-end (close.run) — it expires on a
+  // fixed window (leave_policies.expiry_mode = window_weeks). The window is anchored to the
+  // WORKED date, carried on the accrual event's eventDate.
+  compOff: router({
+    /**
+     * COMPOFF-EARN (attendance-driven): credit compensatory_off for each day the employee
+     * checked in on a public holiday or weekend that has no credit yet. IDEMPOTENT per
+     * (employee, worked-date) via the accrual event's eventDate — re-running never double-credits.
+     * Requires a compensatory_off policy (an org that does not offer comp-off earns none). One
+     * worked non-working day = 1 comp-off day.
+     */
+    reconcile: permissionProcedure("hr", "approve")
+      .input(z.object({
+        employeeId: z.string().uuid(),
+        from: z.coerce.date(),
+        to: z.coerce.date(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const [emp] = await db.select({ id: employees.id }).from(employees)
+          .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id))).limit(1);
+        if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+        const [policy] = await db.select().from(leavePolicies)
+          .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, "compensatory_off"))).limit(1);
+        if (!policy) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No compensatory_off leave policy configured" });
+
+        // Worked days = attendance records with a check-in in the range.
+        const worked = await db.select().from(attendanceRecords).where(and(
+          eq(attendanceRecords.orgId, org!.id),
+          eq(attendanceRecords.employeeId, input.employeeId),
+          gte(attendanceRecords.date, input.from),
+          lte(attendanceRecords.date, input.to),
+          isNotNull(attendanceRecords.checkIn),
+        ));
+        // Public holidays in range (org calendar).
+        const hols = await db.select({ date: publicHolidays.date }).from(publicHolidays).where(and(
+          eq(publicHolidays.orgId, org!.id),
+          gte(publicHolidays.date, input.from),
+          lte(publicHolidays.date, input.to),
+        ));
+        const holSet = new Set(hols.map((h) => dayKey(h.date)));
+        // Already-credited worked dates (idempotency guard).
+        const existing = await db.select({ d: leaveAccrualEvents.eventDate }).from(leaveAccrualEvents).where(and(
+          eq(leaveAccrualEvents.employeeId, input.employeeId),
+          eq(leaveAccrualEvents.type, "compensatory_off"),
+          eq(leaveAccrualEvents.eventType, "accrual"),
+          isNotNull(leaveAccrualEvents.eventDate),
+        ));
+        const credited = new Set(existing.filter((e) => e.d).map((e) => dayKey(e.d!)));
+
+        let n = 0;
+        for (const rec of worked) {
+          const k = dayKey(rec.date);
+          if (credited.has(k)) continue;
+          const dow = rec.date.getDay(); // 0 Sun … 6 Sat
+          // A worked NON-working day: the attendance feed marked it weekend/holiday, OR it is on
+          // the public-holiday calendar, OR it is a Sat/Sun (self-service sign-ins are always
+          // 'present', so the calendar check is what catches a Sunday worked via sign-in).
+          const isNonWorking = rec.status === "weekend" || rec.status === "holiday" || holSet.has(k) || dow === 0 || dow === 6;
+          if (!isNonWorking) continue;
+          await db.transaction(async (tx) => {
+            await tx.insert(leaveAccrualEvents).values({
+              // month: null — the monthly-accrual unique index is per (…, year, month); comp-off
+              // has MANY credits per month, anchored by eventDate, so month must be null to avoid
+              // that one-per-month collision (NULLs are distinct in the unique index).
+              orgId: org!.id, employeeId: input.employeeId, type: "compensatory_off",
+              eventType: "accrual", year: rec.date.getFullYear(), month: null,
+              days: "1", eventDate: rec.date, createdById: (user?.id as string) ?? null,
+            });
+            await tx.insert(leaveBalances).values({
+              employeeId: input.employeeId, type: "compensatory_off", year: rec.date.getFullYear(),
+              totalDays: "1", usedDays: "0", pendingDays: "0",
+            }).onConflictDoUpdate({
+              target: [leaveBalances.employeeId, leaveBalances.type, leaveBalances.year],
+              set: { totalDays: sql`${leaveBalances.totalDays} + 1` },
+            });
+          });
+          credited.add(k);
+          n++;
+        }
+        return { credited: n };
+      }),
+
+    /**
+     * COMPOFF-EXPIRE: lapse comp-off credits older than expiry_window_weeks from the WORKED date
+     * (NOT year-end). IDEMPOTENT per (employee, worked-date): a lapse event carrying the same
+     * eventDate is the guard, so a credit is lapsed at most once — the same shape as close.run's
+     * carry-forward guard. Only applies when the policy's expiry_mode is window_weeks.
+     */
+    expire: permissionProcedure("hr", "approve")
+      .input(z.object({ employeeId: z.string().uuid(), asOf: z.coerce.date().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const [policy] = await db.select().from(leavePolicies)
+          .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, "compensatory_off"))).limit(1);
+        if (!policy) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No compensatory_off leave policy configured" });
+        if (policy.expiryMode !== "window_weeks" || !policy.expiryWindowWeeks) {
+          return { lapsed: 0, note: "comp-off policy does not use window_weeks expiry" as const };
+        }
+        const asOf = input.asOf ?? new Date();
+        const windowMs = policy.expiryWindowWeeks * 7 * 24 * 60 * 60 * 1000;
+
+        const credits = await db.select().from(leaveAccrualEvents).where(and(
+          eq(leaveAccrualEvents.employeeId, input.employeeId),
+          eq(leaveAccrualEvents.type, "compensatory_off"),
+          eq(leaveAccrualEvents.eventType, "accrual"),
+          isNotNull(leaveAccrualEvents.eventDate),
+        ));
+        const lapses = await db.select({ d: leaveAccrualEvents.eventDate }).from(leaveAccrualEvents).where(and(
+          eq(leaveAccrualEvents.employeeId, input.employeeId),
+          eq(leaveAccrualEvents.type, "compensatory_off"),
+          eq(leaveAccrualEvents.eventType, "lapse"),
+          isNotNull(leaveAccrualEvents.eventDate),
+        ));
+        const alreadyLapsed = new Set(lapses.filter((l) => l.d).map((l) => dayKey(l.d!)));
+
+        let n = 0;
+        for (const c of credits) {
+          if (!c.eventDate) continue;
+          const k = dayKey(c.eventDate);
+          if (alreadyLapsed.has(k)) continue;
+          if (c.eventDate.getTime() + windowMs >= asOf.getTime()) continue; // still inside the window
+          await db.transaction(async (tx) => {
+            await tx.insert(leaveAccrualEvents).values({
+              orgId: org!.id, employeeId: input.employeeId, type: "compensatory_off",
+              eventType: "lapse", year: c.eventDate!.getFullYear(), month: null,
+              days: String(-Number(c.days)), eventDate: c.eventDate, createdById: (user?.id as string) ?? null,
+            });
+            await tx.update(leaveBalances).set({
+              totalDays: sql`GREATEST(0, ${leaveBalances.totalDays} - ${c.days})`,
+            }).where(and(
+              eq(leaveBalances.employeeId, input.employeeId),
+              eq(leaveBalances.type, "compensatory_off"),
+              eq(leaveBalances.year, c.eventDate!.getFullYear()),
+            ));
+          });
+          alreadyLapsed.add(k);
+          n++;
+        }
+        return { lapsed: n };
       }),
   }),
 });

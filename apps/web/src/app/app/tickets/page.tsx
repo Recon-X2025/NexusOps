@@ -802,7 +802,7 @@ export default function TicketsPage() {
                         {ticket.assigneeId ? (
                           <div className="flex items-center gap-1.5">
                             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[0.55rem] font-bold text-violet-700 dark:bg-violet-900 dark:text-violet-300 flex-shrink-0">
-                              {ticket.assigneeName ? ticket.assigneeName.charAt(0).toUpperCase() : ticket.assigneeId.slice(0, 2).toUpperCase()}
+                              {ticket.assigneeName ? ticket.assigneeName.charAt(0).toUpperCase() : (ticket.assigneeId?.slice(0, 2).toUpperCase() ?? "?")}
                             </div>
                             <span className="text-caption text-muted-foreground max-w-[6rem]">
                               {ticket.assigneeName ?? ticket.assigneeEmail ?? "Assigned"}

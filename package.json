@@ -7,6 +7,8 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:e2e": "playwright test",
+    "test:qa": "playwright test --config tests/full-qa/playwright.config.ts",
+    "test:qa:built": "NEXUS_QA_BUILT=1 playwright test --config tests/full-qa/playwright.config.ts",
     "test:ci": "turbo run test && playwright test",
     "test:class-l": "bash scripts/run-class-l-tests.sh",
     "test:class-p": "bash scripts/run-class-p-tests.sh",

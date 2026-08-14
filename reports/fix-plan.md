@@ -82,6 +82,249 @@ anything** — same class as `.turbo` making "cold lint" warm.
 
 ---
 
+## AUTHZ sweep + QA-harness repair — 2026-08-14 (uncommitted; one deploy, no migration)
+
+**AUTHZ — `STATUTORY-IDENTITY-UNGATED` + the sweep.** The QA inventory (894 procedures) turned a hunt
+into a query. Of **33 `protectedProcedure` mutations**, **6 were genuinely ungated and matter**; the rest
+were caller-owned (24) or gated-in-body (3 false positives, now recorded so the next sweep won't re-flag
+them: `payroll.approve` @ payroll.ts:732, `esign.createRequest` @ esign.ts:109, `onboarding.updateStatutoryIdentity`).
+All 6 fixed + a deny/allow test pair each (`apps/api/src/__tests__/authz-sweep.test.ts`, 13/13), called
+DIRECTLY at the procedure:
+- `onboarding.updateStatutoryIdentity` — gate `payroll.write` (PF rate is money). **NOTE `hr.write` is NOT
+  a valid gate anywhere here — every member (requester) holds it; `payroll`/`onboarding` deny members.**
+- `onboarding.saveWizardData` — gate `payroll.write` (org-wide GSTIN/PF/entity config).
+- `onboarding.completeWizard` — gate `onboarding.write`.
+- `performance.updateReview` — scope check (HR-admin OR the review's reviewee/reviewer); was orgId-only,
+  any member could rewrite anyone's rating.
+- `performance.updateGoal` — owner-scope (ownerId filter), mirroring deleteGoal.
+- `expenseReports.addItem` / `deleteItem` — owner-scope (own draft report), mirroring updateReport;
+  was cross-user money-total tampering.
+
+**F12 (part a) fixed** — payroll run screen gated operational steps (lock/compute/generate/complete) on
+`can("hr","write")` but the server needs `payroll.write`; aligned the button gating to mirror the API
+(one screen). **F12 (part b) OPEN** — the SoD *repeat-approver* affordance (Finance sees CFO-approve because
+the button only checks `financial.write`, not "already approved a prior step") needs the run's approval
+history to disable; correct enforcement, misleading affordance. Own follow-up.
+
+**F13 — routing gap, NOT generation.** `generateStatutory` writes all four artefacts (tds/esi/pt challans +
+EPFO ECR); all four have `.list` procedures. HR › Payroll Compliance already reached TDS + ECR (the walk's
+empty state was the run not reaching statutory generation — F11 EPF-code block — not a missing UI). Added
+read-only ESI + PT challan tables to that tab so all four are reachable (no markPaid procedure exists for
+ESI/PT yet — read-only). Payslips reachable via `/api/payroll/payslip-pdf/{id}`.
+
+**QA harness repair — recorded honestly (not buried):**
+1. **`apiCall` self-heals on 401** by re-minting an admin session. Correct for a shared-session harness, but
+   it means the suite **can no longer detect a genuine auth failure** except where `{ auth: false }` is set
+   explicitly. A real limitation of the instrument.
+2. **07-all-buttons' skip filter now excludes sign-out and user-management controls** (clicking Sign out was
+   deleting the shared session mid-run, 401-ing the whole suite). So **Sign out is now never clicked by the
+   suite** — a real button on a real page, untested.
+3. The suite found **no product defect in 699 tests**; the residual is `next dev` compiling routes lazily.
+   Added `test:qa:built` (NEXUS_QA_BUILT=1 → `next build && next start`) — precompiled routes remove the
+   "Verifying session" compile-stall. **The web dev server OOM-crashed once** under repeated full runs (an
+   infrastructure ceiling worth knowing).
+
+---
+
+## LEAVE-POLICY — tenant-configurable leave rules — 2026-08-14 (uncommitted; migration 0083)
+
+**Owner ask, deferred twice, now built.** The model is THREE independent axes — cap / year-end
+treatment / exit — and most of it already existed:
+- **Axis 1 (carry-forward cap): already existed** as `leave_policies.maxCarryForwardDays`, used by
+  the manual `close.run` year-end event.
+- **Axis 3 (exit): NOW CONFIGURABLE (corrected 2026-08-14 — see below).** Settlement is still the ONLY
+  exit-encashment site (`settlement.ts`; payroll/aggregates don't), but exit treatment was WRONGLY
+  hardcoded to whole-balance in the first pass.
+- **Axis 2 (year-end encash vs forfeit): the net-new work.** `close.run` always LAPSED the excess.
+  Added `leave_policies.year_end_treatment` (enum `forfeit`|`encash`, **default `forfeit`** — preserves
+  today's behaviour; migration **0083** additive: CREATE TYPE + ADD COLUMN, validated from-empty and on
+  the seeded dev DB). `close.run` now branches: encash the excess (encashable types only — encashability
+  wins) reusing `computeLeaveEncashment` + the same FY-start basic+DA wage basis as `encash.run`, else
+  lapse.
+
+**CORRECTION (2026-08-14) — exit treatment IS the third configurable axis.** The first pass hardcoded
+exit to whole-balance on the inference "earned leave must be paid" — that was an inference, not a
+statutory rule, and "Amazon and HP both encash all" is two companies agreeing, not a rule. Real policies
+vary. Added `leave_policies.exit_treatment` (enum `encash_all`|`capped`|`accrued_only`, **default
+`encash_all`** — behaviour-preserving here, and never underpays a leaver; folded into the amended `0083`,
+which had not deployed). `settlement.ts` now branches: `encash_all` = whole available balance;
+`capped` = `min(available, maxCarryForwardDays)`; `accrued_only` = this year's accrual ledger sum, capped
+by available. Encashability still outranks it (non-encashable → 0). Tests in `leave-policy-axes.test.ts`
+(12): HP `encash_all` 58d=₹89,204 (regression guard), capped 40d=₹61,520, accrued_only 18d=₹27,684,
+default→encash_all, sick→₹0 on exit.
+
+**OPEN CA QUESTION (recorded, NOT enforced):** is there a state-level statutory floor (Shops &
+Establishments Acts) that requires earned leave payable on exit REGARDLESS of a company's exit-encashment
+policy — and if so, in which of the four pilot states (Karnataka, Kerala, Tamil Nadu, Delhi)? The product
+lets a company set its policy and should FLAG a conflict if a floor is later established — it must not
+silently override. Not assumed either way.
+
+**Manual-set note:** the year-end rollover (`close.run`) remains a MANUAL action — no scheduled job. If
+nobody runs it, nothing carries forward and nothing is paid out at year-end.
+- **Idempotency** unchanged: `close.run`'s carry_forward-event guard (CONFLICT on second close) covers the
+  encashment too — it cannot encash twice.
+- Tests: `leave-policy-axes.test.ts` (8) — **HP exit 58 days = ₹89,204 (58×1538), not capped at 40**;
+  Amazon (cap 0 encash); cap-40 forfeit (excess recorded, not zeroed); cap-40 encash (axis-independence
+  proof); sick not encashed at year-end nor through settlement; rollover idempotent; default = forfeit.
+
+**Recorded, NOT built (spawned as a follow-up task):** "casual leave" is not a separate balance — it is
+unplanned sick-kitty leave of ≤3 days, needing planned-vs-unplanned captured at request time. Out of
+scope here. `LEAVE-ENUM-REBUILD` untouched (still blocked on live row counts).
+
+---
+
+## STRUCTURE-IMPORTER — the last outstanding owner ask — 2026-08-14 (uncommitted; NO migration)
+
+`ingest.importStructures` + `ingest.structureImportTemplate` — bulk-creates salary structures so they
+aren't all hand-typed during onboarding week. Same posture as `importEmployees`: **dry-run by default,
+skip-the-bad-row-and-report, never abort the batch.** Validated through the FORM's own schema —
+`SalaryStructureFormSchema`, extracted from `payroll.ts salaryStructuresRouter.upsert` and imported by
+BOTH paths (**genuinely one schema, not a copy** — the class of defect behind the leave-date refine).
+Template columns: `structure_name, base_pay_annual, da_percent, hra_percent_of_basic, lta_annual,
+effective_from, effective_to` — **Basic is DERIVED (50 − DA) and is NOT a column**; the template is
+generated from `STRUCTURE_TEMPLATE_COLUMNS` (one source, no drift). A non-compliant DA (outside 0–50)
+is skipped with a message **naming the rule** (Basic = 50 − DA). **Established form rule for duplicate
+names:** the form has NO name uniqueness (`upsert` without id creates a new family; no unique index on
+`structure_name`) — the importer instead SKIPS an existing name, because a duplicate makes the employee
+importer's name→family lookup ambiguous (which it already refuses); this aligns with the system's
+existing behaviour rather than inventing a new rule, and **the form's missing uniqueness is a latent gap
+worth a follow-up.** Ordering: structures must import BEFORE employees (surfaced in the template note).
+Tests: `structure-importer.test.ts` (7) — Basic derived, named-rule rejection, one-bad-row-doesn't-abort,
+dry-run-writes-nothing, duplicate (existing + in-batch) skipped, missing-required-column refused,
+template-matches-schema. NO migration.
+
+**Honest size / deferred:** small-to-medium; nothing deferred. Note (reported): because Basic is DERIVED
+from DA, a VALID DA (0–50) always composes to 50, so the composition guard can't be *violated* by a valid
+row — the "non-compliant ratio" refusal is specifically a DA outside 0–50, named clearly. A migrating
+customer expresses their old Basic 20–35% as DA 15–30 (both import fine).
+
+---
+
+## LEAVE-MODEL — complete leave type + policy model — 2026-08-14 (uncommitted; migration 0084)
+
+Sourced from greytHR (private-sector authority) + CCS Leave Rules 1972 (structural reference only).
+**⚠️ CCS quanta are GOVERNMENT figures and do NOT bind private employers** — the 300-day / 150-day
+(half-on-resignation) numbers are CCS; **only the STRUCTURE transfers (exit treatment varies by reason),
+never the numbers.** State Shops & Establishments / Factories Acts bind private employers, not CCS.
+
+**Built (migration 0084, additive — enum ADD VALUE ×5 + 2 tables + 5 columns + RLS + 36-state seed;
+validated from-empty and on seeded dev):**
+- **Enum:** added `casual, maternity, paternity, marriage, compensatory_off` to `leave_type` (additive/safe;
+  `LEAVE-ENUM-REBUILD`'s destructive rename stays deferred). Also synced the THREE drift copies that a
+  signature sweep would miss: `LeaveTypeEnum` (packages/types), `leaveTypeSchema`, and the hand-maintained
+  `LeaveTypeLiteral` (leave-attendance.ts).
+- **Exit treatment keyed by REASON** (the headline) — new `leave_exit_rules` table (per org+type+reason →
+  `encash_full|proportion|capped|accrued_only|forfeit` + param), RLS-walled. Wired into `settlement.ts`
+  (still the ONLY exit site): per-reason rule OVERRIDES the per-type `exit_treatment` fallback; both default
+  to `encash_full`. Added `dismissal` to the settle reason set. Encashability still outranks everything.
+- **Encashment wage basis** (`basic_da|gross`, default basic_da) + **divisor** (26|30, default 26) — policy
+  columns, wired at the settlement call site (the math already parameterised both).
+- **`debits_balance`** (default true) — leave request/approve now skip the balance debit for a non-debiting
+  type. **Fixes the maternity-consumes-a-balance gap** (F5): there was NO non-debiting concept and no
+  maternity type, so maternity would eat a balance.
+- **Maternity floor ENFORCED** (central Maternity Benefit Act) — `policy.upsert` rejects < 182 days (26
+  weeks); a tenant may exceed, not go below. Does NOT vary by state.
+- **State baseline (PT-STATES precedent):** `leave_state_baselines` — all **36 states/UTs present**, each
+  `follows_baseline = true` pending verification (the fact recorded, not left absent), national baseline
+  seeded (earned 18 / casual 12 / sick 12, CF floor 30). Columns express Delhi-combined-CL+SL and
+  Tripura-half-pay, but **NOT populated from a secondary aggregator** (the Kerala-PT lesson) — per-state
+  quanta are the deferred CA data task.
+- **Defaults all preserve today's behaviour** (basic_da / 26 / debits / encash_full / year_end); a tenant
+  that sets nothing is unchanged — HP regression 58d=₹89,204 holds.
+- Tests: `leave-model.test.ts` (9) — HP regression, CCS half-on-resignation (29d) vs full-on-retirement,
+  dismissal→forfeit→₹0, death→full, gross ₹38,460 vs basic ₹15,380, divisor-30 ₹13,330, non-encashable→₹0
+  on any reason, maternity floor, 36-state rows, non-debiting maternity. Plus leave-policy-axes (12) green.
+
+**OPEN CA QUESTION — national, not cohort-scoped:** for EACH state/UT, what are the minimum earned/casual/
+sick entitlements, carry-forward floors, and exit-encashment obligations under that state's OWN Shops &
+Establishments / Factories Act — and does any state floor OVERRIDE a company policy that pays less? The
+product flags a below-floor conflict; it must not silently override.
+
+**Scoped out / reported (not dropped):** (1) **Comp-off WINDOW expiry — NOW BUILT** (COMPOFF unit,
+2026-08-14, migration 0085 — additive `leave_accrual_events.event_date` anchor). Establishing the
+prerequisite first (per the task's own instruction) surfaced that **there was NO comp-off earn path at
+all** — nothing to expire. Built attendance-driven: `leave-accrual.compOff.reconcile` credits comp-off
+(1 day) for a check-in on a public-holiday / weekend date, idempotent per (employee, worked-date);
+`compOff.expire` lapses credits older than `expiry_window_weeks` from the worked date (NOT year-end),
+idempotent per worked-date via a same-eventDate lapse guard. Tests `leave-compoff.test.ts` (5):
+earn holiday+weekend not ordinary day, idempotent earn, window expiry (past lapses / in-window kept),
+idempotent expiry, window-only. Known limit (reported): Sat/Sun treated as weekend — a Saturday-working
+org would need a working-days config (refinement). (2) The **≤3-day casual
+classification** is now LESS necessary — casual is a distinct type with its own balance, so the user picks
+it directly rather than needing planned-vs-unplanned inferred at request time (though a planned/unplanned
+flag may still aid policy enforcement). (3) `close.run` **stays manual** — if nobody runs it, nothing
+carries forward or is paid out at year-end.
+
+---
+
+## MINOR-BATCH — everything set aside, one pass — 2026-08-14 (uncommitted; NO migration)
+
+**STEP 1 (LEAVE-ENUM-REBUILD unblock):** the row-count query needs the LIVE db; **this environment has no
+live/prod DATABASE_URL, so I could not run it** — dev has 0 leave rows (confirmed). The exact SQL is in the
+build prompt; it must be run against live by someone with access. `other` rows migrate to `unpaid` (owner
+decision). The rename itself stays out (destructive, own deploy).
+
+**STEP 2 (F8 — wedged run reset): scope established, NOT built (record-unwinding = own unit).** "Wedged" =
+`payroll_runs.pipeline_status = 'FAILED'`, set when an approval is REJECTED (payroll.ts:777). Rejection
+happens AFTER payslips are computed (compute → approvals → statutory → paid), so a FAILED run **already has
+payslips**; statutory records (ECR/challans) exist only past CFO approval. So: a truly-safe reset (nothing
+written) is the narrow pre-compute case and rarely the actual wedge; the COMMON wedge (rejected, with
+payslips) means deleting payslip records — which the prompt itself flags as larger. Recommend a bounded
+follow-up: reset allowed only when `pipeline_status='FAILED'` AND not paid AND no statutory records, deleting
+the (unpaid, unfiled, regenerable) payslips and resetting to draft; refuse otherwise.
+
+**STEP 3 (F15 — two dead routes): NO fix needed — not dead ends.** `/app/devops` + `/app/developer-ops`
+both `if (!DEVOPS_ENABLED) notFound()` (feature-flagged; default off). The nav pointers (command-palette.tsx:106,
+sidebar-config.ts:357) are **already gated on the same `DEVOPS_ENABLED`** flag; route-permissions.ts is a
+permission MAP, not a link. Flag off → pages 404 AND pointers hidden = no customer-visible dead end. Deleting
+them would remove an intentionally-flagged feature. Recorded so the next sweep does not re-flag.
+
+**STEP 4 (COA edit protection): FIXED + established.** `coa.update` (+ the gstinRegistry `update` at 727,
+a different table) can set only name/description/isActive — **code/type/subType are immutable (not in the
+input); balance is derived, never a column here.** GST/TDS/invoice postings resolve system accounts BY CODE
+(invoice-journal.ts:82, code immutable) and don't filter isActive, so a rename/deactivate could NOT actually
+break a posting at runtime — but it's still wrong. Added a guard: `coa.update` now REFUSES any edit to an
+`isSystem` account (accounting.ts:198; the ITC 1141/1142/1143, TDS 1150, roll-up parents all seed
+`isSystem: true`). Posted-non-system-account rename stays allowed (id-based journal refs keep integrity;
+only the display label changes) — recorded, not blocked.
+
+**STEP 5 (the 24 accepted AUTHZ procedures — REVIEWED and ACCEPTED, not unexamined).** From the AUTHZ sweep
+of 33 protectedProcedure mutations, these 24 are ungated-but-low-consequence (write only caller-owned/trivial
+data) and the owner accepted leaving them — recorded here so "looked at and fine" is distinguishable from
+"never looked at":
+- `performance.createGoal` / `deleteGoal` (own goal, ownerId=self); `performance.updateGoal` NOW owner-scoped.
+- `notifications.markRead` / `markAllRead` / `updatePreference` (keyed userId=self).
+- `agent.chat` / `agent.deleteConversation` / `ai.agentInvoke` (own conversation; write-tools RBAC-gated inside).
+- `expenses.createReport` / `updateReport` / `submitReport` (submittedById=self, draft only).
+- `hr.attendance.signIn` / `signOut`; `hr.expenses.createMine` (own); `hr.expenses.ocrReceipt` (stateless).
+- `auth.logout` / `mfa.startEnroll` / `mfa.confirmEnroll` / `mfa.disable` / `verifyStepUp` / `updateProfile` /
+  `uploadAvatar` / `changePassword` / `revokeSession` (all own session/profile; changePassword verifies current).
+**Three GATED-IN-BODY false positives — do NOT re-flag:** `payroll.approve` (payroll.ts:732), `esign.createRequest`
+(esign.ts:109), `onboarding.updateStatutoryIdentity` (onboarding.ts:404). **Standing rule that produced them:
+read handler BODIES, not builders** — a `protectedProcedure` may still gate inside the handler.
+
+**STEP 6 (three button crashes): class traced, one instance hardened; full repro deferred to Step 9's suite.**
+Same class as the COA `subType.replace()`-on-null (fixed 831f21b, two renderers): a field optional-at-write,
+assumed-non-null-at-read. Hardened a confirmed instance — `tickets/page.tsx:805` did `ticket.assigneeId.slice(2)`
+with `assigneeId` nullable (onDelete set null) → crash for an unassigned ticket with no name; now `?? "?"`.
+The three SPECIFIC button-click crashes need the 07-all-buttons UI run to pin the exact button/modal (can't
+click-drive reliably here); Step 9's built-suite run surfaces them, and any remaining are this same hardening.
+
+**STEP 7 (`dashboard.getMetrics` shape): the failure was STATUS, not shape.** The two QA assertions
+(06-all-endpoints:110, 10-module:444) check the STATUS and were failing on the 60/min rate-limit **429**, not
+a shape mismatch — already made 429-tolerant in the QA-harness unit (do not weaken the limiter). getMetrics
+returns a flat KPI object (openTickets…activeOkrs); no test asserts its shape. So: the earlier "unexpected
+shape" framing was the rate-limit, and it is already resolved.
+
+**STEP 8 (Integration Hub — empty promise): options reported, NOT removed (no owner word).** The Admin
+Console lists 10 integrations (PagerDuty/Jira/Splunk/Azure AD/Tenable/Slack/Teams/ServiceNow/AWS/GitHub) with
+only Close + Contact Support — a surface implying capability it lacks (same class as the Documents toast /
+₹0 ESI card; honest in that it fakes no success). Options: (a) hide until integrations exist; (b) keep as an
+explicit "coming soon" with wording that doesn't imply availability; (c) leave as-is. **Owner's call — a
+feature surface is not removed without their word.**
+
+---
+
 ## How this plan is ordered, and why
 
 The work runs in **three phases**, and the order matters more than it might look.

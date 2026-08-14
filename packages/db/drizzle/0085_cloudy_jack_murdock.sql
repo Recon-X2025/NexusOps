@@ -1,0 +1,1 @@
+ALTER TABLE "leave_accrual_events" ADD COLUMN "event_date" timestamp with time zone;

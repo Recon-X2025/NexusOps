@@ -13,6 +13,7 @@ import {
   hrCaseTasks,
   leaveRequests,
   leaveBalances,
+  leavePolicies,
   attendanceRecords,
   shiftSchedules,
   onboardingTemplates,
@@ -885,23 +886,32 @@ export const hrRouter = router({
         })
         .returning();
 
-      // Update pending balance
-      await db
-        .insert(leaveBalances)
-        .values({
-          employeeId: employee.id,
-          type: input.type,
-          year: startDate.getFullYear(),
-          totalDays: "0",
-          usedDays: "0",
-          pendingDays: String(days),
-        })
-        .onConflictDoUpdate({
-          target: [leaveBalances.employeeId, leaveBalances.type, leaveBalances.year],
-          set: {
-            pendingDays: sql`${leaveBalances.pendingDays} + ${String(days)}`,
-          },
-        });
+      // LEAVE-MODEL: a NON-DEBITING type (maternity/paternity/child-care et al.) grants leave
+      // WITHOUT consuming a balance — otherwise maternity silently eats another balance. Only
+      // debit when the policy debits (default true preserves current behaviour; no policy = debit).
+      const [reqPolicy] = await db
+        .select({ debitsBalance: leavePolicies.debitsBalance })
+        .from(leavePolicies)
+        .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, input.type)))
+        .limit(1);
+      if (reqPolicy?.debitsBalance !== false) {
+        await db
+          .insert(leaveBalances)
+          .values({
+            employeeId: employee.id,
+            type: input.type,
+            year: startDate.getFullYear(),
+            totalDays: "0",
+            usedDays: "0",
+            pendingDays: String(days),
+          })
+          .onConflictDoUpdate({
+            target: [leaveBalances.employeeId, leaveBalances.type, leaveBalances.year],
+            set: {
+              pendingDays: sql`${leaveBalances.pendingDays} + ${String(days)}`,
+            },
+          });
+      }
 
       return request;
     }),
@@ -936,20 +946,29 @@ export const hrRouter = router({
             .where(eq(leaveRequests.id, input.id))
             .returning();
 
-          // Update balance: move from pending to used
-          await tx
-            .update(leaveBalances)
-            .set({
-              usedDays: sql`${leaveBalances.usedDays} + ${request.days}`,
-              pendingDays: sql`GREATEST(0, ${leaveBalances.pendingDays} - ${request.days})`,
-            })
-            .where(
-              and(
-                eq(leaveBalances.employeeId, request.employeeId),
-                eq(leaveBalances.type, request.type),
-                eq(leaveBalances.year, request.startDate.getFullYear()),
-              ),
-            );
+          // Update balance: move from pending to used — but ONLY for a debiting type
+          // (LEAVE-MODEL). A non-debiting type (maternity et al.) never touched pending on
+          // request, so it must not move used here either.
+          const [apPolicy] = await tx
+            .select({ debitsBalance: leavePolicies.debitsBalance })
+            .from(leavePolicies)
+            .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, request.type)))
+            .limit(1);
+          if (apPolicy?.debitsBalance !== false) {
+            await tx
+              .update(leaveBalances)
+              .set({
+                usedDays: sql`${leaveBalances.usedDays} + ${request.days}`,
+                pendingDays: sql`GREATEST(0, ${leaveBalances.pendingDays} - ${request.days})`,
+              })
+              .where(
+                and(
+                  eq(leaveBalances.employeeId, request.employeeId),
+                  eq(leaveBalances.type, request.type),
+                  eq(leaveBalances.year, request.startDate.getFullYear()),
+                ),
+              );
+          }
 
           // G8: reflect the leave in attendance so payroll LOP picks it up.
           // unpaid → absent (LOP); every other type → on_leave (paid). Upsert so

@@ -24,6 +24,8 @@ export type AttendanceStatusLiteral =
   | "holiday"
   | "weekend";
 
+// Must track leaveTypeEnum (packages/db schema/hr.ts). All map to on_leave (paid) except
+// `unpaid` (LOP) — the LEAVE-MODEL additions are all paid leave.
 export type LeaveTypeLiteral =
   | "primary"
   | "annual"
@@ -32,7 +34,12 @@ export type LeaveTypeLiteral =
   | "parental"
   | "bereavement"
   | "unpaid"
-  | "other";
+  | "other"
+  | "casual"
+  | "maternity"
+  | "paternity"
+  | "marriage"
+  | "compensatory_off";
 
 export interface LeaveAttendanceRow {
   employeeId: string;

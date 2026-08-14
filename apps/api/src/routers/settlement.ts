@@ -25,8 +25,10 @@ import {
   leavePolicies,
   leaveBalances,
   leaveAccrualEvents,
+  leaveExitRules,
   eq,
   and,
+  sum,
   type DbOrTx,
 } from "@coheronconnect/db";
 import {
@@ -102,6 +104,8 @@ async function resolveComponents(
   }
 
   const wages = monthlyBasicPlusDA(struct ?? undefined);
+  // Gross monthly (Base Pay / 12) — the alternate encashment basis (greytHR: some orgs use gross).
+  const monthlyGross = struct ? Math.round(Number(struct.ctcAnnual || 0) / 12) : 0;
 
   // Gratuity: an existing standalone settlement wins (consistency); else compute, eligibility
   // enforced by computeGratuity (5-year gate; death/disablement waives it).
@@ -136,17 +140,74 @@ async function resolveComponents(
   const drawdowns: Array<{ type: (typeof leaveBalances.$inferSelect)["type"]; days: number; amount: number }> = [];
   let leaveEncashment = 0;
   for (const bal of balances) {
-    const days = Math.max(
+    const available = Math.max(
       0,
       Number(bal.totalDays || 0) - Number(bal.usedDays || 0) - Number(bal.pendingDays || 0),
     );
-    if (days <= 0) continue;
+    if (available <= 0) continue;
     const [policy] = await db
-      .select({ encashable: leavePolicies.encashable })
+      .select({
+        encashable: leavePolicies.encashable,
+        exitTreatment: leavePolicies.exitTreatment,
+        maxCarryForwardDays: leavePolicies.maxCarryForwardDays,
+        encashmentBasis: leavePolicies.encashmentBasis,
+        encashmentDivisor: leavePolicies.encashmentDivisor,
+      })
       .from(leavePolicies)
       .where(and(eq(leavePolicies.orgId, orgId), eq(leavePolicies.type, bal.type)))
       .limit(1);
-    const enc = computeLeaveEncashment(days, wages, { encashable: policy?.encashable ?? false });
+
+    // accrued-this-year, computed lazily (only for accrued_only treatments).
+    const accruedThisYear = async (): Promise<number> => {
+      const [acc] = await db
+        .select({ d: sum(leaveAccrualEvents.days) })
+        .from(leaveAccrualEvents)
+        .where(and(
+          eq(leaveAccrualEvents.employeeId, employeeId),
+          eq(leaveAccrualEvents.type, bal.type),
+          eq(leaveAccrualEvents.eventType, "accrual"),
+          eq(leaveAccrualEvents.year, endYear),
+        ));
+      return Math.max(0, Number(acc?.d ?? 0));
+    };
+
+    // LEAVE-MODEL: exit treatment is keyed by the exit REASON (CCS Rule 39 structure —
+    // resignation vs retirement vs dismissal differ). A per-reason `leave_exit_rules` row
+    // OVERRIDES the per-type `exit_treatment` fallback; both default to the whole balance
+    // (encash_full), so a tenant that sets nothing keeps today's behaviour. Encashability
+    // still outranks all of it (a non-encashable type pays 0, enforced below).
+    let payoutDays = available; // encash_full default
+    const [rule] = reason
+      ? await db
+          .select({ treatment: leaveExitRules.treatment, param: leaveExitRules.param })
+          .from(leaveExitRules)
+          .where(and(
+            eq(leaveExitRules.orgId, orgId),
+            eq(leaveExitRules.type, bal.type),
+            eq(leaveExitRules.reason, reason),
+          ))
+          .limit(1)
+      : [undefined];
+    if (rule) {
+      const p = Number(rule.param ?? 0);
+      if (rule.treatment === "proportion") payoutDays = available * p;
+      else if (rule.treatment === "capped") payoutDays = Math.min(available, p);
+      else if (rule.treatment === "accrued_only") payoutDays = Math.min(available, await accruedThisYear());
+      else if (rule.treatment === "forfeit") payoutDays = 0;
+      // encash_full → available (default)
+    } else if (policy?.exitTreatment === "capped") {
+      payoutDays = Math.min(available, Number(policy.maxCarryForwardDays ?? 0));
+    } else if (policy?.exitTreatment === "accrued_only") {
+      payoutDays = Math.min(available, await accruedThisYear());
+    }
+    if (payoutDays <= 0) continue;
+
+    // Encashment wage basis (Basic+DA or Gross) and per-day divisor (26 or 30) are policy.
+    const wageBase = policy?.encashmentBasis === "gross" ? monthlyGross : wages;
+    const enc = computeLeaveEncashment(payoutDays, wageBase, {
+      encashable: policy?.encashable ?? false,
+      workingDaysPerMonth: policy?.encashmentDivisor ?? 26,
+    });
     if (enc.amount > 0) {
       leaveEncashment += enc.amount;
       drawdowns.push({ type: bal.type, days: enc.encashableDays, amount: enc.amount });
@@ -192,7 +253,7 @@ export const settlementRouter = router({
       z
         .object({
           employeeId: z.string().uuid(),
-          reason: z.enum(["resignation", "retirement", "death", "disablement", "termination"]).optional(),
+          reason: z.enum(["resignation", "retirement", "death", "disablement", "termination", "dismissal"]).optional(),
         })
         .merge(recoveriesInput),
     )

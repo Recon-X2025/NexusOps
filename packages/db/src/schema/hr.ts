@@ -73,6 +73,65 @@ export const leaveTypeEnum = pgEnum("leave_type", [
   "bereavement",
   "unpaid",
   "other",
+  // LEAVE-MODEL (greytHR private-sector types). ADDED, never renamed — the destructive
+  // rename of the legacy values (vacation→…, other→unpaid) stays blocked on live row counts
+  // (LEAVE-ENUM-REBUILD). Adding values is additive/safe; `maternity`/`paternity` split the
+  // conflated `parental`.
+  "casual",
+  "maternity",
+  "paternity",
+  "marriage",
+  "compensatory_off",
+]);
+
+/** Encashment wage basis — company policy (greytHR): Basic+DA (the common convention) or Gross. */
+export const leaveEncashmentBasisEnum = pgEnum("leave_encashment_basis", ["basic_da", "gross"]);
+
+/** How a leave type's balance expires: at year-end close, or a fixed window (comp-off, 4–8 weeks). */
+export const leaveExpiryModeEnum = pgEnum("leave_expiry_mode", ["year_end", "window_weeks"]);
+
+/**
+ * Exit-encashment treatment, keyed PER exit reason (CCS Rule 39 structure — resignation pays
+ * half, dismissal forfeits, etc.; the QUANTA are CCS/government and do NOT bind private
+ * employers, only the structure does). Absence of a rule = `encash_full` (behaviour-preserving).
+ */
+export const leaveExitRuleTreatmentEnum = pgEnum("leave_exit_rule_treatment", [
+  "encash_full",   // whole available balance
+  "proportion",    // param = fraction (CCS resignation = 0.5)
+  "capped",        // param = max days
+  "accrued_only",  // only this year's accrual
+  "forfeit",       // nothing
+]);
+
+/**
+ * Year-end treatment of the balance ABOVE the carry-forward cap. Independent of the
+ * cap (a company can cap at 40 and encash the excess, or cap at 0 and forfeit): the cap
+ * decides how much rolls over, this decides what happens to the rest at year-end close.
+ *   - forfeit: lapse the excess (the current, and default, behaviour).
+ *   - encash:  pay the excess out (encashable types only) at year-end close.
+ * This governs the YEAR-END event only; it does NOT cap the exit payout (exit encashes
+ * the whole balance — see routers/settlement.ts).
+ */
+export const leaveYearEndTreatmentEnum = pgEnum("leave_year_end_treatment", [
+  "forfeit",
+  "encash",
+]);
+
+/**
+ * Exit treatment — what the leaver is paid for this leave type at offboarding. The THIRD
+ * independent axis (alongside the cap and the year-end treatment): real company policies
+ * vary, so this is configurable, not a constant.
+ *   - encash_all:   the whole available balance (retained + accrued). Default.
+ *   - capped:       limited to maxCarryForwardDays — a company that caps the exit payout.
+ *   - accrued_only: only leave accrued in the exit year, ignoring carried-forward days.
+ * NOTE: encashability still outranks this — a non-encashable type is never paid on exit,
+ * whatever this says. A state-level statutory floor (Shops & Establishments Acts) may
+ * override a company's choice — recorded as an open CA question, NOT enforced here.
+ */
+export const leaveExitTreatmentEnum = pgEnum("leave_exit_treatment", [
+  "encash_all",
+  "capped",
+  "accrued_only",
 ]);
 
 export const leaveStatusEnum = pgEnum("leave_status", [
@@ -769,12 +828,105 @@ export const leavePolicies = pgTable(
       .default("0"),
     /** Whether the leave type may be encashed. */
     encashable: boolean("encashable").notNull().default(false),
+    /**
+     * Year-end treatment of the balance above `maxCarryForwardDays` — encash it or
+     * forfeit it. Independent of the cap. Default "forfeit" preserves today's close.run
+     * behaviour (always lapsed). Does NOT affect the exit payout, which is uncapped.
+     */
+    yearEndTreatment: leaveYearEndTreatmentEnum("year_end_treatment")
+      .notNull()
+      .default("forfeit"),
+    /**
+     * Exit treatment — how much of this type is encashed on offboarding. Default
+     * "encash_all" preserves settlement's current whole-balance behaviour (and never
+     * underpays a leaver). Encashability still outranks it; a state statutory floor may
+     * override it (open CA question, not enforced).
+     */
+    exitTreatment: leaveExitTreatmentEnum("exit_treatment")
+      .notNull()
+      .default("encash_all"),
+    // ── LEAVE-MODEL axes (all default to today's behaviour) ──────────────────
+    /** Encashment wage basis — Basic+DA (current) or Gross. */
+    encashmentBasis: leaveEncashmentBasisEnum("encashment_basis").notNull().default("basic_da"),
+    /** Per-day divisor for encashment: (wage / divisor). 26 today; 30 is the CCS convention. */
+    encashmentDivisor: integer("encashment_divisor").notNull().default(26),
+    /** Whether taking this leave DEBITS the balance. Maternity/paternity et al. must NOT — else
+     *  they silently consume another balance. Default true preserves current behaviour. */
+    debitsBalance: boolean("debits_balance").notNull().default(true),
+    /** Balance expiry: at year-end (default) or a fixed rolling window (comp-off). */
+    expiryMode: leaveExpiryModeEnum("expiry_mode").notNull().default("year_end"),
+    /** Window length in weeks when expiryMode = window_weeks (comp-off: 4–8). Null otherwise. */
+    expiryWindowWeeks: integer("expiry_window_weeks"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     orgTypeIdx: uniqueIndex("leave_policies_org_type_idx").on(t.orgId, t.type),
     orgIdx: index("leave_policies_org_idx").on(t.orgId),
+  }),
+);
+
+/**
+ * Exit-encashment rule PER exit reason, per tenant, per leave type (LEAVE-MODEL headline —
+ * CCS Rule 39 shows exit treatment varies by WHY the person left). One row overrides the
+ * default `encash_full` for a (type, reason) pair. `reason` is free text matching settlement's
+ * reason set (resignation | retirement | death | disablement | termination | dismissal) — kept
+ * as text, not an enum, because it mirrors settlement's existing text `reason` column.
+ */
+export const leaveExitRules = pgTable(
+  "leave_exit_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    type: leaveTypeEnum("type").notNull(),
+    reason: text("reason").notNull(),
+    treatment: leaveExitRuleTreatmentEnum("treatment").notNull().default("encash_full"),
+    /** proportion (fraction, e.g. 0.5) or cap (days) — meaning depends on `treatment`. */
+    param: decimal("param", { precision: 8, scale: 3 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    scopeIdx: uniqueIndex("leave_exit_rules_scope_idx").on(t.orgId, t.type, t.reason),
+    orgIdx: index("leave_exit_rules_org_idx").on(t.orgId),
+  }),
+);
+
+/**
+ * National + per-state leave baseline (PT-STATES precedent: all 36 states/UTs present, those
+ * following the national baseline recorded as a FACT — `followsBaseline` — not left absent, so
+ * nobody rediscovers a gap). `orgId` null = the platform national baseline; a state that differs
+ * carries an override row. Per-state QUANTA are verified per-state against each state's own Shops
+ * & Establishments / Factories Act (a deferred CA data task) — every row ships as `baseline`.
+ */
+export const leaveStateBaselines = pgTable(
+  "leave_state_baselines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Null = platform national baseline; a tenant may hold overrides in future. */
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    stateCode: text("state_code").notNull(),
+    stateName: text("state_name").notNull(),
+    /** True = this state follows the national baseline (the recorded fact, pending verification). */
+    followsBaseline: boolean("follows_baseline").notNull().default(true),
+    /** Baseline entitlements (national defaults; overridden per verified state). */
+    earnedLeaveDays: decimal("earned_leave_days", { precision: 5, scale: 1 }).notNull().default("0"),
+    casualLeaveDays: decimal("casual_leave_days", { precision: 5, scale: 1 }).notNull().default("0"),
+    sickLeaveDays: decimal("sick_leave_days", { precision: 5, scale: 1 }).notNull().default("0"),
+    /** Some states (Delhi) combine CL+SL into one entitlement rather than separate. */
+    casualSickCombined: boolean("casual_sick_combined").notNull().default(false),
+    /** Some states (Tripura) permit 50% salary for CL/SL rather than full pay. */
+    sickHalfPay: boolean("sick_half_pay").notNull().default(false),
+    carryForwardFloorDays: decimal("carry_forward_floor_days", { precision: 5, scale: 1 }).notNull().default("0"),
+    /** Provenance — must be the state's own act before a row is trusted beyond `baseline`. */
+    provenance: text("provenance"),
+    notes: text("notes"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    scopeIdx: uniqueIndex("leave_state_baselines_scope_idx").on(t.stateCode, t.orgId, t.effectiveFrom),
+    stateIdx: index("leave_state_baselines_state_idx").on(t.stateName),
   }),
 );
 
@@ -807,6 +959,13 @@ export const leaveAccrualEvents = pgTable(
     days: decimal("days", { precision: 6, scale: 1 }).notNull().default("0"),
     /** Rupee value for encashment events; 0 otherwise. */
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    /**
+     * The day this event is anchored to. For comp-off (COMPOFF-EARN): the WORKED holiday/weekend
+     * date an accrual credit was earned on, and the anchor its rolling window-expiry ages against
+     * (year/month alone are too coarse for a weeks-based window). Null for the monthly-accrual /
+     * year-end events, which are anchored by year/month.
+     */
+    eventDate: timestamp("event_date", { withTimezone: true }),
     createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
