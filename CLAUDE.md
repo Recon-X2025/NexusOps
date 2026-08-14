@@ -96,8 +96,11 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   cascade FKs, unique `(employee_id, fiscal_year)`, **RLS-walled** — ENABLE+FORCE+`tenant_isolation` in the
   same migration, per the `0052`/`0061` convention) — the +1 that took base tables 238→239. `0081_illegal_stick`
   adds no table; `0082_chilly_husk` (FULL-AND-FINAL) adds the RLS-walled **`final_settlements`** table (+1).
+  The leave/exit run `0083`–`0085`: `0083_wooden_doctor_spectrum` adds no table (leave-policy columns);
+  `0084_bright_roland_deschain` adds the **`leave_exit_rules`** + **`leave_state_baselines`** tables (RLS-walled,
+  +2 — took base tables 240→242); `0085_cloudy_jack_murdock` adds no table.
   **Do not trust a head number quoted here — read it from `packages/db/drizzle/meta/_journal.json` (as of
-  2026-08-14 it was `0082`, base tables 240). A hardcoded "live head is X" is exactly the per-commit state
+  2026-08-14 it was `0085`, base tables 242). A hardcoded "live head is X" is exactly the per-commit state
   that does not belong in this file.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +

@@ -19,7 +19,14 @@ export const LEAVE_TYPE_LABELS: Record<string, string> = {
   annual: "Annual Leave",
   vacation: "Annual Leave", // stored value diverges from label (see header)
   sick: "Sick / Casual Leave",
+  casual: "Casual Leave", // enum value added in mig 0084; label so existing rows render honestly
   parental: "Parental Leave",
+  // LEAVE-TYPES: statutory + policy types added to the enum in mig 0084. Stored values match their
+  // labels directly (no vacation→annual style divergence), so these render straight through.
+  maternity: "Maternity Leave",
+  paternity: "Paternity Leave",
+  marriage: "Marriage Leave",
+  compensatory_off: "Compensatory Off",
   bereavement: "Bereavement Leave",
   unpaid: "Unpaid Leave",
   other: "Other",
@@ -37,6 +44,12 @@ export const LEAVE_TYPE_PICKER_OPTIONS: { value: string; label: string }[] = [
   { value: "vacation", label: "Annual Leave" },
   { value: "sick", label: "Sick / Casual Leave" },
   { value: "parental", label: "Parental Leave" },
+  // LEAVE-TYPES: statutory + policy types (enum values from mig 0084). Maternity is a central
+  // Maternity Benefit Act 1961 entitlement (26 weeks) — an Indian payroll product must record it.
+  { value: "maternity", label: "Maternity Leave" },
+  { value: "paternity", label: "Paternity Leave" },
+  { value: "marriage", label: "Marriage Leave" },
+  { value: "compensatory_off", label: "Compensatory Off" },
   { value: "bereavement", label: "Bereavement Leave" },
   { value: "unpaid", label: "Unpaid Leave" },
 ];

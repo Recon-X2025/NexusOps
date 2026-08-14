@@ -1,6 +1,6 @@
 # CONTEXT — session hand-off
 
-_Updated 2026-08-08. This file is a fresh session's ENTIRE starting picture, so
+_Updated 2026-08-14. This file is a fresh session's ENTIRE starting picture, so
 it is written to be read cold. **`reports/fix-plan.md` is the source of truth**
 for per-item detail and CA rulings; this file is the map and the priorities.
 Do not trust a SHA, migration head, or "done" claim here without checking it
@@ -38,14 +38,21 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `f487ee8`** — migration head
-  **`0082_chilly_husk`**, **240 base tables** (`0082` added `final_settlements`; `0081_illegal_stick`
-  added no table) — verified 2026-08-14 through the terminal **`Deploy to Vultr` job of CI run
-  `31701625521`** (`success` on **attempt 1**; pre-flight read **`42GB free ≥ 10GB — no prune needed`**)
-  and `/api/health` returning `version: f487ee81b2…`. `f487ee8` is **PO-GATE** (creation-time value
-  threshold on Direct POs; stored in `organizations.settings.procurement` JSON, no migration). Its
-  ancestors on this deploy: `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + procurement F18/F2/multi-line-GST +
-  migration `0082`), `f534f7b` (F9 TDS projection), `5c5490d`/`362abc5` (C1 declarations) and earlier.
+- **LIVE on `connect.coheron.tech` = `f659127`** — migration head **`0085_cloudy_jack_murdock`**,
+  **242 base tables** (`0084` added `leave_exit_rules` + `leave_state_baselines`) — verified 2026-08-14
+  through `/api/health` returning `version: f6591270c23d97b8…` and all six jobs of CI run **`31818337559`**
+  `success` (terminal **`Deploy to Vultr`** = `success`). `f659127` is the **leave-model / exit-proration /
+  structure-importer / authz-sweep / MINOR-BATCH** unit. Its ancestors on this deploy: `831f21b`
+  (fix(security+payroll): login POST, COA null-subType, PR5 YTD, regime declarations — no migration),
+  `f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + migration `0082`) and earlier. The api
+  container self-applied `0083–0085` on boot.
+- **HEAD = `origin/main` = the LEAVE-TYPES commit** (committed + pushed 2026-08-14) — puts the four leave
+  types (**Maternity, Paternity, Marriage, Compensatory Off**) into the web picker (`leave-labels.ts`;
+  the enum values were already in the DB from `0084`) and makes maternity/paternity/parental **non-debiting
+  by default** in `hr.ts` (was: "no policy = debit", which over-drew a maternity balance). **No migration.**
+  **Deploy IN FLIGHT:** CI run pushed just now — becomes live only when its terminal `Deploy to Vultr` job
+  goes green **and** `/api/health` returns the new SHA. Gate before push: `lint:cold` 9/9 + full suite green
+  (193 files / 1698 tests).
   _**Retention prune (Change E):** on this deploy it ran but **reclaimed nothing** (no output) — no
   image had crossed 168h at deploy time. No deploy has happened since, so its first real reclaim is
   still unobserved; the next deploy is the test. (The old `47→46→45GB` series is stale — actual is 42GB.)_
@@ -53,17 +60,10 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **Working tree (as of 2026-08-14): UNCOMMITTED, three code units + docs.** `origin/main` = `f487ee8`
-  (0 ahead/0 behind); nothing is committed on top. The uncommitted set, by unit:
-  - **PR5 (YTD)** — `services/payroll-run-aggregates.ts` (`buildYtdContext` + `ytdPrior` param),
-    `routers/payroll.ts` (write-path + preview threading), `routers/hr.ts` (two single-payslip previews),
-    `__tests__/pr5-ytd.test.ts`. Fixes payslip YTD being one month instead of the running FY total.
-  - **Regime-comparison fifth site** — `routers/payroll.ts` (`buildTaxProfileFromEmployee` now reads the
-    employee's non-lapsed declarations), `__tests__/regime-comparison-declarations.test.ts`.
-  - **COA-NULL-SUBTYPE guard** — `app/finance/accounting/coa/page.tsx` (null-guard on `subType`).
-  - Unit-5 comment fix in `packages/validators/src/hr.ts`; QA-harness dedup in `tests/full-qa/helpers.ts`
-    (a test-enabler, not product); overnight docs `docs/MANUAL_SET.md`, `docs/OBJECT_STORAGE_DECISION.md`.
-  Per rule 6 this deploy-state refresh rides the next code change, not its own commit.
+- **Working tree (as of 2026-08-14): CLEAN.** Everything is committed and pushed. `f659127` (leave-model /
+  exit-proration / structure-importer / authz-sweep / MINOR-BATCH) is now **live**; the **LEAVE-TYPES**
+  commit on top (four leave types into the picker + maternity/paternity/parental non-debiting default; no
+  migration) is HEAD, deploy in flight (above).
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -758,22 +758,26 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31701625521` — commit `f487ee8` (PO-GATE: creation-time value threshold on Direct POs, stored in
-`organizations.settings.procurement` JSON — no migration) — terminal `Deploy to Vultr` job `success` on
-**attempt 1** — 2026-08-14 — migration head `0082_chilly_husk`, 240 base tables.** Verified via `gh run view
-31701625521 --json jobs` (all five jobs `success`; terminal `Deploy to Vultr` = `success`) and
-`connect.coheron.tech/api/health` returning `version: f487ee81b2…`. This is LIVE on `connect.coheron.tech`.
-The api container runs image `f487ee8` **healthy**; its `CMD` is `node dist/migrate.mjs && node dist/index.mjs`
-(`apps/api/Dockerfile:62`, exit 1 on migrate failure), so a booted server means `0082` applied — **including
-the ENABLE + FORCE ROW LEVEL SECURITY + `tenant_isolation` policy on `final_settlements`, which are in the
-same `0082.sql`** (a direct prod `pg_class.relforcerowsecurity` query was **not** run — no DB credentials
-here; boot-implies-applied plus the migration-file contents are the verification of record). Pre-flight disk
-read **`42GB free`**; the retention prune ran and **reclaimed nothing** (no image past 168h yet). `f487ee8`
-includes `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + procurement F18/F2/multi-line-GST + migration `0082`),
-`f534f7b` (F9 TDS projection), `5c5490d`/`362abc5` (C1 declarations, migration `0080`/`0081`) and earlier as
-ancestors.
+**CI run `31818337559` — commit `f659127` (leave-model / exit-proration / structure-importer / authz-sweep /
+MINOR-BATCH; migrations `0083–0085`) — all six jobs `success`, terminal `Deploy to Vultr` = `success` —
+2026-08-14 — migration head `0085_cloudy_jack_murdock`, 242 base tables.** Verified via
+`connect.coheron.tech/api/health` returning `version: f6591270c23d97b8…` and `gh run view 31818337559 --json
+jobs` (all six jobs `success`). This is LIVE on `connect.coheron.tech`. The api container runs image `f659127`
+**healthy**; its `CMD` is `node dist/migrate.mjs && node dist/index.mjs` (`apps/api/Dockerfile:62`, exit 1 on
+migrate failure), so a booted server means `0083–0085` applied — including the ENABLE + FORCE ROW LEVEL
+SECURITY + `tenant_isolation` policies on `leave_exit_rules` + `leave_state_baselines` (same `0084.sql`; no
+direct prod `pg_class` query — no DB credentials here; boot-implies-applied plus the migration-file contents
+are the verification of record). `f659127` includes `831f21b` (fix(security+payroll), no migration),
+`f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + migration `0082`) and earlier.
 
-**Superseded exit points (decision-history):** CI `31584256191` / `362abc5` / head `0080` (C1-CORE, 2026-08-12).
+**Deploy IN FLIGHT (not yet an exit point):** the **LEAVE-TYPES** commit — four leave types (Maternity,
+Paternity, Marriage, Compensatory Off) into the web picker + maternity/paternity/parental non-debiting by
+default; **no migration**, head stays `0085`. Becomes the exit point only when its terminal `Deploy to Vultr`
+job goes green **and** `/api/health` returns the new SHA — re-verify both before declaring it live.
+
+**Superseded exit points (decision-history):** CI `31761880777` / `831f21b` / head `0082` (security+payroll,
+2026-08-14); CI `31701625521` / `f487ee8` / head `0082` (PO-GATE); CI `31584256191` / `362abc5` / head `0080`
+(C1-CORE, 2026-08-12).
 
 _**PRUNE-PREFLIGHT trend — disk gently declining, not refilling.** Verified pre-flight `df` reads across the
 run: `ec2b7a9` **47GB** → `1e42d6e` **46GB** → `362abc5` **45GB** (each `≥ 10GB — no prune needed`), on top of

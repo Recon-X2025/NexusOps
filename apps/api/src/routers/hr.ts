@@ -57,6 +57,18 @@ import { emitDomainEvent } from "../services/workflow-events";
 // ── Employee intake guards (2a), reused by create + update ────────────────────
 // Server-side because a form-only rule is bypassable by any tRPC caller.
 const MIN_EMPLOYEE_AGE_YEARS = 18; // company POLICY, not a statutory minimum — see fix-plan.
+
+// LEAVE-TYPES / LEAVE-MODEL: these types grant leave as a separate statutory/policy entitlement and
+// must NOT draw down a leave balance, even when a tenant has not configured an explicit policy row.
+// (CCS Leave Rules: maternity/paternity/child-care are not debited to the leave account.) An explicit
+// policy row still wins in either direction — this only sets the default when none exists.
+const NON_DEBITING_DEFAULT_TYPES = new Set<string>(["maternity", "paternity", "parental"]);
+/** Whether a created/approved leave request debits a balance. Explicit policy wins; absent a policy
+ *  row, maternity/paternity/parental default to non-debiting and every other type to debiting. */
+function policyDebits(policy: { debitsBalance: boolean } | undefined, type: string): boolean {
+  if (policy) return policy.debitsBalance;
+  return !NON_DEBITING_DEFAULT_TYPES.has(type);
+}
 /** Reject a future DOB, and a DOB under the policy minimum age. No-op when absent. */
 function checkDob(d: Date | undefined, ctx: z.RefinementCtx): void {
   if (d === undefined) return;
@@ -886,15 +898,16 @@ export const hrRouter = router({
         })
         .returning();
 
-      // LEAVE-MODEL: a NON-DEBITING type (maternity/paternity/child-care et al.) grants leave
-      // WITHOUT consuming a balance — otherwise maternity silently eats another balance. Only
-      // debit when the policy debits (default true preserves current behaviour; no policy = debit).
+      // LEAVE-MODEL / LEAVE-TYPES: a NON-DEBITING type (maternity/paternity/parental et al.) grants
+      // leave WITHOUT consuming a balance — otherwise maternity silently eats another balance. An
+      // explicit policy row wins; absent one, maternity/paternity/parental default to non-debiting
+      // (policyDebits), so putting maternity in the picker never over-draws an unconfigured balance.
       const [reqPolicy] = await db
         .select({ debitsBalance: leavePolicies.debitsBalance })
         .from(leavePolicies)
         .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, input.type)))
         .limit(1);
-      if (reqPolicy?.debitsBalance !== false) {
+      if (policyDebits(reqPolicy, input.type)) {
         await db
           .insert(leaveBalances)
           .values({
@@ -954,7 +967,7 @@ export const hrRouter = router({
             .from(leavePolicies)
             .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, request.type)))
             .limit(1);
-          if (apPolicy?.debitsBalance !== false) {
+          if (policyDebits(apPolicy, request.type)) {
             await tx
               .update(leaveBalances)
               .set({

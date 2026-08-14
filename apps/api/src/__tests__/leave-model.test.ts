@@ -146,4 +146,35 @@ describe("LEAVE-MODEL — exit per reason, wage basis, divisor, maternity floor"
     expect(mat).toBeUndefined();        // never debited a balance for a non-debiting type
     expect(Number(ann!.pendingDays)).toBe(5); // debiting type recorded the 5 pending days
   });
+
+  // LEAVE-TYPES — the headline: maternity must not draw down a balance even when the tenant has
+  // NOT configured a leave policy. Pre-fix, "no policy = debit" would over-draw a maternity balance.
+  it("maternity/paternity/parental do NOT debit a balance with NO policy row (code-level default)", async () => {
+    const { emp, userId } = await seedEmp();
+    // Deliberately seed NO leave policy at all.
+    const hr = hrRouter.createCaller(createMockContext(userId, orgId));
+    for (const type of ["maternity", "paternity", "parental"] as const) {
+      await hr.leave.create({ type, startDate: "2026-03-01", endDate: "2026-03-10", reason: type });
+    }
+    const bals = await testDb().select().from(leaveBalances).where(eq(leaveBalances.employeeId, emp.id));
+    expect(bals.length).toBe(0); // no balance row created or touched for any non-debiting default type
+  });
+
+  it("a debiting default type (marriage) with no policy row STILL debits — the non-debiting set is scoped", async () => {
+    const { emp, userId } = await seedEmp();
+    const hr = hrRouter.createCaller(createMockContext(userId, orgId));
+    await hr.leave.create({ type: "marriage", startDate: "2026-04-01", endDate: "2026-04-03", reason: "marriage" });
+    const [bal] = await testDb().select().from(leaveBalances)
+      .where(and(eq(leaveBalances.employeeId, emp.id), eq(leaveBalances.type, "marriage")));
+    expect(Number(bal!.pendingDays)).toBe(3); // marriage is not in NON_DEBITING_DEFAULT_TYPES
+  });
+
+  it("a leave request can be created against each of the four new types", async () => {
+    const { userId } = await seedEmp();
+    const hr = hrRouter.createCaller(createMockContext(userId, orgId));
+    for (const type of ["maternity", "paternity", "marriage", "compensatory_off"] as const) {
+      const req = await hr.leave.create({ type, startDate: "2026-06-01", endDate: "2026-06-02", reason: type });
+      expect(req.type).toBe(type); // the enum accepts it end-to-end
+    }
+  });
 });

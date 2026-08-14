@@ -8,9 +8,18 @@ No code has been changed by this document — it is the plan, not the work._
 
 ## ⭐ STATE REFRESH & CORRECTIONS — 2026-08-14 (read this first)
 
-**Live:** `f487ee8` (verified `/api/health`), migration head **`0082_chilly_husk`** (240 base tables),
-last deploy CI `31701625521` `Deploy to Vultr` success attempt 1, pre-flight **42GB free**, **retention
-prune reclaimed nothing** (no image past 168h; no deploy since — first reclaim still unobserved).
+**Live:** `f659127` (verified `/api/health` → `version: f6591270c23d97b8…`), migration head
+**`0085_cloudy_jack_murdock`** (**242 base tables** — `0084` added `leave_exit_rules` + `leave_state_baselines`),
+deployed by CI `31818337559` (all six jobs `success`, terminal `Deploy to Vultr` `success`). `f659127` is the
+leave-model / exit-proration / structure-importer / authz-sweep / MINOR-BATCH unit.
+
+**HEAD (committed + pushed, deploy IN FLIGHT):** the **LEAVE-TYPES** commit — puts Maternity / Paternity /
+Marriage / Compensatory Off into the web leave picker (`apps/web/src/lib/leave-labels.ts`; the enum values
+were already in the DB from `0084`, the picker was a fifth hardcoded copy that was never updated) and makes
+maternity/paternity/parental **non-debiting by default** in `hr.ts` (was "no policy = debit", which over-drew
+a maternity balance). **No migration** — head stays `0085`. Gate before push: `lint:cold` 9/9 + full suite
+green (193 files / 1698 tests). Becomes live only when its terminal `Deploy to Vultr` goes green **and**
+`/api/health` returns the new SHA — re-verify.
 
 ### Corrections to the record — each was recorded as true and is NOT. Retired deliberately:
 
