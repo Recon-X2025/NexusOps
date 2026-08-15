@@ -100,7 +100,7 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   `0084_bright_roland_deschain` adds the **`leave_exit_rules`** + **`leave_state_baselines`** tables (RLS-walled,
   +2 — took base tables 240→242); `0085_cloudy_jack_murdock` adds no table.
   **Do not trust a head number quoted here — read it from `packages/db/drizzle/meta/_journal.json` (as of
-  2026-08-14 it was `0085`, base tables 242). A hardcoded "live head is X" is exactly the per-commit state
+  2026-08-15 it was `0087` (`0086` identifier uniqueness, `0087` payroll approval chain length)). A hardcoded "live head is X" is exactly the per-commit state
   that does not belong in this file.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
@@ -174,6 +174,56 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
      retirals (employer PF, EDLI, admin, gratuity) are added only in the later offer-letter build.
   9. **No bulk import for salary structures** (STRUCTURE-BULK) — hand-created during onboarding week; a
      throughput risk, not a correctness one.
+
+## Standing decisions — identifiers, approvals, identity
+
+These are conventions, not per-commit state. They were established by code audit; follow them.
+
+- **Every user-facing record identifier is unique PER ORG and allocated from `org_counters`.**
+  `getNextSeq` / `getNextNumber` (`apps/api/src/lib/auto-number.ts`) do an atomic
+  `INSERT … ON CONFLICT DO UPDATE … RETURNING`. **Never mint an identifier with `Math.random()` or
+  `count(*)+1`** — both shipped and both produced duplicates (expense reports drew from 9000 values a
+  year; four tables raced). Migration `0086` added nine unique indexes; a racing generator behind a
+  unique index is a user-facing 500, so the generator and the index must land together.
+  Third-party/free-text references (`bank_transactions.reference`, `fema_return_records.reference`,
+  `inventory_transactions.reference`, `journal_entries.reference`) are deliberately NOT constrained —
+  they may legitimately repeat.
+  Still open: `work_order_tasks.number` (`count(*)+1`, scoped per work order, so `org_counters` does not
+  fit as-is).
+- **A migration that adds a unique index must detect duplicates first and RAISE naming
+  table/value/org/row-count** — never delete, merge or renumber. See `0086_aromatic_swarm.sql` for the
+  pattern. The api container's `migrate && index` CMD means a raise stops the deploy and leaves the
+  previous container serving, which is the desired behaviour.
+- **Payroll approval chain is 2 or 3 steps, never 1.** Configured by the tenant's own owner/admin via
+  `admin.payrollPolicy.*`, stored in the typed `OrgSettings` JSONB (the convention for tenant config that
+  drives behaviour — NOT `system_properties`). **Stamped onto `payroll_runs.approval_chain_length` at
+  creation and read from the run**, so a mid-cycle change cannot alter a run in flight. Segregation of
+  duties (no one person approves two steps) is unchanged at either length and must stay.
+  **On a 2-step chain the FINANCE approval lands on `CFO_APPROVED`** — `generateStatutory`, bank-file
+  generation and the payroll UI all gate on that state, so introducing a separate terminal status would
+  silently strip 2-step tenants of statutory generation. The stored names (`cfo_approved`,
+  `approvedByCfoId`) stay as they are at both lengths.
+- **Identity: every employee already has exactly one login.** `employees.user_id` is NOT NULL and
+  uniquely indexed, and all three creation paths (`hr.employees.create`, the second creator in `hr.ts`,
+  `ingest.importEmployees`) create the user when none is supplied. "Employee with no login" is NOT a
+  reachable state. The reverse IS reachable and is still unhandled: a login with no employee record gets
+  a bare 404 from `hr.leave.create` (it throws NOT_FOUND when `employees.userId = user.id` misses).
+  `hr.triggerOnboarding` creates no employee — it is a checklist over one that already exists.
+- **Offboarding revokes access on a DATE, not on the event.** A daily BullMQ job in
+  `hrPeriodicWorkflow.ts` disables logins at end of day on the day AFTER `employees.end_date` (last
+  working day + one handover day), using the Admin Console's own mechanism (`users.status = "disabled"` +
+  an audit row) — do not add a second disable path. Note `seed-smb-analytics` gives resigned/terminated
+  employees past end dates, so a seeded environment will see logins disabled on the first nightly run.
+- **State vocabulary: `professional_tax_slabs.state_name` is canonical.** The PT lookup keys overrides on
+  `normalizePtStateKey(stateName)`, so a value absent from that table cannot resolve a slab. The employee
+  dropdown (`apps/web/src/lib/india-states.ts`) must match it, and a guard test
+  (`state-list-slab-parity.test.ts`) fails if they drift. `normalizePtStateKey` treats `&` and `and` as
+  equivalent. `GSTIN_STATE_CODES` in payroll-math deliberately does NOT match — it is the IRP's
+  vocabulary and employee state never feeds the GST path.
+- **Do not invent a displayed identifier by splitting or truncating a real field.** The Admin Console's
+  USERNAME column was `email.split("@")[0]`, so two distinct accounts rendered identically. Several
+  screens still do this with `id.slice(…)` fallbacks (invoice, GRC, vendor, CRM, security) — a missing
+  number is a data problem, not a display one.
 
 ## Common commands
 

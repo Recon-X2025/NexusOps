@@ -6,19 +6,44 @@ No code has been changed by this document — it is the plan, not the work._
 
 ---
 
-## ⭐ STATE REFRESH & CORRECTIONS — 2026-08-14 (read this first)
+## ⭐ STATE REFRESH — 2026-08-15 (read this first)
 
-**Live:** `deec1b7` (verified `/api/health` → `version: deec1b72dc218bca…`), migration head
-**`0085_cloudy_jack_murdock`** (**242 base tables**), deployed by CI `31824103321` (all six jobs `success`,
-terminal `Deploy to Vultr` `success`). `deec1b7` is **LEAVE-TYPES**: it puts Maternity / Paternity / Marriage /
-Compensatory Off into the web leave picker (`apps/web/src/lib/leave-labels.ts` — the enum values were already
-in the DB from `0084`, the picker was a fifth hardcoded copy that had never been updated) and makes
-maternity/paternity/parental **non-debiting by default** in `hr.ts` (was "no policy = debit", which over-drew
-a maternity balance). **No migration** — head stays `0085`. Prior live (superseded, same session):
-`f659127` (leave-model / exit-proration / structure-importer / authz-sweep / MINOR-BATCH; migrations
-`0083–0085`) via CI `31818337559`.
+**Last VERIFIED live:** `e11e5f5`, CI `31877482131`, all six jobs `success`, migration head `0085`
+(verified via `/api/health` → `version: e11e5f54fddf7f63…`).
 
-**Working tree:** CLEAN — `origin/main` = local `main` = `deec1b7` (0 ahead/0 behind), live.
+**HEAD = `origin/main` = `90f7b70`, DEPLOY IN FLIGHT.** Rounds 6, 7 and 8-part-1 in one commit (they share
+files; splitting would not compile). Migrations `0086` + `0087` — head moves to `0087`. Gate before push:
+build 11/11, `lint:cold` 9/9 forced, 206 files / 1809 tests, playwright 113 passed (2 known `rbac.spec.ts`
+hydration failures).
+
+SHIPPED IN `90f7b70`:
+- **PAYROLL-CHAIN (Round 8).** Approval chain configurable to 2 or 3 steps (never 1); segregation
+  unchanged at both lengths. Setting in typed `OrgSettings`, written via `admin.payrollPolicy.*`
+  (owner/admin only), default 3. `payroll_runs.approval_chain_length` stamped AT CREATION and read from
+  the run — a mid-cycle setting change cannot alter a run in flight. On a 2-step chain the FINANCE
+  approval lands on `CFO_APPROVED`, because `generateStatutory`, bank-file generation and the payroll UI
+  all gate on that state. **INCOMPLETE: no Admin Console UI and no Playwright spec** — the setting is
+  API-only today. Default 3 means no behaviour change on deploy.
+- **IDENTIFIER-UNIQUENESS (Round 7).** Nine unique indexes (mig `0086`); five generators moved onto
+  `org_counters` (expense reports and SLA display ids were `Math.random()`; job requisitions and both
+  board tables were `count(*)+1`). `services/csat.ts` was creating every auto-CSAT survey with the
+  `"SURV-000"` column default — fixed the producer. Admin Console: invented USERNAME column deleted,
+  Department wired to `employees.department`, null-name crash fixed, CSV export aligned and quoted.
+- **STATE-LISTS + OFFBOARDING + LOGIN-EMAIL (Round 6).** Dropdown realigned to
+  `professional_tax_slabs.state_name` AND `normalizePtStateKey` now treats `&`/`and` as equivalent;
+  `statutory-ceilings.ts` no longer keeps an inline copy of that normalisation. Offboarding revokes
+  access at end of the day after the last working day, via a daily job in the existing BullMQ sweep,
+  using the Admin Console's own disable mechanism. Login email confirmed already unique per org
+  (`users_org_email_idx`) — nothing changed, tests pin it; there is no `username` column anywhere.
+
+OPEN, carried forward (Round 8 parts not done):
+- Part 1e/1g — Admin Console UI + Playwright spec for the approval chain.
+- Part 2 — a login with NO employee record still gets a bare 404 from `hr.leave.create`; needs a message
+  naming the missing employee record, and a flag where users are listed. ("Employee with no login" is NOT
+  reachable: `employees.user_id` is NOT NULL and every creation path already makes the user.)
+- Part 3 — `work_order_tasks.number` is still `count(*)+1` with no unique index (needs per-work-order
+  counter scoping, not per-org).
+- Part 4 — the fabricated identifier displays (invoice/GRC/vendor/CRM/security id slices).
 
 ### Corrections to the record — each was recorded as true and is NOT. Retired deliberately:
 

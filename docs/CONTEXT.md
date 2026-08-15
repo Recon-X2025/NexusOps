@@ -38,18 +38,22 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `origin/main` = `deec1b7`** — migration head
-  **`0085_cloudy_jack_murdock`**, **242 base tables** — verified 2026-08-14 through `/api/health` returning
-  `version: deec1b72dc218bca…` and all six jobs of CI run **`31824103321`** `success` (terminal **`Deploy to
-  Vultr`** = `success`). `deec1b7` is **LEAVE-TYPES**: it puts the four leave types (**Maternity, Paternity,
-  Marriage, Compensatory Off**) into the web picker (`apps/web/src/lib/leave-labels.ts`; the enum values were
-  already in the DB from `0084`, the picker was a fifth hardcoded copy that had never been updated) and makes
-  maternity/paternity/parental **non-debiting by default** in `hr.ts` (was "no policy = debit", which
-  over-drew a maternity balance). **No migration — head stays `0085`.** Its ancestors on this deploy:
-  `f659127` (leave-model / exit-proration / structure-importer / authz-sweep / MINOR-BATCH — migrations
-  `0083–0085`), `831f21b` (fix(security+payroll), no migration), `f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE +
-  FULL-AND-FINAL + migration `0082`) and earlier. The api container self-applied `0083–0085` on the `f659127`
-  boot; `deec1b7` added none.
+- **LIVE on `connect.coheron.tech` = `e11e5f5`** (Round 7's push) — verified 2026-08-15 via
+  `/api/health` returning `version: e11e5f54fddf7f63…` and CI run `31877482131`, all six jobs `success`.
+  Migration head at that deploy: **`0085`**.
+- **HEAD = `origin/main` = `90f7b70` — DEPLOY IN FLIGHT, NOT YET VERIFIED LIVE.** Pushed 2026-08-15;
+  becomes the exit point only when its terminal `Deploy to Vultr` job is `success` **and** `/api/health`
+  returns `90f7b70…`. Re-verify both before treating it as live. It carries Rounds 6, 7 and 8-part-1 and
+  **two migrations, `0086` and `0087`** (head moves `0085` → `0087`).
+  - `0086_aromatic_swarm` — nine unique indexes on user-facing identifier columns, per org. **It can
+    deliberately HALT the deploy**: it detects duplicates first and raises naming table/value/org/row-count,
+    changing nothing. If that happens the api container will not start and the previous container keeps
+    serving; the remedy is a product-owner decision on which record keeps the identifier.
+  - `0087_lowly_stranger` — additive: `payroll_runs.approval_chain_length` (default 3).
+  - **Watch on first deploy:** Round 6's nightly offboarding sweep disables logins whose
+    `employees.end_date` + 1 handover day has elapsed. `seed-smb-analytics` gives resigned/terminated
+    employees PAST end dates, so the first nightly run will disable those seeded logins and write audit
+    rows. Intended, not a defect.
   _**Retention prune (Change E):** on this deploy it ran but **reclaimed nothing** (no output) — no
   image had crossed 168h at deploy time. No deploy has happened since, so its first real reclaim is
   still unobserved; the next deploy is the test. (The old `47→46→45GB` series is stale — actual is 42GB.)_
@@ -755,18 +759,7 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31824103321` — commit `deec1b7` (LEAVE-TYPES: four leave types into the web picker +
-maternity/paternity/parental non-debiting by default — no migration) — all six jobs `success`, terminal
-`Deploy to Vultr` = `success` — 2026-08-14 — migration head `0085_cloudy_jack_murdock`, 242 base tables.**
-Verified via `connect.coheron.tech/api/health` returning `version: deec1b72dc218bca…` and `gh run view
-31824103321 --json jobs` (all six jobs `success`). This is LIVE on `connect.coheron.tech`. The api container
-runs image `deec1b7` **healthy**; its `CMD` is `node dist/migrate.mjs && node dist/index.mjs`
-(`apps/api/Dockerfile:62`, exit 1 on migrate failure), so a booted server means the head migration `0085`
-applied — the RLS-walled `leave_exit_rules` + `leave_state_baselines` (from `0084`) included (no direct prod
-`pg_class` query — no DB credentials here; boot-implies-applied plus the migration-file contents are the
-verification of record). `deec1b7` added no migration. It includes `f659127` (leave-model / exit-proration /
-structure-importer / authz-sweep / MINOR-BATCH; migrations `0083–0085`), `831f21b` (fix(security+payroll)),
-`f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + migration `0082`) and earlier.
+**CI run `31877482131` — commit `e11e5f5` — all six jobs `success` — 2026-08-15 — migration head `0085`.** That is the last VERIFIED exit point. `90f7b70` (Rounds 6/7/8-part-1, migrations `0086`+`0087`) is pushed and in flight; do not record it as the exit point until its `Deploy to Vultr` job is green and `/api/health` returns its SHA.
 
 **Superseded exit points (decision-history):** CI `31818337559` / `f659127` / head `0085` (leave-model batch,
 2026-08-14); CI `31761880777` / `831f21b` / head `0082` (security+payroll); CI `31701625521` / `f487ee8` /
