@@ -1,13 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * Self-serve signup is disabled unless SIGNUP_ENABLED=true, matching the server
- * guard on `auth.signup`. Without this the page would still render and only fail
- * on submit — note that removing "/signup" from PUBLIC_PATHS below is NOT enough
- * on its own, because the `!pathname.startsWith("/app")` fall-through further
- * down serves every non-/app route anyway.
+ * Self-serve signup is ENABLED unless SIGNUP_ENABLED is exactly "false", matching
+ * the server guard on `auth.signup`. Signup is the only working route that
+ * creates a usable tenant, so it is open during trial and pilot.
+ *
+ * Note that removing "/signup" from PUBLIC_PATHS below is NOT enough on its own
+ * to hide the page — the `!pathname.startsWith("/app")` fall-through further down
+ * serves every non-/app route anyway — which is why this explicit check exists.
  */
-const SIGNUP_ENABLED = process.env.SIGNUP_ENABLED === "true";
+const SIGNUP_ENABLED = process.env.SIGNUP_ENABLED !== "false";
 
 const PUBLIC_PATHS = [
   "/login",

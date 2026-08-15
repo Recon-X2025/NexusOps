@@ -14,8 +14,11 @@ import {
     employees,
     users,
     salaryStructures,
+    professionalTaxSlabs,
     eq,
     and,
+    or,
+    isNull,
     desc,
     type DbOrTx,
 } from "@coheronconnect/db";
@@ -641,6 +644,28 @@ export const ingestRouter = router({
                 set.add(s.familyId);
             }
 
+            // Accepted WORK states, resolved once for the batch from the SAME table the
+            // professional-tax lookup reads: `professional_tax_slabs.state_name`, platform
+            // defaults (org_id IS NULL) plus any org override. That table is canonical by
+            // definition — `statutory-ceilings.ts` keys the PT engine's overrides on
+            // `stateName.toUpperCase().replace(/\s+/g, "_")`, so a value absent from it can
+            // never resolve a slab.
+            //
+            // Until now `state` was checked for PRESENCE only. "Atlantis" and "Karnatak" both
+            // imported clean and then produced ₹0 PT with only a warning at run time, long
+            // after the person who typed the CSV had moved on. Matched case-insensitively and
+            // whitespace-insensitively (the engine's own normalisation) so "karnataka" and
+            // "Tamil  Nadu" are accepted; anything else is a named skip.
+            const ptStateRows = await db
+                .select({ stateName: professionalTaxSlabs.stateName })
+                .from(professionalTaxSlabs)
+                .where(or(eq(professionalTaxSlabs.orgId, orgId), isNull(professionalTaxSlabs.orgId)));
+            const normaliseStateKey = (s: string) => s.trim().toUpperCase().replace(/\s+/g, "_");
+            /** normalised key → the canonical spelling, for the error message and the stored value. */
+            const acceptedStates = new Map<string, string>();
+            for (const r of ptStateRows) acceptedStates.set(normaliseStateKey(r.stateName), r.stateName);
+            const acceptedStateNames = [...acceptedStates.values()].sort();
+
             // Existing org emails (lowercased). users has a unique (org_id, email) index; pre-checking
             // turns a collision into a named skip instead of a batch-aborting constraint error.
             const existing = await db.select({ email: users.email }).from(users).where(eq(users.orgId, orgId));
@@ -685,7 +710,20 @@ export const ingestRouter = router({
                     const salaryStructureId = [...families][0]!;
 
                     // ── Statutory state (drives PT slab; no safe silent default) ──
-                    const state = required(raw.state, "state is required (drives professional-tax slab)");
+                    const stateRaw = required(
+                        raw.state,
+                        "state is required — enter the employee's WORK state (office location), which sets the professional-tax slab, not their home address",
+                    );
+                    // Reject anything the PT engine could not resolve, naming the offending
+                    // value. Store the canonical spelling so the row matches a slab exactly.
+                    const stateCanonical = acceptedStates.get(normaliseStateKey(stateRaw));
+                    if (!stateCanonical) {
+                        throw new EmployeeRowError(
+                            `unknown work state "${stateRaw}" — no professional-tax slab exists for it, so PT would compute as ₹0. ` +
+                            `Accepted states: ${acceptedStateNames.join(", ")}`,
+                        );
+                    }
+                    const state = stateCanonical;
 
                     // ── PAN (optional; when present must match AAAAA9999A — the SAME schema as create) ──
                     const panParse = employeePanField.safeParse(raw.pan);

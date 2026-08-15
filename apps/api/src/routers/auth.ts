@@ -104,19 +104,22 @@ export async function createSession(
 }
 
 /**
- * Public self-serve signup — OFF unless explicitly enabled.
+ * Public self-serve signup — ON unless explicitly disabled.
  *
- * `auth.signup` creates an organisation AND an `owner` user, and the DB role
- * `owner` short-circuits the whole permission matrix
- * (packages/types/src/rbac-matrix.ts:506). Left open, any visitor can provision
- * an unlimited number of fully-privileged tenants. Pilot tenants are provisioned
- * by us, not self-serve, so the default is disabled.
+ * Reversed from the Round-3 default. Signup is currently the ONLY working path
+ * that produces a usable tenant: `mac.createOrganization` creates an org with no
+ * user and sends no invite, and both `packages/cli` commands insert a column
+ * (`organization_id`) that does not exist. With signup off, nobody can be
+ * onboarded at all, so it is required during trial and pilot.
  *
- * Same convention as the web feature flags (apps/web/src/lib/feature-flags.ts):
- * strictly `"true"`, and an absent variable means OFF.
+ * The switch is KEPT, not removed — a trial gate will use it later. Note the
+ * asymmetry with the web feature flags (which are opt-IN, strictly "true"): this
+ * one is opt-OUT, so only the exact string "false" disables it. An absent or
+ * malformed value leaves signup enabled, which is the safe direction here
+ * because the failure mode of the alternative is "no tenant can be created".
  */
 function signupEnabled(): boolean {
-  return process.env["SIGNUP_ENABLED"] === "true";
+  return process.env["SIGNUP_ENABLED"] !== "false";
 }
 
 export const authRouter = router({

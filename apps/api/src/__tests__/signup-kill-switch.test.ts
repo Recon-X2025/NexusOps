@@ -1,10 +1,15 @@
 /**
- * Part 1 — public signup is closed unless SIGNUP_ENABLED=true.
+ * Public signup is OPEN unless SIGNUP_ENABLED is exactly "false".
  *
- * `auth.signup` creates an org and an `owner` user, and `owner` short-circuits
- * the permission matrix (see owner-permission-short-circuit.test.ts). Open to the
- * internet, that is unlimited self-provisioning of fully-privileged tenants.
- * The switch defaults OFF: an absent variable means disabled.
+ * The default was reversed in Round 5. Round 4 established that with signup off
+ * NO route creates a usable tenant — `mac.createOrganization` makes an org with
+ * no user and sends no invite, and both `packages/cli` commands insert a
+ * non-existent `organization_id` column. Signup is the only working path, so it
+ * must be open during trial and pilot.
+ *
+ * The switch is deliberately KEPT rather than deleted: a trial gate will use it.
+ * These tests therefore assert the reversed polarity in both directions — that an
+ * absent variable ENABLES, and that "false" still genuinely closes the door.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { nanoid } from "nanoid";
@@ -62,24 +67,38 @@ describe("auth.signup — SIGNUP_ENABLED kill switch", () => {
     expect(res.user).toBeTruthy();
   });
 
-  it("throws FORBIDDEN when SIGNUP_ENABLED is unset (the default is OFF)", async () => {
+  it("succeeds when SIGNUP_ENABLED is unset (the default is ON)", async () => {
     const input = freshSignupInput();
+    createdEmails.push(input.email);
+    createdOrgNames.push(input.orgName);
+
+    const res = await authRouter.createCaller(publicContext()).signup(input);
+    expect(res.org).toBeTruthy();
+    expect(res.user).toBeTruthy();
+  });
+
+  it("throws FORBIDDEN only when SIGNUP_ENABLED is exactly 'false'", async () => {
+    process.env["SIGNUP_ENABLED"] = "false";
     await expect(
-      authRouter.createCaller(publicContext()).signup(input),
+      authRouter.createCaller(publicContext()).signup(freshSignupInput()),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it.each(["false", "1", "yes", "TRUE", ""])(
-    "throws FORBIDDEN when SIGNUP_ENABLED=%j (only the exact string 'true' enables it)",
+  it.each(["true", "1", "yes", "TRUE", "FALSE", ""])(
+    "stays ENABLED for SIGNUP_ENABLED=%j (only the exact lowercase 'false' closes it)",
     async (value) => {
       process.env["SIGNUP_ENABLED"] = value;
-      await expect(
-        authRouter.createCaller(publicContext()).signup(freshSignupInput()),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const input = freshSignupInput();
+      createdEmails.push(input.email);
+      createdOrgNames.push(input.orgName);
+
+      const res = await authRouter.createCaller(publicContext()).signup(input);
+      expect(res.org).toBeTruthy();
     },
   );
 
   it("writes NOTHING when refused — no org and no user row is created", async () => {
+    process.env["SIGNUP_ENABLED"] = "false";
     const input = freshSignupInput();
     await expect(
       authRouter.createCaller(publicContext()).signup(input),
