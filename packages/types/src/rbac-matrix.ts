@@ -504,6 +504,23 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
 };
 
 export function hasPermission(roles: SystemRole[], module: Module, action: RbacAction): boolean {
+  // ⚠ LOAD-BEARING — DO NOT REMOVE, and do not "simplify" it into the table below.
+  //
+  // This single line is what grants every tenant OWNER access to the product.
+  // `users.role = "owner"` maps to ["requester", "admin"] with NO matrix role
+  // (apps/api/src/lib/rbac-db.ts), which is exactly what auth.signup creates —
+  // nothing populates a matrix role for a new org. Payroll, HR, finance and the
+  // admin console all reach a tenant owner through this branch.
+  //
+  // ROLE_PERMISSIONS["admin"] is DELIBERATELY NOT THE SOURCE OF TRUTH for admin.
+  // It lists only settings / command_center / workbench and is never consulted
+  // for the admin role, because this returns first. It therefore looks far more
+  // restrictive than admin actually is — that appearance is the trap. Widening
+  // or narrowing that entry changes nothing; deleting this line locks every
+  // tenant owner out of payroll on the next deploy.
+  //
+  // Guarded by apps/api/src/__tests__/owner-permission-short-circuit.test.ts,
+  // which fails loudly if this branch is removed or weakened.
   if (roles.includes("admin")) return true;
   for (const role of roles) {
     const perms = ROLE_PERMISSIONS[role];

@@ -68,6 +68,9 @@ export default defineConfig({
         PII_HASH_PEPPER:
           process.env.PII_HASH_PEPPER || "test-pii-pepper-32-chars-minimum-here",
         LOGIN_RATE_PER_MIN: "1000",
+        // Self-serve signup is OFF by default (auth.signup throws FORBIDDEN).
+        // e2e/auth.spec.ts loads /signup, so the E2E stack runs with it on.
+        SIGNUP_ENABLED: process.env.SIGNUP_ENABLED || "true",
         NODE_ENV: process.env.NODE_ENV || "test",
       },
     },
@@ -86,6 +89,8 @@ export default defineConfig({
           process.env.API_INTERNAL_URL || `http://127.0.0.1:${API_PORT}`,
         NEXT_PUBLIC_API_URL:
           process.env.NEXT_PUBLIC_API_URL || `http://localhost:${API_PORT}`,
+        // Read by apps/web/src/middleware.ts to decide whether /signup is served.
+        SIGNUP_ENABLED: process.env.SIGNUP_ENABLED || "true",
       },
     },
   ],

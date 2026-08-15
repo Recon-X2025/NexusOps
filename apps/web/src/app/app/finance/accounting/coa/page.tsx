@@ -13,6 +13,59 @@ import { cn, pluralize } from "@/lib/utils";
 
 const ACCOUNT_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 
+/**
+ * Sub-types offered per account type.
+ *
+ * Mirrors `accountSubTypeEnum` (packages/db/src/schema/accounting.ts:35-62), which
+ * is the authoritative list and is already grouped by account type there. Kept in
+ * the same order so the two can be read side by side.
+ *
+ * This matters beyond tidiness: bank reconciliation selects accounts BY SUB-TYPE,
+ * so an account saved with a blank sub-type is invisible to it. The form had no
+ * sub-type field at all, so every hand-created account was unreconcilable.
+ */
+const SUB_TYPES_BY_TYPE = {
+    asset: [
+        { value: "bank", label: "Bank" },
+        { value: "cash", label: "Cash" },
+        { value: "accounts_receivable", label: "Accounts Receivable" },
+        { value: "other_current_asset", label: "Other Current Asset" },
+        { value: "fixed_asset", label: "Fixed Asset" },
+        { value: "accumulated_depreciation", label: "Accumulated Depreciation" },
+        { value: "other_asset", label: "Other Asset" },
+    ],
+    liability: [
+        { value: "accounts_payable", label: "Accounts Payable" },
+        { value: "credit_card", label: "Credit Card" },
+        { value: "other_current_liability", label: "Other Current Liability" },
+        { value: "long_term_liability", label: "Long Term Liability" },
+    ],
+    equity: [
+        { value: "owners_equity", label: "Owner's Equity" },
+        { value: "retained_earnings", label: "Retained Earnings" },
+        { value: "share_capital", label: "Share Capital" },
+    ],
+    income: [
+        { value: "income", label: "Income" },
+        { value: "other_income", label: "Other Income" },
+    ],
+    expense: [
+        { value: "cost_of_goods_sold", label: "Cost of Goods Sold" },
+        { value: "expense", label: "Expense" },
+        { value: "other_expense", label: "Other Expense" },
+        { value: "payroll_expense", label: "Payroll Expense" },
+        { value: "depreciation", label: "Depreciation" },
+    ],
+} as const;
+
+/** Derived from the list above, so the two can never drift apart. */
+type AccountSubType =
+    (typeof SUB_TYPES_BY_TYPE)[keyof typeof SUB_TYPES_BY_TYPE][number]["value"];
+
+function subTypesFor(type: string): readonly { value: string; label: string }[] {
+    return SUB_TYPES_BY_TYPE[type as keyof typeof SUB_TYPES_BY_TYPE] ?? [];
+}
+
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceView } from "@/components/ui/resource-view";
 
@@ -78,6 +131,7 @@ export default function CoaPage() {
                                 Seed India COA
                             </button>
                             <button
+                                data-testid="coa-add-account-btn"
                                 onClick={() => { setForm(emptyForm); setShowNew(true); }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-medium hover:bg-primary/90 transition-colors"
                             >
@@ -166,7 +220,7 @@ export default function CoaPage() {
                                                       {acct.type}
                                                   </span>
                                               </td>
-                                              <td className="px-4 py-3 text-body-sm text-muted-foreground capitalize">{(acct.subType ?? "—").replace("_", " ")}</td>
+                                              <td data-testid={`coa-subtype-cell-${acct.code}`} className="px-4 py-3 text-body-sm text-muted-foreground capitalize">{(acct.subType ?? "—").replace("_", " ")}</td>
                                               <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
                                                   ₹{Number(acct.currentBalance).toLocaleString()}
                                               </td>
@@ -196,9 +250,33 @@ export default function CoaPage() {
                             </div>
                             <div>
                                 <label className="text-[11px] font-medium text-muted-foreground block mb-1">Type</label>
-                                <select value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} className="w-full px-3 py-2 text-body-sm border border-border rounded bg-background outline-none capitalize">
+                                <select
+                                    data-testid="coa-type"
+                                    value={form.type}
+                                    // Changing the type invalidates the chosen sub-type — clear it
+                                    // rather than submitting a sub-type from the wrong group.
+                                    onChange={(e) => setForm(f => ({ ...f, type: e.target.value, subType: "" }))}
+                                    className="w-full px-3 py-2 text-body-sm border border-border rounded bg-background outline-none capitalize"
+                                >
                                     {ACCOUNT_TYPES.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                                 </select>
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Sub-Type</label>
+                                <select
+                                    data-testid="coa-subtype"
+                                    value={form.subType}
+                                    onChange={(e) => setForm(f => ({ ...f, subType: e.target.value }))}
+                                    className="w-full px-3 py-2 text-body-sm border border-border rounded bg-background outline-none"
+                                >
+                                    <option value="">— None —</option>
+                                    {subTypesFor(form.type).map(st => (
+                                        <option key={st.value} value={st.value}>{st.label}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-muted-foreground/80 mt-1">
+                                    Bank reconciliation finds accounts by sub-type — set Bank or Cash for a reconcilable account.
+                                </p>
                             </div>
                             <div>
                                 <label className="text-[11px] font-medium text-muted-foreground block mb-1">Opening Balance (₹)</label>
@@ -212,11 +290,15 @@ export default function CoaPage() {
                         <div className="flex items-center justify-end gap-2 mt-5">
                             <button onClick={() => setShowNew(false)} className="px-3 py-1.5 text-body-sm border border-border rounded hover:bg-muted/50">Cancel</button>
                             <button
+                                data-testid="coa-create-submit"
                                 disabled={!form.code || !form.name || mCreate.isPending}
                                 onClick={() => mCreate.mutate({
                                     code: form.code,
                                     name: form.name,
                                     type: form.type as "asset" | "liability" | "equity" | "income" | "expense",
+                                    // Sub-type is nullable in the schema, so "" is sent as undefined
+                                    // (left unset) rather than as an invalid empty enum value.
+                                    subType: (form.subType || undefined) as AccountSubType | undefined,
                                     description: form.description || undefined,
                                     openingBalance: parseFloat(form.openingBalance || "0"),
                                 })}

@@ -1,8 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+/**
+ * Self-serve signup is disabled unless SIGNUP_ENABLED=true, matching the server
+ * guard on `auth.signup`. Without this the page would still render and only fail
+ * on submit — note that removing "/signup" from PUBLIC_PATHS below is NOT enough
+ * on its own, because the `!pathname.startsWith("/app")` fall-through further
+ * down serves every non-/app route anyway.
+ */
+const SIGNUP_ENABLED = process.env.SIGNUP_ENABLED === "true";
+
 const PUBLIC_PATHS = [
   "/login",
-  "/signup",
   "/forgot-password",
   "/invite",
   "/portal",
@@ -13,6 +21,13 @@ const PUBLIC_PATHS = [
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Signup: served only when the same switch the API enforces is on.
+  if (pathname === "/signup" || pathname.startsWith("/signup/")) {
+    return SIGNUP_ENABLED
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL("/login", request.url));
+  }
 
   // Allow public paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {

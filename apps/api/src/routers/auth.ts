@@ -103,8 +103,32 @@ export async function createSession(
   return { token: tokenPlaintext, expiresAt };
 }
 
+/**
+ * Public self-serve signup — OFF unless explicitly enabled.
+ *
+ * `auth.signup` creates an organisation AND an `owner` user, and the DB role
+ * `owner` short-circuits the whole permission matrix
+ * (packages/types/src/rbac-matrix.ts:506). Left open, any visitor can provision
+ * an unlimited number of fully-privileged tenants. Pilot tenants are provisioned
+ * by us, not self-serve, so the default is disabled.
+ *
+ * Same convention as the web feature flags (apps/web/src/lib/feature-flags.ts):
+ * strictly `"true"`, and an absent variable means OFF.
+ */
+function signupEnabled(): boolean {
+  return process.env["SIGNUP_ENABLED"] === "true";
+}
+
 export const authRouter = router({
   signup: publicProcedure.input(SignupSchema).mutation(async ({ ctx, input }) => {
+    // Before any work: no org row, no user row, no COA seed, no session.
+    if (!signupEnabled()) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Self-serve signup is not available. Contact your administrator for an account.",
+      });
+    }
+
     const { db } = ctx;
     const email = normalizeEmail(input.email);
 
