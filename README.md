@@ -1,8 +1,28 @@
 # CoheronConnect by Coheron
 
-> Enterprise-grade workflow orchestration, ITSM, asset management, HR service delivery, and procurement — a self-hostable alternative to ServiceNow.
+> A multi-tenant **Enterprise Operations Platform** for the India market — payroll & statutory
+> tax, HR service delivery, ITSM, finance & procurement, CRM, IT-asset, and governance/privacy,
+> in one product, each customer isolated as its own tenant.
 
 **Production:** [connect.coheron.tech](https://connect.coheron.tech) · **Repo:** [github.com/Recon-X2025/NexusOps](https://github.com/Recon-X2025/NexusOps)
+
+## What it is
+
+CoheronConnect brings the operational back office of a company onto one tenanted platform. The
+**standout is India payroll & statutory tax** — PF, ESI, professional tax (data-driven across 36
+states), TDS across both regimes, gratuity, and leave encashment are production-grade,
+test-backed money-math wired into a 14-step payroll run with server-enforced segregation of
+duties. Around that sit HR service delivery, an ITSM ticket/change/problem engine, double-entry
+accounting with GST, procurement, CRM, IT-asset management, secretarial/legal, and a DPDP
+privacy layer.
+
+The platform is **near its first production milestone**: a pilot cohort of paying customers
+onboarding for their first real payroll and GST cycle (see **[Roadmap](#roadmap--where-it-is-headed)**).
+The engineering reality across the breadth is uneven — some clusters are production-grade and
+reachable end-to-end, others carry an excellent engine behind a partial or missing UI. The honest,
+`file:line`-cited, per-module breakdown (with reachability-weighted completion percentages) lives
+in **[`docs/audits/module-completion-reachability_2026-08-15.md`](docs/audits/module-completion-reachability_2026-08-15.md)** —
+read it before making a capability claim.
 
 ## Architecture
 
@@ -35,7 +55,7 @@ coheronconnect/
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 15 + React 19 + TypeScript |
+| Frontend | Next.js 16 (web) / 15 (mac console) + React 19 + TypeScript |
 | UI | Tailwind CSS + Radix UI (shadcn/ui pattern) |
 | Workflow Editor | React Flow / Xyflow |
 | Backend API | Fastify + tRPC (type-safe end-to-end) |
@@ -51,34 +71,81 @@ coheronconnect/
 
 ## Modules
 
-Status is scored against category leaders, not marked "done": **REAL** (production-grade),
-**PARTIAL** (usable, known gaps), **STUB** (schema/scaffold only). The historical pattern
-across the platform was *correct data model, missing computation/automation* — the schema
-stored the right thing, but the intelligence (depreciation, balance sheet, health scores) and
-the closing of automation loops (triggers, webhooks, escalation timers) lagged. Several of
-those clusters have since closed those gaps and are now REAL; the remaining PARTIAL/STUB items
-are called out per row below.
+Status reflects **reachability**, not code existence: **REAL** (core workflows work end-to-end
+through the product), **PARTIAL** (usable, with a named gap a customer will hit), **STUB** (inert,
+fabricated, or an engine with no UI path to it). The recurring pattern across the platform is
+*correct data model, and often a correct engine, behind a partial or missing UI* — the schema
+stores the right thing and the money-math is frequently production-grade, but the last mile (a
+button, a screen, a config editor, a downloadable file) is where reachability breaks. Verdicts
+below are from the 2026-08-15 reachability audit; the per-feature `file:line` detail and completion
+percentages are in **[`docs/audits/module-completion-reachability_2026-08-15.md`](docs/audits/module-completion-reachability_2026-08-15.md)**.
 
 | Module / cluster | Status | Notes |
 |---|---|---|
-| People Ops (HR) | REAL | Onboarding/offboarding/lifecycle, leave, org chart; India payroll/tax is production-grade. Gratuity and leave accrual/carry-forward now computed (`gratuity.ts`, `leave-accrual.ts`). |
-| Platform (workflow / integrations) | REAL | Visual workflow engine (Temporal); scheduled triggers + outbound webhook dispatcher + generalised business-rule engine close the automation loop (`workflow-events.ts`, `webhookDispatchWorkflow.ts`). Slack/Teams/Email/Jira/SAP connectors. |
-| ITSM — Ticket Engine + CMDB | REAL | Incidents/requests/problems/changes + SLA; CMDB with cycle detection. ITOM event correlation, on-call escalation timers, and deploy→incident MTTR now fire (`correlationWorkflow.ts`, `escalationWorkflow.ts`). CSAT loop in flight on `feat/csat-loop`. |
-| Governance | REAL | Approvals, audit log (redacted keys) with a tamper-evident hash-chain (`audit-hash.ts`). |
-| GRC / Compliance | REAL | Risks, controls, security incidents, vulnerabilities; DPDP privacy triad (consent / DSR / breach) implemented (`compliance.ts`). DPDP data-protection layer live: government IDs (Aadhaar/PAN) stored as a peppered HMAC + masked display, never raw (`lib/pii-hash.ts`, `lib/aadhaar.ts`, `lib/pan.ts`); 8-year statutory retention floor stamped on invoices/journals/payslips (`lib/retention.ts`); DSR erasure executor ships flag-off (`DPDP_ERASURE_ENABLED`, `lib/dpdp-erasure.ts`). |
-| Finance / Procurement | REAL | PR→PO→invoice 3-way match; GST/GL posting with dynamic GSTR-1 rates; balance sheet (`accounting.ts`), depreciation + COGS journals, and real accrual accounts (`procurement.ts`) now posted. |
-| IT Asset (ITAM / SAM) | REAL | Asset register, license management, depreciation-driven book value. SAM installed-vs-entitled (ELP) reconciliation remains a STUB. |
-| CRM | PARTIAL | Accounts/contacts/deals/leads with lossless lead→deal conversion. Lead/health scoring is stored but not computed; CPQ has no tax/GST. |
-| Legal / Secretarial | PARTIAL | Matters, requests, contract obligations, investigations; eMudhra signing real. DocuSign is a stub; MCA21/XBRL filing is mocked. |
-| Self-Service Portal | STUB | Employee-facing portal + KB/request templates — schema/scaffold only. |
-| Dashboards + Reports | PARTIAL | Real-time metrics, time-series, CSV/PDF export (empty orgs report `null`, never fabricated). Saved/scheduled reports are stubbed. |
-| AI Layer | PARTIAL | Smart classification, NL search, RAG resolution copilot (Anthropic Claude API) — alpha, not production-hardened. |
-| Self-Hosted Deploy | REAL | Docker Compose + Helm + CLI. |
-| Coheron-Managed | REAL | Terraform IaC for AWS/GCP/Azure. |
+| Payroll & Statutory (India) | REAL | The strongest cluster. PF/ESI/PT (36-state, data-driven)/TDS (both regimes)/gratuity/leave-encashment are production-grade and test-backed, wired into a 14-step run with SoD. **Gaps:** statutory filings (ECR/ESI/PT/24Q) exist only as records — no downloadable file; leave-policy config is API-only. |
+| People Ops (HR) | REAL | Cases, onboarding/offboarding/lifecycle, leave (per-type balances, maternity non-debiting), attendance, OKR with a real rollup engine, F&F settlement. **Gap:** document attachments are filename-only (no object storage in the deployed stack). |
+| Governance (audit / approvals) | REAL | Approvals with optimistic concurrency; tamper-evident audit **hash-chain** over all mutations, with anchor-based tail-truncation detection (`audit-hash.ts`). Covers mutations, not reads; not an external WORM store. |
+| Recruitment / Performance / Workforce Analytics | REAL | Requisitions→offers, review cycles, and headcount/tenure/attrition analytics all reachable end-to-end. |
+| Platform (workflow / integrations) | PARTIAL | Visual workflow engine (Temporal) + a real HMAC-signed outbound **webhook dispatcher** that fires. Integration Hub: **11 of 13 connectors real** (Teams + SMTP are store-only). **Gaps:** most advertised webhook events are never emitted; API keys are created with a prefix the auth layer rejects (unusable). |
+| ITSM — Tickets / Changes / Problems / CMDB | PARTIAL | Ticket lifecycle, CAB change approval, problem/KEDB, and CMDB (impact + cycle detection) are real. **Gaps:** SLA-pause reasons not reachable from the ticket UI; on-call is largely a shell (no member/chain entry, "Page Now" pages nobody); major-incident war room can't be written to; releases render a thin table. |
+| Finance — Accounting / GST | PARTIAL | Invoices (AP/AR) post a balanced GL journal atomically; GST + GSTR-1 rate grouping are real (no 18% hardcode). **Gaps:** the sidebar Journal creates drafts with **no Post control** (entries never reach balances); GL debit/credit columns are blank; **balance sheet has no screen**; bank reconciliation has no tie-out. |
+| Procurement | PARTIAL | PR→PO with a creation-time value gate, server GST, and a balanced accrual journal. **Gaps:** goods-receipt is a status stamp (no GRN UI); the **3-way match engine is real but unreachable** through the product. |
+| IT Asset (ITAM / SAM) | PARTIAL | Hardware/software registers + license seat management real. **Gaps:** **asset depreciation engine is orphaned** (no UI/nav/scheduler); SAM installed-vs-entitled reconciliation is built but unreachable. |
+| CRM | PARTIAL | Accounts/contacts/deals/leads with **deterministic lead scoring (now computed + persisted)** and **lossless lead→deal conversion**. CPQ GST engine is real but the UI can only create zero-value quotes. |
+| GRC / Compliance / DPDP | PARTIAL | Security incidents + CVSS→SLA escalation loop real; DPDP **DSR / consent / breach / RoPA** registers with a firing sweep. **Scope limits:** DSR erasure ships dry-run (`DPDP_ERASURE_ENABLED` off); breach notices go to the tenant's own DPO only — **never the regulator or data principals**; GRC scoring is likelihood×impact only. |
+| Legal / Secretarial | PARTIAL | Matters/requests/investigations, board & directors (resolutions with vote records, DIN+KYC), share capital (PAN encrypted). **Gaps:** related-party/RoPA/real MCA21 filing are backend-only; MCA/ROC tab is a manual tracker; ESOP is a grants register with no vesting computation; "Statutory Registers" is an empty shell. |
+| Self-Service Portal (consumer) | PARTIAL | Genuine self-scoped receive-only surfaces (payslips, Form 16, own leave/reviews). **Gap:** no role grants *exactly* the consumer experience — the base `requester` role over-grants HR/facilities/procurement write. |
+| Command Center / Dashboards | PARTIAL | Metric payloads resolve against the real DB (empty orgs return `null`, never fabricated). Role/persona switching is disabled; failed resolvers are silently omitted. |
+| ESG Reporting | STUB | 100% hardcoded, fabricated numbers, no backend — do not represent as functional. |
+| AI Layer | PARTIAL | Classification, NL search, RAG copilot + deterministic dashboard narratives (Anthropic Claude API) — alpha, not production-hardened. |
+| Self-Hosted Deploy / Coheron-Managed | REAL | Docker Compose + Helm + CLI; Terraform IaC for AWS/GCP/Azure. |
 
-> **Full gap detail:** `docs/PLATFORM_GAP_INDEX_2026-07-03.md` (module-by-module, `file:line`-cited)
-> and `docs/COMPETITIVE_GAP_ANALYSIS_2026-06-30.md` (benchmarked vs 2026 category leaders).
-> Some clusters above have advanced past those audits — the row status reflects current code.
+> **Living gap tracker:** [`docs/GAP_ANALYSIS.md`](docs/GAP_ANALYSIS.md) (module-by-module, `file:line`-cited,
+> shipped-vs-open). **Per-module completion % + Real/Needs-improvement/Stub drill-down:**
+> [`docs/audits/module-completion-reachability_2026-08-15.md`](docs/audits/module-completion-reachability_2026-08-15.md).
+> The older dated audits (2026-07-03 platform gap set, 2026-06-30 competitive analysis) are retained
+> for decision-history only in `docs/archive/`.
+
+## Roadmap — where it is headed
+
+Direction is set by three verified, market-split roadmap docs, each grounded in a `file:line` code
+audit: **[`docs/INDIA_ROADMAP.md`](docs/INDIA_ROADMAP.md)**, **[`docs/US_ROADMAP.md`](docs/US_ROADMAP.md)**,
+and **[`docs/AI_ROADMAP.md`](docs/AI_ROADMAP.md)**.
+
+### Near term — India go-live (the current gate)
+A pilot cohort of paying customers is onboarding for their first real cycle:
+
+- **~25 August** — seven pilot customers onboard (30–80 employees each).
+- **End August / early September** — the first real payroll run.
+- **11 October** — first live GSTR-1 filing target.
+
+The go-live work is reachability, not new engines: **downloadable statutory-filing artifacts**
+(ECR / ESI / PT / Form 24Q — today they are records, not files), a **leave-policy configuration
+UI** (today API-only), a **Post control on the sidebar journal** so entries reach the ledger, and
+the five security items (DPDP, vulnerability-SLA, MFA, KMS, Postgres RLS — already largely shipped).
+For the first cycle, the [`docs/MANUAL_SET.md`](docs/MANUAL_SET.md) items (statutory filing, a handful
+of professional-tax states, LTA/bonus) are handled outside the system by design.
+
+### Mid term — close the "engine exists, no UI" gaps
+The platform's dominant gap class is a correct engine behind a missing screen. The mid-term push
+makes them reachable: **balance sheet + P&L screens**, an **asset-depreciation UI + month-end
+scheduler**, a **three-way-match / goods-receipt flow**, **SAM installed-vs-entitled reconciliation**,
+**bank-reconciliation tie-out**, a **CPQ line-item editor**, and **on-call chain authoring**. In
+parallel: DPDP automation depth (erasure beyond dry-run, once counsel-gated), **object storage for
+document attachments**, and the remaining webhook event emitters.
+
+### Market expansion — United States
+A country/regime model, a US chart of accounts, QuickBooks integration, and CCPA privacy — so the
+India-first tenancy generalises to a second market without forking the product. See
+[`docs/US_ROADMAP.md`](docs/US_ROADMAP.md).
+
+### AI maturity — earn the intelligence, don't fake it
+A five-stage model where **AI is only allowed in once the deterministic math beneath it is provable**:
+**(1) System of Records** → **(2) System of Understanding** (deterministic computation *on* the records)
+→ **(3) System of Recommendation** (AI enters here, narrating Stage-2 truth) → **(4) System of Execution**
+(human-in-the-loop) → **(5) Autonomous**. The principle: a recommendation is only as trustworthy as the
+understanding beneath it, and that understanding must be math, not a model. See
+[`docs/AI_ROADMAP.md`](docs/AI_ROADMAP.md).
 
 ## API surfaces (for developers)
 
@@ -92,7 +159,7 @@ are called out per row below.
 | **Payroll run pipeline** | `payroll.runs.lockPeriod` (draft → period locked + run totals), `advanceComputationStep` (gross → TDS), `computePayslips` (persist `payslips` rows), then HR / Finance / CFO approvals. |
 | **AP / AR invoices** | `invoices.invoice_flow` is **`payable`** or **`receivable`**. **`financial.listInvoices`** supports optional **`direction`**, joins vendor for display names, and returns **`totalAmount`** / **`direction`** for each row. **`financial.createReceivableInvoice`** creates AR rows (customer as a `vendors` row). Web **Financial** area includes AP + AR flows; **`financial.apAging`** is **payable** outstanding only. |
 | **Dashboard metrics** | **`dashboard.getMetrics`** includes org KPIs such as open incidents, AP/AR outstanding, asset counts, and (for orgs with responses) org-scoped, type-filtered **`csatScore`** / **`csatResponses`** — `null` when there are no responses, never a fabricated score (consumers: web dashboard, mobile). |
-| **Workflow publish + Temporal** | By default, **`workflows.publish`** tolerates a missing Temporal worker (degraded run metadata). Set **`COHERONCONNECT_WORKFLOW_ENGINE_REQUIRED=true`** (or **`WORKFLOW_ENGINE_REQUIRED`**) in `.env` to **fail publish** with **`PRECONDITION_FAILED`** and roll back activation if Temporal cannot start the run. See `.env.example` near **`TEMPORAL_*`**. |
+| **Workflow publish + Temporal** | By default, **`workflows.publish`** tolerates a missing Temporal worker (degraded run metadata). Set **`NEXUSOPS_WORKFLOW_ENGINE_REQUIRED=true`** (or **`WORKFLOW_ENGINE_REQUIRED`**) in `.env` to **fail publish** with **`PRECONDITION_FAILED`** and roll back activation if Temporal cannot start the run. See `.env.example` near **`TEMPORAL_*`**. |
 | **Audit logs** | Successful mutations write **`audit_logs`** with **redacted** sensitive keys (passwords, tokens, API keys, etc.) via shared sanitization in the API. **`admin.auditLog.list`** paginates entries for admins. |
 | **Workflow automation loop** | Scheduled triggers + an outbound webhook dispatcher close the automation loop (commit `6bfb7bf`); the business-rule engine is generalised beyond tickets (commit `4128906`). Dispatch is best-effort and never rolls back the source mutation. |
 | **ITSM loops** | **ITOM event correlation** auto-populates `itom_events.linked_incident_id` and evaluates suppression/correlation policies; **on-call escalation timers** and **deploy→incident MTTR** (via a `tickets.deploymentId` link, surfaced in `devops.doraMetrics`) are wired (commits `4128906`, `7ca2ab2`). All loops are best-effort — they never roll back the triggering write. |
@@ -245,7 +312,7 @@ Default credentials (after `pnpm db:seed`): **`admin@coheron.com`** / **`demo123
 | `No procedure found on path …` | Run `pnpm check:trpc-parity` and align web calls with `apps/api/src/routers`. |
 | Layer tests fail on missing tables | Run `pnpm docker:test:up` then `pnpm test:local-ready` or `pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate`. |
 | Temporal / BullMQ warnings | Optional for basic UI; ensure `TEMPORAL_ADDRESS` and `REDIS_URL` match compose if you use workflows. See **`docs/TEMPORAL_LOCAL_RUNBOOK.md`**. |
-| Workflow publish returns **412 / PRECONDITION_FAILED** | You set **`COHERONCONNECT_WORKFLOW_ENGINE_REQUIRED=true`** but Temporal is not reachable; fix Temporal or unset the flag for degraded publish. |
+| Workflow publish returns **412 / PRECONDITION_FAILED** | You set **`NEXUSOPS_WORKFLOW_ENGINE_REQUIRED=true`** but Temporal is not reachable; fix Temporal or unset the flag for degraded publish. |
 | Security / SoD reviews | **`docs/SECURITY_SENSITIVE_MUTATIONS.md`** — API write procedure inventory. |
 
 ## Self-Hosted Production Deployment

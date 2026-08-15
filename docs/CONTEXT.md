@@ -38,21 +38,18 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
-- **LIVE on `connect.coheron.tech` = `f659127`** — migration head **`0085_cloudy_jack_murdock`**,
-  **242 base tables** (`0084` added `leave_exit_rules` + `leave_state_baselines`) — verified 2026-08-14
-  through `/api/health` returning `version: f6591270c23d97b8…` and all six jobs of CI run **`31818337559`**
-  `success` (terminal **`Deploy to Vultr`** = `success`). `f659127` is the **leave-model / exit-proration /
-  structure-importer / authz-sweep / MINOR-BATCH** unit. Its ancestors on this deploy: `831f21b`
-  (fix(security+payroll): login POST, COA null-subType, PR5 YTD, regime declarations — no migration),
-  `f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + migration `0082`) and earlier. The api
-  container self-applied `0083–0085` on boot.
-- **HEAD = `origin/main` = the LEAVE-TYPES commit** (committed + pushed 2026-08-14) — puts the four leave
-  types (**Maternity, Paternity, Marriage, Compensatory Off**) into the web picker (`leave-labels.ts`;
-  the enum values were already in the DB from `0084`) and makes maternity/paternity/parental **non-debiting
-  by default** in `hr.ts` (was: "no policy = debit", which over-drew a maternity balance). **No migration.**
-  **Deploy IN FLIGHT:** CI run pushed just now — becomes live only when its terminal `Deploy to Vultr` job
-  goes green **and** `/api/health` returns the new SHA. Gate before push: `lint:cold` 9/9 + full suite green
-  (193 files / 1698 tests).
+- **LIVE on `connect.coheron.tech` = `origin/main` = `deec1b7`** — migration head
+  **`0085_cloudy_jack_murdock`**, **242 base tables** — verified 2026-08-14 through `/api/health` returning
+  `version: deec1b72dc218bca…` and all six jobs of CI run **`31824103321`** `success` (terminal **`Deploy to
+  Vultr`** = `success`). `deec1b7` is **LEAVE-TYPES**: it puts the four leave types (**Maternity, Paternity,
+  Marriage, Compensatory Off**) into the web picker (`apps/web/src/lib/leave-labels.ts`; the enum values were
+  already in the DB from `0084`, the picker was a fifth hardcoded copy that had never been updated) and makes
+  maternity/paternity/parental **non-debiting by default** in `hr.ts` (was "no policy = debit", which
+  over-drew a maternity balance). **No migration — head stays `0085`.** Its ancestors on this deploy:
+  `f659127` (leave-model / exit-proration / structure-importer / authz-sweep / MINOR-BATCH — migrations
+  `0083–0085`), `831f21b` (fix(security+payroll), no migration), `f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE +
+  FULL-AND-FINAL + migration `0082`) and earlier. The api container self-applied `0083–0085` on the `f659127`
+  boot; `deec1b7` added none.
   _**Retention prune (Change E):** on this deploy it ran but **reclaimed nothing** (no output) — no
   image had crossed 168h at deploy time. No deploy has happened since, so its first real reclaim is
   still unobserved; the next deploy is the test. (The old `47→46→45GB` series is stale — actual is 42GB.)_
@@ -60,10 +57,10 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   bottom of this file — that line is the source of truth; if the two ever disagree, trust
   the bottom and fix this one.** The top of this file drifted to a stale SHA before (once to
   `3b7b83f`, corrected 2026-08-09) because a SHA was copied here instead of pointed at._
-- **Working tree (as of 2026-08-14): CLEAN.** Everything is committed and pushed. `f659127` (leave-model /
-  exit-proration / structure-importer / authz-sweep / MINOR-BATCH) is now **live**; the **LEAVE-TYPES**
-  commit on top (four leave types into the picker + maternity/paternity/parental non-debiting default; no
-  migration) is HEAD, deploy in flight (above).
+- **Working tree (as of 2026-08-14): CLEAN.** Everything is committed, pushed, and **deployed** —
+  `origin/main` = local `main` = `deec1b7` (0 ahead/0 behind), live on `connect.coheron.tech`. The last two
+  units (`f659127` leave-model/exit/authz batch, then `deec1b7` LEAVE-TYPES) are both live. Any doc-only
+  deploy-state refresh after this rides the next code change, per rule 6.
 - **Deploy mechanism:** the Vultr deploy is the **terminal job of the `ci.yml`
   pipeline on every push to `main`** (Lint → Test → E2E → Build → **Deploy to Vultr**).
   It is **not** the standalone `Deploy Vultr` workflow_dispatch (idle since 2026-07-15;
@@ -758,26 +755,22 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31818337559` — commit `f659127` (leave-model / exit-proration / structure-importer / authz-sweep /
-MINOR-BATCH; migrations `0083–0085`) — all six jobs `success`, terminal `Deploy to Vultr` = `success` —
-2026-08-14 — migration head `0085_cloudy_jack_murdock`, 242 base tables.** Verified via
-`connect.coheron.tech/api/health` returning `version: f6591270c23d97b8…` and `gh run view 31818337559 --json
-jobs` (all six jobs `success`). This is LIVE on `connect.coheron.tech`. The api container runs image `f659127`
-**healthy**; its `CMD` is `node dist/migrate.mjs && node dist/index.mjs` (`apps/api/Dockerfile:62`, exit 1 on
-migrate failure), so a booted server means `0083–0085` applied — including the ENABLE + FORCE ROW LEVEL
-SECURITY + `tenant_isolation` policies on `leave_exit_rules` + `leave_state_baselines` (same `0084.sql`; no
-direct prod `pg_class` query — no DB credentials here; boot-implies-applied plus the migration-file contents
-are the verification of record). `f659127` includes `831f21b` (fix(security+payroll), no migration),
+**CI run `31824103321` — commit `deec1b7` (LEAVE-TYPES: four leave types into the web picker +
+maternity/paternity/parental non-debiting by default — no migration) — all six jobs `success`, terminal
+`Deploy to Vultr` = `success` — 2026-08-14 — migration head `0085_cloudy_jack_murdock`, 242 base tables.**
+Verified via `connect.coheron.tech/api/health` returning `version: deec1b72dc218bca…` and `gh run view
+31824103321 --json jobs` (all six jobs `success`). This is LIVE on `connect.coheron.tech`. The api container
+runs image `deec1b7` **healthy**; its `CMD` is `node dist/migrate.mjs && node dist/index.mjs`
+(`apps/api/Dockerfile:62`, exit 1 on migrate failure), so a booted server means the head migration `0085`
+applied — the RLS-walled `leave_exit_rules` + `leave_state_baselines` (from `0084`) included (no direct prod
+`pg_class` query — no DB credentials here; boot-implies-applied plus the migration-file contents are the
+verification of record). `deec1b7` added no migration. It includes `f659127` (leave-model / exit-proration /
+structure-importer / authz-sweep / MINOR-BATCH; migrations `0083–0085`), `831f21b` (fix(security+payroll)),
 `f487ee8` (PO-GATE), `d59d6f7` (EXIT-DATE + FULL-AND-FINAL + migration `0082`) and earlier.
 
-**Deploy IN FLIGHT (not yet an exit point):** the **LEAVE-TYPES** commit — four leave types (Maternity,
-Paternity, Marriage, Compensatory Off) into the web picker + maternity/paternity/parental non-debiting by
-default; **no migration**, head stays `0085`. Becomes the exit point only when its terminal `Deploy to Vultr`
-job goes green **and** `/api/health` returns the new SHA — re-verify both before declaring it live.
-
-**Superseded exit points (decision-history):** CI `31761880777` / `831f21b` / head `0082` (security+payroll,
-2026-08-14); CI `31701625521` / `f487ee8` / head `0082` (PO-GATE); CI `31584256191` / `362abc5` / head `0080`
-(C1-CORE, 2026-08-12).
+**Superseded exit points (decision-history):** CI `31818337559` / `f659127` / head `0085` (leave-model batch,
+2026-08-14); CI `31761880777` / `831f21b` / head `0082` (security+payroll); CI `31701625521` / `f487ee8` /
+head `0082` (PO-GATE); CI `31584256191` / `362abc5` / head `0080` (C1-CORE, 2026-08-12).
 
 _**PRUNE-PREFLIGHT trend — disk gently declining, not refilling.** Verified pre-flight `df` reads across the
 run: `ec2b7a9` **47GB** → `1e42d6e` **46GB** → `362abc5` **45GB** (each `≥ 10GB — no prune needed`), on top of
