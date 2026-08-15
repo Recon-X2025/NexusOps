@@ -443,8 +443,30 @@ const PT_SLABS: Record<
 };
 
 /** Normalise a free-text state to the PT_SLABS key ("Tamil Nadu" → "TAMIL_NADU"). */
-function normalizePtStateKey(state: string): string {
-  return state.toUpperCase().replace(/\s+/g, "_");
+/**
+ * Derive the PT slab lookup key from a state string.
+ *
+ * "&" and "and" are treated as equivalent. Two lists of Indian states disagreed on
+ * exactly that (the employee dropdown said "Jammu & Kashmir", the slab table
+ * "Jammu and Kashmir"), and because this function only uppercased and underscored
+ * whitespace, the two produced different keys — so a state PICKED FROM A DROPDOWN
+ * resolved no slab and fell through to `unknownState` with ₹0 PT.
+ *
+ * Both lists were realigned, but that alone would leave the same trap for the next
+ * divergence, so the normaliser absorbs this class of drift too: "&" becomes "AND"
+ * before whitespace is collapsed, and any run of underscores is squeezed to one, so
+ * "Jammu & Kashmir", "Jammu and Kashmir" and "JAMMU_AND_KASHMIR" all yield
+ * JAMMU_AND_KASHMIR.
+ *
+ * Guarded by apps/api/src/__tests__/state-list-slab-parity.test.ts.
+ */
+export function normalizePtStateKey(state: string): string {
+  return state
+    .toUpperCase()
+    .replace(/&/g, " AND ")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 // ── Half-yearly PT collection timing ───────────────────────────────────────────

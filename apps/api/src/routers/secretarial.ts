@@ -22,6 +22,7 @@ import {
   count,
   sql,
 } from "@coheronconnect/db";
+import { getNextSeq } from "../lib/auto-number";
 
 export const secretarialRouter = router({
   // ── Board Meetings ──────────────────────────────────────────────────────────
@@ -105,12 +106,13 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
         const { chairpersonId, scheduledAt, ...rest } = input;
-        const [last] = await db
-          .select({ n: count() })
-          .from(boardMeetings)
-          .where(eq(boardMeetings.orgId, org!.id));
+        // Was count(*)+1 — two concurrent creates read the same count and mint the
+        // same BM number. org_counters allocates atomically; the counter is keyed
+        // per year so the BM-<year>-NNN shape and its per-year restart are kept.
         const year = new Date().getFullYear();
-        const num = `BM-${year}-${String((last?.n ?? 0) + 1).padStart(3, "0")}`;
+        const num = `BM-${year}-${String(
+          await getNextSeq(db, org!.id, `BM-${year}`),
+        ).padStart(3, "0")}`;
         const [row] = await db
           .insert(boardMeetings)
           .values({
@@ -232,12 +234,11 @@ export const secretarialRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
-        const [last] = await db
-          .select({ n: count() })
-          .from(boardResolutions)
-          .where(eq(boardResolutions.orgId, org!.id));
+        // Was count(*)+1 — racing, same as board meetings above.
         const year = new Date().getFullYear();
-        const num = `BR-${year}-${String((last?.n ?? 0) + 1).padStart(4, "0")}`;
+        const num = `BR-${year}-${String(
+          await getNextSeq(db, org!.id, `BR-${year}`),
+        ).padStart(4, "0")}`;
         const [row] = await db
           .insert(boardResolutions)
           .values({

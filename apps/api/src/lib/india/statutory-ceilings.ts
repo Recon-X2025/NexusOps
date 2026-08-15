@@ -38,6 +38,7 @@ import type {
   TaxSlab,
   SurchargeBand,
 } from "@coheronconnect/payroll-math";
+import { normalizePtStateKey } from "@coheronconnect/payroll-math";
 
 interface PTSlab {
   from: number;
@@ -252,9 +253,12 @@ export async function resolveStatutoryCeilings(
   const ptFromTable: PtSlabTable = {};
   let hasPtTable = false;
   for (const row of bestPt.values()) {
-    // The engine keys PT on the NORMALISED state name ("Tamil Nadu" → "TAMIL_NADU"),
-    // matching `normalizePtStateKey` in payroll-math and the free text on employees.state.
-    const stateKey = row.stateName.toUpperCase().replace(/\s+/g, "_");
+    // The engine keys PT on the NORMALISED state name ("Tamil Nadu" → "TAMIL_NADU").
+    // Call payroll-math's own normaliser rather than re-implementing it here: this
+    // was a duplicated inline copy, so when the normaliser learned to treat "&" and
+    // "and" as equivalent, an inline copy would have silently diverged from the
+    // lookup it is supposed to feed.
+    const stateKey = normalizePtStateKey(row.stateName);
 
     // levies=false is a RECORDED FACT: emit an empty-slab config so the engine returns a
     // silent, levied nil — distinguishable from an UNKNOWN state (no row at all → the

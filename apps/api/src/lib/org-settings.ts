@@ -197,3 +197,19 @@ export function isInvoicePeriodClosed(orgSettings: unknown, invoiceDate: Date | 
   const key = `${y}-${m}`;
   return closed.includes(key);
 }
+
+/**
+ * Payroll approval steps for a NEW run: 2 or 3, defaulting to 3.
+ *
+ * Callers must stamp the returned value onto the run at creation and read it back
+ * from the run thereafter — changing this setting must never alter a run already
+ * in flight. Anything stored that is not 2 or 3 (hand-edited JSON, an older
+ * write) falls back to 3, the safer length.
+ */
+export const PAYROLL_APPROVAL_CHAIN_LENGTHS = [2, 3] as const;
+export type PayrollApprovalChainLength = (typeof PAYROLL_APPROVAL_CHAIN_LENGTHS)[number];
+
+export function getPayrollApprovalChainLength(orgSettings: unknown): PayrollApprovalChainLength {
+  const n = parseOrgSettings(orgSettings).payroll?.approvalChainLength;
+  return n === 2 ? 2 : 3;
+}

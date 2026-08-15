@@ -18,6 +18,7 @@ import {
   and
 } from "@coheronconnect/db";
 import { appRouter } from "../routers";
+import { revokeElapsedOffboardedAccess } from "../lib/offboarding-revoke";
 
 function redisConnection() {
   return { url: process.env["REDIS_URL"] ?? "redis://localhost:6379" };
@@ -26,6 +27,12 @@ function redisConnection() {
 export const HR_PERIODIC_QUEUE_NAME = "coheronconnect-hr-periodic";
 export const HR_MONTHLY_JOB_NAME = "hr-monthly-sweep";
 export const HR_YEARLY_JOB_NAME = "hr-yearly-sweep";
+/**
+ * Daily: disable the login of anyone whose offboarding handover window has closed.
+ * Daily because the trigger is a DATE — an offboarding recorded today with a last
+ * working day next month must not revoke anything until that date arrives.
+ */
+export const HR_DAILY_JOB_NAME = "hr-daily-sweep";
 
 export interface HrPeriodicJobData {
   /** Unused — the sweeper infers the period from the current date. */
@@ -67,6 +74,17 @@ export async function scheduleHrPeriodicSweeps(queue: Queue<HrPeriodicJobData>):
       jobId: HR_YEARLY_JOB_NAME,
     }
   );
+
+  // 00:30 every day — shortly after midnight, so a handover window that closed at
+  // the end of yesterday is acted on first thing.
+  await queue.add(
+    HR_DAILY_JOB_NAME,
+    { _: "daily" },
+    {
+      repeat: { pattern: "30 0 * * *" },
+      jobId: HR_DAILY_JOB_NAME,
+    }
+  );
 }
 
 export function startHrPeriodicWorker(): Worker<HrPeriodicJobData> {
@@ -78,6 +96,14 @@ export function startHrPeriodicWorker(): Worker<HrPeriodicJobData> {
         await processMonthlySweep(db);
       } else if (job.name === HR_YEARLY_JOB_NAME) {
         await processYearlySweep(db);
+      } else if (job.name === HR_DAILY_JOB_NAME) {
+        const res = await revokeElapsedOffboardedAccess(db);
+        if (res.revoked.length > 0 || res.skippedNoUser.length > 0) {
+          console.info(
+            `[hr-daily] offboarding access revoked for ${res.revoked.length} user(s); ` +
+            `${res.skippedNoUser.length} offboarded employee(s) had no login to disable`,
+          );
+        }
       } else {
         throw new Error(`Unknown job name: ${job.name}`);
       }

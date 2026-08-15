@@ -4,6 +4,7 @@ import {
   timestamp,
   uuid,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { crmAccounts, crmContacts } from "./crm";
@@ -30,6 +31,8 @@ export const csmCases = pgTable(
   },
   (t) => ({
     orgIdx: index("csm_cases_org_idx").on(t.orgId),
+    // Case number is the identifier shown to the customer — unique per tenant.
+    orgNumberIdx: uniqueIndex("csm_cases_org_number_idx").on(t.orgId, t.number),
     statusIdx: index("csm_cases_status_idx").on(t.status),
     priorityIdx: index("csm_cases_priority_idx").on(t.priority),
     accountIdx: index("csm_cases_account_idx").on(t.accountId),

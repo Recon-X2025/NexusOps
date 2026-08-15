@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   auditLogs,
   users,
+  employees,
   roles,
   permissions,
   rolePermissions,
@@ -26,6 +27,8 @@ import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 import { parseOrgSettings } from "../lib/org-settings";
 import { sanitizeForAudit } from "../lib/audit-sanitize";
 import { invalidateSessionCache } from "../middleware/auth";
+import { getNextSeq } from "../lib/auto-number";
+import { getPayrollApprovalChainLength } from "../lib/org-settings";
 
 function getCategoryForKey(key: string) {
   if (key.startsWith("platform.")) return "Platform";
@@ -136,8 +139,15 @@ export const adminRouter = router({
           mfaEnrolled: users.mfaEnrolled,
           lastLoginAt: users.lastLoginAt,
           createdAt: users.createdAt,
+          // The Admin Console's Department column rendered a hardcoded em-dash. The
+          // real value lives on the employee record; `employees.user_id` is uniquely
+          // indexed, so this join is 1:1 and cannot multiply rows. Null for a user
+          // with no employee record (an admin who is not staff) — which is honest,
+          // where the hardcoded dash was not.
+          department: employees.department,
         })
         .from(users)
+        .leftJoin(employees, eq(employees.userId, users.id))
         .where(eq(users.orgId, org!.id))
         .orderBy(users.name);
       return rows;
@@ -252,6 +262,75 @@ export const adminRouter = router({
   }),
 
   /** Org `settings.security` — step-up + MFA matrix policies (US-SEC-001). */
+  /**
+   * Payroll approval chain length — a TENANT setting, configured by the tenant's
+   * own admin or owner (adminProcedure gates on users.role owner|admin), not by
+   * Coheron and not by MAC.
+   *
+   * 2 (HR → Finance) or 3 (HR → Finance → CFO). One is never permitted: segregation
+   * of duties requires two different people at any length, and it is unchanged here.
+   * Rejected at the API boundary, not only in the UI.
+   *
+   * Read WHEN A RUN IS CREATED and stamped onto the run, so changing it cannot
+   * alter a run already in flight.
+   */
+  payrollPolicy: router({
+    get: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      return { approvalChainLength: getPayrollApprovalChainLength(row?.settings) };
+    }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          // Only 2 or 3. z.union of literals rather than min/max so 1, 4 and
+          // non-integers are all rejected by the schema with a readable error.
+          approvalChainLength: z.union([z.literal(2), z.literal(3)]),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prev = (raw.payroll as Record<string, unknown> | undefined) ?? {};
+
+        await db
+          .update(organizations)
+          .set({
+            settings: {
+              ...raw,
+              payroll: { ...prev, approvalChainLength: input.approvalChainLength },
+            },
+          })
+          .where(eq(organizations.id, org!.id));
+
+        await db.insert(auditLogs).values({
+          orgId: org!.id,
+          userId: ctx.user!.id as string,
+          action: "payroll_approval_chain_update",
+          resourceType: "organization",
+          resourceId: org!.id,
+          changes: sanitizeForAudit({
+            approvalChainLength: {
+              before: prev.approvalChainLength ?? 3,
+              after: input.approvalChainLength,
+            },
+          }) as Record<string, unknown>,
+          ipAddress: ctx.ipAddress ?? undefined,
+          userAgent: ctx.userAgent ?? undefined,
+        });
+
+        return { approvalChainLength: input.approvalChainLength };
+      }),
+  }),
+
   securityPolicy: router({
     get: adminProcedure.query(async ({ ctx }) => {
       const { db, org } = ctx;
@@ -516,7 +595,11 @@ export const adminRouter = router({
           }
         }
 
-        const displayId = `SLA-${input.priority}-${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+        // Was a random 4-digit suffix — two SLAs could share a display id. The
+        // counter is per (org, priority) so the SLA-P1-0001 shape is preserved.
+        const displayId = `SLA-${input.priority}-${String(
+          await getNextSeq(db, org!.id, `SLA-${input.priority}`),
+        ).padStart(4, "0")}`;
 
         const values = {
           name: input.name,

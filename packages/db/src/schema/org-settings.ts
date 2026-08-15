@@ -111,6 +111,23 @@ export type OrgLegalAcceptance = Partial<
   Record<"terms_of_service" | "data_processing_agreement" | "privacy_policy", LegalAcceptanceRecord>
 >;
 
+/**
+ * Payroll settings.
+ *
+ * `approvalChainLength` is how many approval steps a payroll run requires: 2
+ * (HR → Finance) or 3 (HR → Finance → CFO). Nothing else is permitted — 1 would
+ * defeat segregation of duties, which requires two DIFFERENT people at any length.
+ *
+ * Default 3, so an existing tenant upgrading sees no change. A 30-person company
+ * with no CFO sets 2; the stored status names (`cfo_approved`, `approvedByCfoId`)
+ * are unchanged at either length — the final step of the configured chain lands on
+ * them, which is what keeps statutory generation and bank-file generation firing.
+ */
+export type OrgPayrollSettings = {
+  /** 2 or 3. Read WHEN A RUN IS CREATED and stamped onto the run. */
+  approvalChainLength?: 2 | 3;
+};
+
 export type OrgSettings = {
   security?: OrgSecuritySettings;
   procurement?: OrgProcurementSettings;
@@ -118,6 +135,7 @@ export type OrgSettings = {
   crm?: OrgCrmSettings;
   itsm?: OrgItsmSettings;
   expense?: OrgExpenseSettings;
+  payroll?: OrgPayrollSettings;
   sso?: OrgSsoSettings;
   /** Platform suspension flag (MAC). When true, org access is blocked. */
   suspended?: boolean;

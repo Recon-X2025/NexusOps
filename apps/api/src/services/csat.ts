@@ -23,6 +23,7 @@ import { and, eq, gte, desc } from "drizzle-orm";
 import type { Db } from "@coheronconnect/db";
 import { surveys, surveyInvites, csatSettings, users } from "@coheronconnect/db";
 import { sendNotification } from "./notifications";
+import { getNextNumber } from "../lib/auto-number";
 
 export interface CsatTriggerTicket {
   id: string;
@@ -103,6 +104,11 @@ export async function triggerCsatForResolvedTicket(
         .insert(surveys)
         .values({
           orgId,
+          // Allocate a real survey number. This insert previously omitted it and
+          // fell back to the column default "SURV-000", so every auto-created CSAT
+          // survey in every org carried the same identifier — which the new
+          // surveys_org_number_idx would reject on the second such row.
+          number: await getNextNumber(db, orgId, "SURV"),
           title: "Ticket CSAT (auto)",
           description: "Auto-triggered after ticket resolution.",
           type: "csat",

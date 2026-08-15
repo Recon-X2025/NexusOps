@@ -556,6 +556,14 @@ export const payrollRuns = pgTable(
     totalEsiEmployer: decimal("total_esi_employer", { precision: 12, scale: 2 }).notNull().default("0"),
     totalPt: decimal("total_pt", { precision: 12, scale: 2 }).notNull().default("0"),
     totalTds: decimal("total_tds", { precision: 12, scale: 2 }).notNull().default("0"),
+    /**
+     * How many approval steps THIS run requires — 2 (HR → Finance) or 3
+     * (HR → Finance → CFO). Stamped from the org setting AT CREATION and read
+     * from here by the approval procedure, never from the current org setting.
+     * That is what makes "changing the setting cannot alter a run already in
+     * flight" enforced rather than merely intended. Existing rows default to 3.
+     */
+    approvalChainLength: integer("approval_chain_length").notNull().default(3),
     approvedByHrId: uuid("approved_by_hr_id").references(() => users.id, { onDelete: "set null" }),
     approvedByFinanceId: uuid("approved_by_finance_id").references(() => users.id, { onDelete: "set null" }),
     approvedByCfoId: uuid("approved_by_cfo_id").references(() => users.id, { onDelete: "set null" }),

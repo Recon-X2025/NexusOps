@@ -277,6 +277,8 @@ export const auditFindings = pgTable(
   (t) => ({
     auditPlanIdx: index("audit_findings_audit_plan_idx").on(t.auditPlanId),
     orgIdx: index("audit_findings_org_idx").on(t.orgId),
+    // Finding number is cited in audit correspondence — unique per tenant.
+    orgNumberIdx: uniqueIndex("audit_findings_org_number_idx").on(t.orgId, t.findingNumber),
     remediationStatusIdx: index("audit_findings_remediation_status_idx").on(t.remediationStatus),
   }),
 );

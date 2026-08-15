@@ -68,6 +68,23 @@ const MODULE_LABELS: Partial<Record<Module, string>> = {
   contracts: "Contracts", reports: "Reports", analytics: "Analytics", flows: "Flows", admin: "Admin",
 };
 
+/**
+ * Initials for the avatar chip. `user.name` is nullable in the schema, and the
+ * previous inline `user.name.split(" ")` threw for any null/empty name — taking
+ * down the whole row render, not just the chip.
+ */
+function initials(name: string | null | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return parts.map((n) => n[0] ?? "").join("").slice(0, 2).toUpperCase();
+}
+
+/** CSV-quote a cell so a name or department containing a comma cannot shift columns. */
+function csvCell(v: unknown): string {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 export default function AdminConsolePage() {
   const { can, isAdmin, currentUser, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = ADMIN_TABS.filter((t) => can(t.module, t.action));
@@ -693,7 +710,7 @@ export default function AdminConsolePage() {
                   >
                     <Plus className="w-3 h-3" /> New User
                   </button>
-                  <button onClick={() => { const csv = ["Name,Email,Role,Matrix Role,MFA enrolled,Status", ...(allUsers as any[]).map((u: any) => `${u.name},${u.email},${u.role},${u.matrixRole ?? ""},${u.mfaEnrolled === true ? "yes" : "no"},${u.status ?? "active"}`)].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "coheronconnect-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
+                  <button onClick={() => { const csv = ["Name,Email,Department,Role,Matrix Role,MFA enrolled,Status,Last Login", ...(allUsers as any[]).map((u: any) => [u.name, u.email, u.department ?? "", u.role, u.matrixRole ?? "", u.mfaEnrolled === true ? "yes" : "no", u.status ?? "active", u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : ""].map(csvCell).join(","))].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "coheronconnect-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
                     <Download className="w-3 h-3" /> Export
                   </button>
                 </div>
@@ -702,7 +719,6 @@ export default function AdminConsolePage() {
                     <tr>
                       <th className="w-4" />
                       <th>Name</th>
-                      <th>Username</th>
                       <th>Email</th>
                       <th>Department</th>
                       <th>Roles</th>
@@ -724,14 +740,18 @@ export default function AdminConsolePage() {
                           <td>
                             <div className="flex items-center gap-2">
                               <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
-                                {user.name.split(" ").map((n: any) => n[0]).join("").slice(0, 2)}
+                                {initials(user.name)}
                               </span>
                               <span className="text-foreground font-medium">{user.name}</span>
                             </div>
                           </td>
-                          <td className="font-mono text-[11px] text-muted-foreground">{(user.email ?? "").split("@")[0]}</td>
+                          {/* USERNAME column removed: it rendered email.split("@")[0], so
+                              test@test.ai and test@coheron.com both displayed "test" — an
+                              invented identifier that collides. Email is the real one. */}
                           <td className="text-[11px] text-muted-foreground">{user.email}</td>
-                          <td className="text-muted-foreground text-[11px]">—</td>
+                          {/* Department now reads employees.department via admin.users.list;
+                              blank for a user with no employee record, which is truthful. */}
+                          <td className="text-muted-foreground text-[11px]">{user.department || "—"}</td>
                           <td>
                             <div className="flex flex-wrap gap-0.5">
                               {userRoles.map((r) => (

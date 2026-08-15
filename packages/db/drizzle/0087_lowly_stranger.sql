@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_runs" ADD COLUMN "approval_chain_length" integer DEFAULT 3 NOT NULL;

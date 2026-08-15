@@ -6,6 +6,7 @@ import {
   candidateSourceEnum, jobStatusEnum, offerStatusEnum,
   eq, and, desc, asc, count, sql, inArray, notInArray,
 } from "@coheronconnect/db";
+import { getNextNumber } from "../lib/auto-number";
 
 const STAGE_ORDER = [
   "applied", "screening", "phone_screen", "technical", "panel", "hr_round", "offer", "hired",
@@ -72,8 +73,9 @@ export const recruitmentRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
         const { publishImmediately, targetDate, ...fields } = input;
-        const [last] = await db.select({ n: count() }).from(jobRequisitions).where(eq(jobRequisitions.orgId, org!.id));
-        const num = `REQ-${String((last?.n ?? 0) + 1).padStart(4, "0")}`;
+        // Was count(*)+1 — two concurrent creates both read the same count and
+        // mint the same REQ number. org_counters allocates atomically instead.
+        const num = await getNextNumber(db, org!.id, "REQ");
         const [row] = await db.insert(jobRequisitions).values({
           ...fields,
           orgId: org!.id,

@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  uniqueIndex,
   integer,
   jsonb,
   pgEnum,
@@ -65,6 +66,8 @@ export const boardMeetings = pgTable("board_meetings", {
   updatedAt:    timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
   orgIdx:    index("board_meeting_org_idx").on(t.orgId),
+  // Meeting number (BM-2024-001) is cited in minutes — unique per tenant.
+  orgNumberIdx: uniqueIndex("board_meeting_org_number_idx").on(t.orgId, t.number),
   statusIdx: index("board_meeting_status_idx").on(t.orgId, t.status),
 }));
 
@@ -88,6 +91,8 @@ export const boardResolutions = pgTable("board_resolutions", {
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
   orgIdx: index("resolution_org_idx").on(t.orgId),
+  // Resolution number (BR-2024-045) is cited in filings — unique per tenant.
+  orgNumberIdx: uniqueIndex("resolution_org_number_idx").on(t.orgId, t.number),
 }));
 
 export const secretarialFilings = pgTable("secretarial_filings", {

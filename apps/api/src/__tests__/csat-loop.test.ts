@@ -261,7 +261,8 @@ describe("CSAT loop on ticket resolve (P1-10)", () => {
     // A type-filtered aggregation must ignore it.
     const [nps] = await db
       .insert(surveys)
-      .values({ orgId, title: "NPS", type: "nps", status: "active", questions: [], createdById: adminId })
+      .values({
+        number: `SURV-${Math.random().toString(36).slice(2, 8)}`, orgId, title: "NPS", type: "nps", status: "active", questions: [], createdById: adminId })
       .returning();
     await db.insert(surveyResponses).values({
       surveyId: nps!.id,
@@ -275,7 +276,8 @@ describe("CSAT loop on ticket resolve (P1-10)", () => {
     const other = await seedFullOrg();
     const [otherCsat] = await db
       .insert(surveys)
-      .values({ orgId: other.orgId, title: "CSAT", type: "csat", status: "active", questions: [], createdById: other.adminId })
+      .values({
+        number: `SURV-${Math.random().toString(36).slice(2, 8)}`, orgId: other.orgId, title: "CSAT", type: "csat", status: "active", questions: [], createdById: other.adminId })
       .returning();
     await db.insert(surveyResponses).values({
       surveyId: otherCsat!.id,

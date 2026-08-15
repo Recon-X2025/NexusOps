@@ -62,6 +62,7 @@ import {
   PAYROLL_LEAVER_STATUSES,
 } from "../services/payroll-run-aggregates";
 import { checkDbUserPermission } from "../lib/rbac-db";
+import { getPayrollApprovalChainLength } from "../lib/org-settings";
 
 function legacyStatusForPipeline(pipeline: string) {
   if (pipeline === "DRAFT") return "draft" as const;
@@ -358,6 +359,16 @@ const runsRouter = router({
         .where(eq(payrollRuns.orgId, org!.id));
       const nextRun = Number(agg?.maxRun ?? 0) + 1;
 
+      // Stamp the approval chain length onto the run AT CREATION. The approve
+      // procedure reads it from the run, never from the org setting, so changing
+      // the setting cannot alter a run already in flight.
+      const [orgRow] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id))
+        .limit(1);
+      const approvalChainLength = getPayrollApprovalChainLength(orgRow?.settings);
+
       const [created] = await db
         .insert(payrollRuns)
         .values({
@@ -367,6 +378,7 @@ const runsRouter = router({
           status: "draft",
           pipelineStatus: "DRAFT",
           runNumber: nextRun,
+          approvalChainLength,
           workflowMetadata: { errors: [], approvals: [] },
         })
         .returning();
@@ -742,6 +754,25 @@ const runsRouter = router({
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
 
+      /**
+       * CHAIN LENGTH — read from the RUN, never from the current org setting.
+       * The run was stamped at creation, so changing the tenant setting mid-cycle
+       * cannot alter a run already in flight.
+       *
+       * On a 2-step chain the CFO step does not exist. Reject it explicitly rather
+       * than letting it fall through to the transition map, so the caller gets a
+       * message that explains the configuration instead of a state error.
+       */
+      const chainLength = row.approvalChainLength ?? 3;
+      if (input.step === "CFO" && chainLength < 3) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "This payroll run uses a two-step approval chain (HR, then Finance). " +
+            "There is no CFO step to approve.",
+        });
+      }
+
       if (input.decision === "APPROVED" && process.env.DISABLE_PAYROLL_SOD !== "true") {
         if (input.step === "FINANCE" && row.approvedByHrId === ctx.user!.id) {
           throw new TRPCError({
@@ -783,9 +814,22 @@ const runsRouter = router({
         return mapRunRow(updated!);
       }
 
+      /**
+       * On a 3-step chain FINANCE is an intermediate step. On a 2-step chain it is
+       * the FINAL one, so it must land on CFO_APPROVED — the terminal approval
+       * state that `generateStatutory` (payroll.ts, "CFO approval required first"),
+       * bank-disbursement file generation and the payroll UI all gate on. Adding a
+       * separate terminal status would silently strip a 2-step tenant of statutory
+       * generation and bank files, which is exactly what must not happen.
+       *
+       * The stored names do not change at either length: the last approver of a
+       * 2-step run is recorded in approvedByFinanceId, and the run reaches
+       * `cfo_approved` / CFO_APPROVED as before.
+       */
+      const financeIsFinal = chainLength < 3;
       const transitions: Record<string, Record<string, string>> = {
         HR: { PAYSLIPS_GENERATED: "HR_APPROVED" },
-        FINANCE: { HR_APPROVED: "FINANCE_APPROVED" },
+        FINANCE: { HR_APPROVED: financeIsFinal ? "CFO_APPROVED" : "FINANCE_APPROVED" },
         CFO: { FINANCE_APPROVED: "CFO_APPROVED" },
       };
       const next = transitions[input.step]?.[row.pipelineStatus];

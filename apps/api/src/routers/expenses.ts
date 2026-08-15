@@ -18,6 +18,7 @@ import {
   sum,
   sql,
 } from "@coheronconnect/db";
+import { getNextNumber } from "../lib/auto-number";
 
 const expenseReportInput = z.object({
   title: z.string().min(1).max(200),
@@ -100,7 +101,10 @@ export const expensesRouter = router({
     .input(expenseReportInput)
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const number = `EXP-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+      // Was `EXP-${year}-${random 1000..9999}` — 9000 values per org per year, so a
+      // tenant filing ~100 reports had a better-than-even chance of a collision
+      // (birthday paradox). Now allocated from org_counters, which is atomic.
+      const number = await getNextNumber(db, org!.id, "EXP");
       const [report] = await db
         .insert(expenseReports)
         .values({

@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  uniqueIndex,
   integer,
   jsonb,
   pgEnum,
@@ -78,6 +79,8 @@ export const jobRequisitions = pgTable("job_requisitions", {
   updatedAt:       timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
   orgIdx:    index("job_req_org_idx").on(t.orgId),
+  // Requisition number (REQ-0001) appears on the posting — unique per tenant.
+  orgNumberIdx: uniqueIndex("job_req_org_number_idx").on(t.orgId, t.number),
   statusIdx: index("job_req_status_idx").on(t.orgId, t.status),
 }));
 

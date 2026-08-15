@@ -2,6 +2,7 @@ import {
   boolean,
   decimal,
   index,
+  uniqueIndex,
   pgEnum,
   pgTable,
   text,
@@ -68,6 +69,8 @@ export const expenseReports = pgTable(
   },
   (t) => ({
     orgIdx: index("expense_reports_org_idx").on(t.orgId),
+    // Report number is the identifier on the claim — unique per tenant.
+    orgNumberIdx: uniqueIndex("expense_reports_org_number_idx").on(t.orgId, t.number),
     submitterIdx: index("expense_reports_submitter_idx").on(t.orgId, t.submittedById),
     statusIdx: index("expense_reports_status_idx").on(t.orgId, t.status),
   }),

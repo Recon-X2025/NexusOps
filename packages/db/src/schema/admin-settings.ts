@@ -43,6 +43,8 @@ export const slaDefinitions = pgTable(
   },
   (t) => ({
     orgIdx: index("sla_definitions_org_idx").on(t.orgId),
+    // Display id (SLA-P1-0001) is how an SLA is referred to — unique per tenant.
+    orgDisplayIdIdx: uniqueIndex("sla_definitions_org_display_id_idx").on(t.orgId, t.displayId),
     orgPriorityIdx: uniqueIndex("sla_definitions_org_priority_idx").on(t.orgId, t.priority),
   }),
 );

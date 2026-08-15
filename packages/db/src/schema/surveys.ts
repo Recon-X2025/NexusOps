@@ -2,6 +2,7 @@ import {
   boolean,
   decimal,
   index,
+  uniqueIndex,
   integer,
   jsonb,
   pgEnum,
@@ -58,6 +59,8 @@ export const surveys = pgTable(
   },
   (t) => ({
     orgIdx: index("surveys_org_idx").on(t.orgId),
+    // Survey number is the identifier in reporting — unique per tenant.
+    orgNumberIdx: uniqueIndex("surveys_org_number_idx").on(t.orgId, t.number),
     statusIdx: index("surveys_status_idx").on(t.orgId, t.status),
   }),
 );

@@ -150,6 +150,8 @@ export const threatIntelligence = pgTable(
   },
   (t) => ({
     orgIdx: index("threat_intelligence_org_idx").on(t.orgId),
+    // TI reference is cited across incidents — unique per tenant.
+    orgNumberIdx: uniqueIndex("threat_intelligence_org_number_idx").on(t.orgId, t.number),
     incidentIdx: index("threat_intelligence_incident_idx").on(t.incidentId),
   }),
 );

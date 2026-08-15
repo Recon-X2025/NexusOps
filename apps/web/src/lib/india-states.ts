@@ -1,12 +1,25 @@
 /**
  * Canonical Indian states + union territories for the employee-form state select.
  *
- * The names here MUST match the GST state list (`GSTIN_STATE_CODES` /
- * `normaliseStateToCode` in `@coheronconnect/payroll-math`) so that a picked value
- * normalises correctly for both GST and the professional-tax engine
- * (`computePT` upper-cases and underscores the string: "Tamil Nadu" → TAMIL_NADU).
- * (Consolidating this list into the shared package is a later refinement; kept
- * web-local here to keep the state-dropdown change small and severable.)
+ * The names here MUST match `professional_tax_slabs.state_name` (seeded by
+ * migration 0075), because that table is what the PT lookup actually reads:
+ * `computePT` resolves `overrides[normalizePtStateKey(state)]`, and
+ * `statutory-ceilings.ts` builds those overrides keyed on
+ * `stateName.toUpperCase().replace(/\s+/g, "_")`. A value absent from that table
+ * cannot resolve a slab.
+ *
+ * Three values were realigned here (Round 6): "Jammu & Kashmir",
+ * "Andaman & Nicobar" and "Dadra & Nagar Haveli and Daman & Diu" used "&" where
+ * the slab table spells "and", so those three — picked from this very dropdown —
+ * produced `unknownState` and ₹0 PT. All three are non-levying, so no employee was
+ * mis-deducted, but the run recorded "unknown state" rather than a correct nil.
+ *
+ * NOTE — this list intentionally NO LONGER matches `GSTIN_STATE_CODES` in
+ * `@coheronconnect/payroll-math`, which still uses the "&" spellings. That is safe
+ * because nothing feeds an employee's state into the GST path: GST place-of-supply
+ * is resolved from the org's GSTIN registration and from vendor/customer state,
+ * never from `employees.state`. The two lists serve different lookups and the GST
+ * one is the IRP's own vocabulary — do not "fix" it to match this file.
  *
  * SAFETY, NOT CORRECTNESS: a dropdown stops typos like "Karnatak" → nil PT, but it
  * does not make PT correct for every state. The PT engine holds slabs for only
@@ -44,11 +57,11 @@ export const INDIAN_STATES: readonly string[] = [
   "Uttarakhand",
   "West Bengal",
   // 8 union territories
-  "Andaman & Nicobar",
+  "Andaman and Nicobar Islands",
   "Chandigarh",
-  "Dadra & Nagar Haveli and Daman & Diu",
+  "Dadra and Nagar Haveli and Daman and Diu",
   "Delhi",
-  "Jammu & Kashmir",
+  "Jammu and Kashmir",
   "Ladakh",
   "Lakshadweep",
   "Puducherry",
