@@ -41,7 +41,9 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 - **LIVE on `connect.coheron.tech` = `e11e5f5`** (Round 7's push) — verified 2026-08-15 via
   `/api/health` returning `version: e11e5f54fddf7f63…` and CI run `31877482131`, all six jobs `success`.
   Migration head at that deploy: **`0085`**.
-- **`90f7b70` DEPLOYED AND VERIFIED** — CI run `31887995023`, all six jobs `success` including the terminal
+- **LIVE = `c8b3af7`** (Round 9a; migration head `0088`) — CI run `31901980792`, all six jobs `success`,
+  `/api/health` → `c8b3af72e16e7176…`.
+- Prior: **`90f7b70`** — CI run `31887995023`, all six jobs `success` including the terminal
   `Deploy to Vultr`; `/api/health` returned `version: 90f7b702a79d3f9b…`. It carried Rounds 6, 7 and
   8-part-1 and **two migrations, `0086` and `0087`** (head `0085` → `0087`). Migration `0086` did NOT halt
   the deploy, so no duplicate identifiers existed in production.
@@ -759,7 +761,7 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31887995023` — commit `90f7b70` (Rounds 6/7/8-part-1; migrations `0086`+`0087`) — all six jobs `success`, terminal `Deploy to Vultr` `success` — 2026-08-15 — migration head `0087`.** Verified via `/api/health` returning `version: 90f7b702a79d3f9b…`. Superseded exit point: CI `31877482131` / `e11e5f5` / head `0085`.
+**CI run `31901980792` — commit `c8b3af7` (Round 9a CRM: BANT, lead activities, conversion carry; migration `0088`) — all six jobs `success`, verified via `/api/health` → `c8b3af72e16e7176…`. Superseded: CI `31887995023` / `90f7b70` (Rounds 6/7/8-part-1; migrations `0086`+`0087`) — all six jobs `success`, terminal `Deploy to Vultr` `success` — 2026-08-15 — migration head `0087`.** Verified via `/api/health` returning `version: 90f7b702a79d3f9b…`. Superseded exit point: CI `31877482131` / `e11e5f5` / head `0085`.
 
 **Superseded exit points (decision-history):** CI `31818337559` / `f659127` / head `0085` (leave-model batch,
 2026-08-14); CI `31761880777` / `831f21b` / head `0082` (security+payroll); CI `31701625521` / `f487ee8` /

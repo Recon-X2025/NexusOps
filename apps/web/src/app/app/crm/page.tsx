@@ -112,6 +112,42 @@ interface Contact {
   doNotContact: boolean;
 }
 
+/**
+ * Row-level lead progression.
+ *
+ * The milestone test: a transition should reflect something the PROSPECT did, not
+ * something the rep intends. So the control offers the ONE next milestone plus the
+ * negative outcome — not a dropdown of every status, which would let a rep advance a
+ * lead by declaring it advanced.
+ *
+ * The real `lead_status` enum is FIVE values (new, contacted, qualified, converted,
+ * disqualified). There is no `nurturing` and no `dead`; `disqualified` is the
+ * negative terminal state.
+ *
+ * `converted` is deliberately absent from every transition list. Conversion is a
+ * structured action that requires an estimated value and an expected close date and
+ * creates the account, contact and deal together; setting the status directly would
+ * produce a lead marked converted with no deal behind it.
+ */
+const LEAD_NEXT_STEP: Record<string, { to: string; label: string; hint: string }[]> = {
+  new: [
+    { to: "contacted", label: "Log first contact", hint: "They replied or you reached them" },
+    { to: "disqualified", label: "Disqualify", hint: "Not a fit, or no longer responsive" },
+  ],
+  contacted: [
+    { to: "qualified", label: "Mark qualified", hint: "They confirmed a need, a budget and a timeline" },
+    { to: "disqualified", label: "Disqualify", hint: "Not a fit, or no longer responsive" },
+  ],
+  qualified: [
+    // No advance to `converted` here — that is the Convert action, which requires
+    // an estimated value and an expected close date.
+    { to: "disqualified", label: "Disqualify", hint: "Lost or went quiet after qualifying" },
+  ],
+  // Terminal — nothing advances out of these from the row.
+  converted: [],
+  disqualified: [],
+};
+
 interface Lead {
   id: string;
   number: string;
@@ -332,7 +368,10 @@ export default function CRMPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const updateLeadMutation = trpc.crm.updateLead.useMutation({
+  // Points at the CANONICAL crm.leads.update, not the deprecated crm.updateLead.
+  // The deprecated input has no BANT fields, so zod silently stripped every
+  // qualification value the edit dialog sent — the form saved and the data vanished.
+  const updateLeadMutation = trpc.crm.leads.update.useMutation({
     onSuccess: () => { toast.success("Lead updated"); refetchLeads(); setEditingLead(null); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to update lead"),
   });
@@ -965,7 +1004,10 @@ export default function CRMPage() {
                         <p className="text-[11px] text-muted-foreground/70">{deal.owner} · {deal.lastActivity}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="font-mono font-bold text-[12px] text-foreground">₹{(deal.value / 1000).toFixed(0)}K</div>
+                        {/* data-value carries the raw amount so a test can assert the
+                            number without depending on the abbreviated ₹250K rendering. */}
+                        <div data-testid="pipeline-deal-value" data-value={String(deal.value ?? 0)}
+                          className="font-mono font-bold text-[12px] text-foreground">₹{(deal.value / 1000).toFixed(0)}K</div>
                         <div className="text-[10px] text-muted-foreground/70">{deal.probability}% · {daysToClose}d</div>
                       </div>
                     </div>
@@ -1060,7 +1102,8 @@ export default function CRMPage() {
                           <p className="text-[10px] text-muted-foreground/60 mb-1">{getDealContactName(deal)}</p>
                         )}
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-bold text-[12px] text-primary">₹{(deal.value / 1000).toFixed(0)}K</span>
+                          <span data-testid="pipeline-deal-value" data-value={String(deal.value ?? 0)}
+                            className="font-mono font-bold text-[12px] text-primary">₹{(deal.value / 1000).toFixed(0)}K</span>
                           <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate?.slice(5) ?? deal.expectedClose?.toString()?.slice(5) ?? "—"}</span>
                         </div>
                         <div className="mt-1.5 flex items-center gap-1">
@@ -1313,7 +1356,29 @@ export default function CRMPage() {
                     <td className="text-center">
                       <span className={`font-mono font-bold text-[12px] ${SCORE_COLOR(l.score)}`}>{l.score}</span>
                     </td>
-                    <td><span className={`status-badge capitalize ${LEAD_STATUS_CFG[l.status as LeadStatus]}`}>{l.status}</span></td>
+                    <td>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`status-badge capitalize ${LEAD_STATUS_CFG[l.status as LeadStatus]}`}>{l.status}</span>
+                        {/* Row-level progression: the ONE next milestone, named for what
+                            the prospect did — not a dropdown of every status. */}
+                        {(LEAD_NEXT_STEP[l.status] ?? []).map((step) => (
+                          <button
+                            key={step.to}
+                            data-testid={`lead-advance-${step.to}`}
+                            title={step.hint}
+                            disabled={updateLeadMutation.isPending}
+                            onClick={() => updateLeadMutation.mutate({ id: l.id, status: step.to } as any)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                              step.to === "disqualified"
+                                ? "border-border text-muted-foreground hover:bg-muted"
+                                : "border-primary/40 text-primary hover:bg-primary/10"
+                            }`}
+                          >
+                            {step.label}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
                     <td className="text-muted-foreground">{l.owner}</td>
                     <td className="text-[11px] text-muted-foreground/70">{l.lastActivityAt ? new Date(l.lastActivityAt).toLocaleDateString() : "—"}</td>
                     <td>
@@ -1630,13 +1695,16 @@ export default function CRMPage() {
       {/* Edit Lead Modal */}
       {editingLead && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          {/* max-h + scrolling body: Round 9a added nine qualification fields to this
+              dialog, which pushed the footer (and its Save button) below the fold on a
+              laptop viewport — the button was rendered but unreachable. */}
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0">
               <h2 className="text-body-sm font-semibold">Edit Lead: {editingLead.firstName} {editingLead.lastName}</h2>
               <button onClick={() => setEditingLead(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
-            <div className="p-5 space-y-3">
-              {(["firstName", "lastName", "email", "company", "title"] as const).map((f) => (
+            <div className="p-5 space-y-3 overflow-y-auto">
+              {(["firstName", "lastName", "email", "phone", "company", "title"] as const).map((f) => (
                 <div key={f}>
                   <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">{f.replace(/([A-Z])/g, " $1")}</label>
                   <input
@@ -1730,14 +1798,30 @@ export default function CRMPage() {
                 </div>
               </div>
             </div>
-            <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2 shrink-0">
               <button onClick={() => setEditingLead(null)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/30">Cancel</button>
               <button
-                disabled={updateLeadMutation.isPending}
+                data-testid="lead-edit-save"
+                disabled={
+                  updateLeadMutation.isPending ||
+                  // Required-field validation carried from the deleted dialog: it
+                  // refused to save a lead missing any of these, and that guard
+                  // should not have depended on which of two dialogs you clicked.
+                  !editLeadForm.firstName.trim() || !editLeadForm.lastName.trim() ||
+                  !editLeadForm.company.trim() || !editLeadForm.email.trim()
+                }
                 onClick={() => {
                   if (/^[0-9a-f-]{36}$/i.test(editingLead.id)) {
                     updateLeadMutation.mutate({
                       id: editingLead.id, ...editLeadForm, status: editLeadForm.status as any,
+                      // Trimming carried from the deleted dialog — a trailing space in a
+                      // name or email is never intended.
+                      firstName: editLeadForm.firstName.trim(),
+                      lastName: editLeadForm.lastName.trim(),
+                      email: editLeadForm.email.trim(),
+                      phone: editLeadForm.phone.trim(),
+                      company: editLeadForm.company.trim(),
+                      title: editLeadForm.title.trim() || undefined,
                       // Empty strings are "not set", not values — the API takes undefined.
                       budgetNote: editLeadForm.budgetNote || undefined,
                       need: editLeadForm.need || undefined,
@@ -2034,59 +2118,11 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* Edit Lead Modal */}
-      {editingLead && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-body-sm font-bold">Edit Lead</h2>
-              <button onClick={() => setEditingLead(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
-                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.firstName} onChange={(e) => setEditLeadForm(f => ({ ...f, firstName: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Last Name *</label>
-                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.lastName} onChange={(e) => setEditLeadForm(f => ({ ...f, lastName: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company *</label>
-                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.company} onChange={(e) => setEditLeadForm(f => ({ ...f, company: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title</label>
-                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.title} onChange={(e) => setEditLeadForm(f => ({ ...f, title: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone *</label>
-                <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.phone} onChange={(e) => setEditLeadForm(f => ({ ...f, phone: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email *</label>
-                <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.email} onChange={(e) => setEditLeadForm(f => ({ ...f, email: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Status</label>
-                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.status} onChange={(e) => setEditLeadForm(f => ({ ...f, status: e.target.value }))}>
-                  {["new", "contacted", "qualified", "disqualified"].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setEditingLead(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
-              <button
-                disabled={!editLeadForm.firstName.trim() || !editLeadForm.lastName.trim() || !editLeadForm.company.trim() || !editLeadForm.email.trim() || !editLeadForm.phone.trim() || updateLeadMutation.isPending}
-                onClick={() => updateLeadMutation.mutate({ id: editingLead.id, firstName: editLeadForm.firstName.trim(), lastName: editLeadForm.lastName.trim(), email: editLeadForm.email.trim(), phone: editLeadForm.phone.trim(), company: editLeadForm.company.trim(), title: editLeadForm.title.trim() || undefined, status: editLeadForm.status as any })}
-                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
-              >{updateLeadMutation.isPending ? "Saving…" : "Save Changes"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* The SECOND Edit Lead dialog that used to live here is deleted. Both gated on the
+          same `editingLead` state, so both rendered at once and stacked on screen. It sent
+          neither `source` nor any of the nine BANT/opportunity fields, so whichever one you
+          happened to use changed what was saved. Its two genuinely better behaviours —
+          trimming text input and a phone field — were carried into the survivor above. */}
 
       {/* New Activity Modal */}
       {showNewActivity && (

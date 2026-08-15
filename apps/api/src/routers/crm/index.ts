@@ -333,6 +333,21 @@ export const crmRouter = router({
   updateLead: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid(), firstName: z.string().optional(), lastName: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), company: z.string().optional(), title: z.string().optional(), status: z.enum(["new", "contacted", "qualified", "disqualified", "converted"]).optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
+      // Conversion is a STRUCTURED action, not a status change. `leads.convert`
+      // requires an estimated value and an expected close date and creates the
+      // account, contact and deal together; setting the status here would leave a
+      // lead marked converted with no deal behind it. The stored enum keeps
+      // "converted" — it is a legitimate value; only reaching it this way is blocked.
+      if (input.status === "converted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "A lead cannot be marked converted directly. Use crm.leads.convert, which " +
+            "requires an estimated value and an expected close date and creates the " +
+            "account, contact and deal together.",
+        });
+      }
+
       const { db, org } = ctx;
       const { id, ...patch } = input;
       // G5 — re-score on write so a status/title/source change updates the score.

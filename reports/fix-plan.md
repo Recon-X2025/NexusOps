@@ -11,7 +11,7 @@ No code has been changed by this document — it is the plan, not the work._
 **Last VERIFIED live:** `e11e5f5`, CI `31877482131`, all six jobs `success`, migration head `0085`
 (verified via `/api/health` → `version: e11e5f54fddf7f63…`).
 
-**`90f7b70` DEPLOYED AND VERIFIED** (CI `31887995023`, all six jobs `success`, `/api/health` →
+**LIVE = `c8b3af7`** (Round 9a, migration head `0088`, CI `31901980792`). Prior: **`90f7b70`** (CI `31887995023`, all six jobs `success`, `/api/health` →
 `90f7b702a79d3f9b…`). Rounds 6, 7 and 8-part-1 in one commit (they share files; splitting would not
 compile). Migrations `0086` + `0087` — head is now `0087`. `0086` did not halt the deploy, so production
 held no duplicate identifiers. Gate before push:
