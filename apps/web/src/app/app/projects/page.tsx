@@ -112,7 +112,8 @@ export default function ProjectsPage() {
   const totalBudget = projectList.reduce((s, p) => s + Number(p.budgetTotal ?? 0), 0);
   const totalSpent  = projectList.reduce((s, p) => s + Number(p.budgetSpent ?? 0), 0);
   const atRisk = projectList.filter((p) => p.health !== "green").length;
-  const overallocated = 0; // Resource allocation managed per-project
+  // "Overallocated Resources" KPI removed — it was a hardcoded 0. There is no
+  // resource-allocation model to compute it from, so it could only ever read 0.
 
   return (
     <div className="flex flex-col gap-3">
@@ -289,7 +290,6 @@ export default function ProjectsPage() {
           { label: "Total Portfolio Budget",  value: `₹${(totalBudget / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
           { label: "Spent YTD",               value: `₹${(totalSpent / 1000).toFixed(0)}K`,     color: "text-blue-700" },
           { label: "Projects At Risk",        value: atRisk,                                    color: "text-orange-700" },
-          { label: "Overallocated Resources", value: overallocated,                              color: "text-red-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>

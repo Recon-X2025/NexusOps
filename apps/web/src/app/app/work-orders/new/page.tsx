@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const PRIORITIES = [
   { value: "1_critical", label: "P1 — Critical", color: "border-red-400 bg-red-50 text-red-700" },
   { value: "2_high",     label: "P2 — High",     color: "border-orange-400 bg-orange-50 text-orange-700" },
-  { value: "3_medium",   label: "P3 — Medium",   color: "border-yellow-400 bg-yellow-50 text-yellow-700" },
+  { value: "3_moderate", label: "P3 — Medium",   color: "border-yellow-400 bg-yellow-50 text-yellow-700" },
   { value: "4_low",      label: "P4 — Low",      color: "border-green-400 bg-green-50 text-green-700" },
 ];
 const CATEGORIES = ["Preventive Maintenance", "Corrective Repair", "Installation", "Inspection", "Emergency Repair", "Upgrade", "Decommission"];

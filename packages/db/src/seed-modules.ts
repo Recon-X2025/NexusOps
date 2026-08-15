@@ -19,6 +19,7 @@ import {
   eq, and, count,
 } from "./schema";
 import { faker } from "@faker-js/faker";
+import { assertSeedAllowed } from "./seed-guard";
 
 faker.seed(54321);
 
@@ -32,6 +33,8 @@ function cntFrom(rows: { cnt: unknown }[]): number {
 }
 
 async function seedModules() {
+  assertSeedAllowed("db:seed:modules");
+
   const db = getDb();
   console.log("🌱 Seeding dynamic module data for CoheronConnect...\n");
 

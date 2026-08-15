@@ -23,7 +23,8 @@ import {
 const FIN_TABS = [
   { key: "budget",      label: "IT Budget",              module: "budget"      as const, action: "read"  as const },
   { key: "chargebacks", label: "Chargeback / Showback",  module: "chargebacks" as const, action: "read"  as const },
-  { key: "capex_opex",  label: "CAPEX / OPEX",           module: "financial"   as const, action: "admin" as const },
+  // CAPEX / OPEX tab hidden — the schema has no CAPEX/OPEX classification, so the
+  // CAPEX column was always empty and every budget line was shown as OPEX.
   { key: "invoices",    label: "Invoices",               module: "financial"   as const, action: "read"  as const },
   { key: "ap",          label: "Accounts Payable",       module: "financial"   as const, action: "read"  as const },
   { key: "ar",          label: "Accounts Receivable",    module: "financial"   as const, action: "read"  as const },
@@ -496,7 +497,6 @@ function FinancialPageInner() {
                   <th>Invoice Date</th>
                   <th>Due Date</th>
                   <th>Amount</th>
-                  <th>Budget Code</th>
                   <th>PO Ref</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -512,7 +512,8 @@ function FinancialPageInner() {
                   const invRef = inv.invoiceNumber ?? "—";
                   const invDate = inv.createdAt ? new Date(inv.createdAt).toISOString().split("T")[0] : "—";
                   const invAmount = Number(inv.amount ?? 0);
-                  const invPoRef = inv.poId ?? null;
+                  // listInvoices joins purchase_orders — show the PO number, not the raw UUID.
+                  const invPoRef = inv.poNumber ?? null;
                   const invDue = inv.dueDate ? new Date(inv.dueDate).toISOString().split("T")[0] : "—";
                   return (
                     <tr key={inv.id} className={cn("hover:bg-muted/10 transition-colors cursor-pointer group", invStatus === "overdue" ? "bg-red-50/10" : invStatus === "disputed" ? "bg-orange-50/10" : "")} onClick={() => router.push(`/app/financial/invoices/${inv.id}`)}>
@@ -523,7 +524,6 @@ function FinancialPageInner() {
                       <td className="text-muted-foreground text-[11px]">{invDate}</td>
                       <td className={`text-[11px] ${invStatus === "overdue" ? "text-red-600 font-bold" : "text-muted-foreground"}`}>{invDue}</td>
                       <td className="font-mono text-[12px] font-bold text-foreground">₹{invAmount.toLocaleString("en-IN")}</td>
-                      <td className="font-mono text-[10px] text-muted-foreground/70">—</td>
                       <td className="font-mono text-[11px] text-primary">{invPoRef ?? "—"}</td>
                       <td><span className={`status-badge capitalize ${INV_STATUS[invStatus] ?? ""}`}>{invStatus}</span></td>
                         <td onClick={(e) => e.stopPropagation()}>

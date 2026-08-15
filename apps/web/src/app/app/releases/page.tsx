@@ -16,12 +16,8 @@ const STATE_CFG: Record<string, { label: string; color: string }> = {
   cancelled: { label: "Cancelled",  color: "text-red-700 bg-red-100" },
 };
 
-const RISK_COLOR: Record<string, string> = {
-  critical: "bg-red-600",
-  high: "bg-orange-500",
-  medium: "bg-yellow-500",
-  low: "bg-green-500",
-};
+// RISK_COLOR removed with the risk bar it coloured — `releases` has no riskLevel
+// column, so every row fell through to the same default.
 
 export default function ReleasesPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
@@ -108,8 +104,8 @@ export default function ReleasesPage() {
   const inFlight = releases.filter((r: any) => r.status === "deploy").length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const awaitingCAB = releases.filter((r: any) => r.status === "build").length;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const failedTests = releases.filter((r: any) => (r.testsFailed ?? 0) > 0).length;
+  // "Failing Tests" KPI removed — `releases` has no testsFailed column, so it
+  // could only ever count 0. See packages/db/src/schema/changes.ts:183-197.
 
   return (
     <div className="flex flex-col gap-3">
@@ -139,7 +135,6 @@ export default function ReleasesPage() {
         {[
           { label: "Deployments In Flight", value: inFlight,     color: "text-orange-700" },
           { label: "Awaiting CAB",           value: awaitingCAB, color: "text-yellow-700" },
-          { label: "Failing Tests",          value: failedTests, color: "text-red-700" },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           { label: "Planned This Week",      value: releases.filter((r: any) => r.status === "planning").length, color: "text-blue-700" },
         ].map((k) => (
@@ -177,12 +172,11 @@ export default function ReleasesPage() {
           {releases.map((rel: any) => {
             const sCfg = STATE_CFG[rel.status as string];
             const isExpanded = expandedId === rel.id;
-            const deploymentSteps = (rel.deploymentSteps as number) ?? 0;
-            const completedSteps = (rel.completedSteps as number) ?? 0;
-            const testsPassed = (rel.testsPassed as number) ?? 0;
-            const testsFailed = (rel.testsFailed as number) ?? 0;
-            const rollbackPlan = (rel.rollbackPlan as boolean) ?? true;
-            const progress = deploymentSteps > 0 ? Math.round((completedSteps / deploymentSteps) * 100) : 0;
+            // deploymentSteps / completedSteps / testsPassed / testsFailed /
+            // rollbackPlan / riskLevel / type / environment / owner are NOT columns
+            // on `releases` (packages/db/src/schema/changes.ts:183-197). Every
+            // element that rendered them showed a blank badge, a permanent "—", or
+            // asserted a rollback plan that was never recorded — all removed.
 
             return (
               <div key={rel.id} className="bg-card border border-border rounded overflow-hidden">
@@ -190,24 +184,14 @@ export default function ReleasesPage() {
                   className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30"
                   onClick={() => setExpandedId(isExpanded ? null : rel.id)}
                 >
-                  <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${RISK_COLOR[rel.riskLevel as string] ?? "bg-gray-400"}`} />
+                  <div className="w-1 self-stretch rounded-full flex-shrink-0 bg-border" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           <span className="font-mono text-[11px] text-primary">{(rel.number as string) ?? rel.id}</span>
-                          <span className="status-badge text-muted-foreground bg-muted">{rel.type as string}</span>
-                          <span className="status-badge text-blue-700 bg-blue-100">{rel.environment as string}</span>
                           <span className={`status-badge ${sCfg?.color}`}>{sCfg?.label}</span>
                           {rel.changeRef && <span className="font-mono text-[11px] text-muted-foreground/70">{rel.changeRef as string}</span>}
-                          {!rollbackPlan && <span className="status-badge text-red-700 bg-red-100">⚠ No Rollback Plan</span>}
-                          {rel.linkedItems && rel.linkedItems.length > 0 && (
-                            rel.linkedItems.map((item: string) => (
-                              <span key={item} className="ml-1.5 px-1 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[9px] font-medium whitespace-nowrap">
-                                {item}
-                              </span>
-                            ))
-                          )}
                         </div>
                         <p className="text-[13px] font-semibold text-foreground">{rel.name as string}</p>
                       </div>
@@ -215,31 +199,16 @@ export default function ReleasesPage() {
                         <div className="text-[11px] text-muted-foreground">
                           Planned: {rel.plannedDate ? new Date(rel.plannedDate as string).toLocaleString() : "—"}
                         </div>
-                        <div className="text-[11px] text-muted-foreground">{(rel.owner as string) ?? (rel.ownerId as string) ?? "—"}</div>
                         <div className="flex items-center gap-2 mt-1 justify-end">
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setLinkChangeOpen(rel.id); }} 
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setLinkChangeOpen(rel.id); }}
                             className="text-[10px] text-primary hover:underline font-medium whitespace-nowrap"
                           >
                             + Link Change
                           </button>
-                          {testsFailed > 0 ? (
-                            <span className="text-[10px] text-red-600 font-semibold">⚠ {testsFailed} test failures</span>
-                          ) : testsPassed > 0 ? (
-                            <span className="text-[10px] text-green-600">✓ {testsPassed} tests passed</span>
-                          ) : null}
                         </div>
                       </div>
                     </div>
-                    {deploymentSteps > 0 && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden max-w-xs">
-                          <div className={`h-full rounded-full ${progress === 100 ? "bg-green-500" : "bg-primary"}`}
-                            style={{ width: `${progress}%` }} />
-                        </div>
-                        <span className="text-[11px] text-muted-foreground">{completedSteps}/{deploymentSteps} steps</span>
-                      </div>
-                    )}
                   </div>
                 </div>
 

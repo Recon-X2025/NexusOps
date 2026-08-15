@@ -93,9 +93,12 @@ export default function HAMPage() {
           <span className="text-[11px] text-muted-foreground/70">Full Lifecycle · Contracts · Warranty · Disposal</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Disabled: this only refetched the existing list while claiming a
+              discovery had run. No agent or scanner is connected. */}
           <button
-            onClick={() => { assetsQuery.refetch(); toast.success("Discovery initiated — refreshing asset inventory"); }}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+            disabled
+            title="Discovery is not connected in this release — no agent or scanner is configured, so nothing is discovered."
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded text-muted-foreground opacity-50 cursor-not-allowed"
           >
             <RefreshCw className="w-3 h-3" /> Run Discovery
           </button>

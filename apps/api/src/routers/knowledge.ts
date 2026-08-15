@@ -156,6 +156,8 @@ export const knowledgeRouter = router({
       const [fb] = await db.insert(kbFeedback).values({ ...input, userId: user?.id }).returning();
       if (input.helpful) {
         await db.update(kbArticles).set({ helpfulCount: sql`helpful_count + 1` }).where(eq(kbArticles.id, input.articleId));
+      } else {
+        await db.update(kbArticles).set({ notHelpfulCount: sql`not_helpful_count + 1` }).where(eq(kbArticles.id, input.articleId));
       }
       return fb;
     }),

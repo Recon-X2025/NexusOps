@@ -14,6 +14,7 @@ import {
 } from "@coheronconnect/db";
 import type { Context, ContextUser, ContextOrg } from "../lib/trpc";
 import { getRedis } from "../lib/redis";
+import { API_KEY_PREFIX } from "@coheronconnect/types";
 
 function withoutPasswordHash<T extends { passwordHash?: string | null }>(row: T | null | undefined) {
   if (row == null) return null;
@@ -348,7 +349,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
   }
 
   // ── API key path ─────────────────────────────────────────────────────────
-  if (token.startsWith("nxo_")) {
+  if (token.startsWith(API_KEY_PREFIX)) {
     const keyHash = createHash("sha256").update(token).digest("hex");
     const { apiKeys } = await import("@coheronconnect/db");
     const [apiKey] = await db

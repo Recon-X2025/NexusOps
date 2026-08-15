@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import {
-  Home, Search, BookOpen, ShoppingCart, TicketIcon, Bell, CheckSquare,
+  Home, BookOpen, ShoppingCart, TicketIcon, Bell, CheckSquare,
   Clock, AlertTriangle, Star, ChevronRight, Bot, Wrench, Shield, Users, HardDrive, FileText, Key, Monitor, Wifi
 } from "lucide-react";
 
@@ -29,7 +28,6 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function EmployeeCenterPage() {
-  const [search, setSearch] = useState("");
   const router = useRouter();
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView = can("requests", "read") || can("catalog", "read");
@@ -69,16 +67,8 @@ export default function EmployeeCenterPage() {
       <div className="bg-gradient-to-r from-primary to-blue-700 rounded-lg p-5 text-white">
         <h1 className="text-[18px] font-bold mb-1">Employee Service Center</h1>
         <p className="text-[13px] text-white/80 mb-4">Your one-stop shop for IT support, requests, and self-service resources.</p>
-        <div className="flex items-center gap-2 bg-card/20 rounded-lg px-3 py-2 max-w-md">
-          <Search className="w-4 h-4 text-white/70" />
-          <input
-            type="text"
-            placeholder="Search for help, services, or articles..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent text-[13px] text-white placeholder:text-white/60 outline-none"
-          />
-        </div>
+        {/* Hero search box removed — `search` was captured into state and read by
+            nothing. It searched no catalog, no knowledge base, and no tickets. */}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -242,25 +232,9 @@ export default function EmployeeCenterPage() {
             </div>
           </div>
 
-          {/* Announcements */}
-          <div className="bg-card border border-border rounded overflow-hidden">
-            <div className="px-3 py-2 border-b border-border bg-muted/30">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">IT Announcements</span>
-            </div>
-            <div className="px-3 py-4 text-center text-[11px] text-muted-foreground/50">
-              No active announcements
-            </div>
-          </div>
-
-          {/* Service status */}
-          <div className="bg-card border border-border rounded overflow-hidden">
-            <div className="px-3 py-2 border-b border-border bg-muted/30">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Service Status</span>
-            </div>
-            <div className="px-3 py-4 text-center text-[11px] text-muted-foreground/50">
-              Service health monitoring not configured
-            </div>
-          </div>
+          {/* "IT Announcements" and "Service Status" panels removed — neither had a
+              data source; both were permanently empty shells promising a feed and a
+              health monitor that do not exist. */}
         </div>
       </div>
     </div>

@@ -163,10 +163,10 @@ export default function LedgerPage() {
                                                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{line.je.subject}</p>
                                               </td>
                                               <td className="px-4 py-3 text-right font-mono text-body-sm text-blue-600">
-                                                  {Number(line.line.debit) > 0 ? `₹${Number(line.line.debit).toLocaleString()}` : "—"}
+                                                  {Number(line.line.debitAmount) > 0 ? `₹${Number(line.line.debitAmount).toLocaleString()}` : "—"}
                                               </td>
                                               <td className="px-4 py-3 text-right font-mono text-body-sm text-red-600">
-                                                  {Number(line.line.credit) > 0 ? `₹${Number(line.line.credit).toLocaleString()}` : "—"}
+                                                  {Number(line.line.creditAmount) > 0 ? `₹${Number(line.line.creditAmount).toLocaleString()}` : "—"}
                                               </td>
                                               <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
                                                   ₹{Number(line.runningBalance).toLocaleString()}

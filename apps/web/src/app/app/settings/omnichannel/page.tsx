@@ -50,10 +50,14 @@ export default function OmnichannelSettingsPage() {
           <MessagesSquare className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-h3 font-bold">Omnichannel intake</h1>
+          <h1 className="text-h3 font-bold">Omnichannel intake — reference</h1>
           <p className="text-body-sm text-muted-foreground mt-1">
-            Single view of how work enters CoheronConnect today and what is on the roadmap for Phase C2-style parity with
-            enterprise ITSM consoles.
+            <span className="font-medium text-foreground/80">This page is informational and configures nothing.</span>{" "}
+            It lists how work enters CoheronConnect today and what is still on the roadmap. Channels are configured in{" "}
+            <Link href="/app/settings/integrations" className="text-primary hover:underline">
+              Settings → Integrations
+            </Link>
+            .
           </p>
         </div>
       </div>

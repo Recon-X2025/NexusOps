@@ -11,6 +11,7 @@ import {
   journalEntries,
   vendors,
   legalEntities,
+  purchaseOrders,
   gstinRegistry,
   organizations,
   ewayBills,
@@ -977,10 +978,13 @@ export const financialRouter = router({
           vendorName: vendors.name,
           legalEntityCode: legalEntities.code,
           legalEntityName: legalEntities.name,
+          // Human-readable PO reference; the list previously rendered the raw poId UUID.
+          poNumber: purchaseOrders.poNumber,
         })
         .from(invoices)
         .leftJoin(vendors, eq(invoices.vendorId, vendors.id))
         .leftJoin(legalEntities, eq(invoices.legalEntityId, legalEntities.id))
+        .leftJoin(purchaseOrders, eq(invoices.poId, purchaseOrders.id))
         .where(and(...conditions))
         .orderBy(desc(invoices.createdAt))
         .limit(input.limit + 1)

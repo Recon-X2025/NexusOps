@@ -14,7 +14,10 @@ import { downloadCSV } from "@/lib/utils";
 import { APM_ENABLED } from "@/lib/feature-flags";
 
 const APM_TABS = [
-  { key: "portfolio",  label: "App Inventory",               module: "projects"  as const, action: "read"  as const },
+  // Gated on analytics.read to match apm.applications.* on the server, which is
+  // enforced with permissionProcedure("analytics", …) — projects.read let users
+  // open a tab whose every query then failed authorization.
+  { key: "portfolio",  label: "App Inventory",               module: "analytics" as const, action: "read"  as const },
   ...(APM_ENABLED
     ? [
         { key: "lifecycle",  label: "Lifecycle & Rationalization", module: "projects" as const, action: "write" as const },
@@ -203,7 +206,7 @@ export default function APMPage() {
     onError: (e: any) => { console.error("apm.applications.create failed:", e); toast.error(e.message || "Failed to add application"); },
   });
 
-  if (!can("projects", "read") && !can("reports", "read")) return <AccessDenied module="App Inventory" />;
+  if (!can("analytics", "read")) return <AccessDenied module="App Inventory" />;
 
   const APPS: Application[] = (((appsQuery.data as any)?.items ?? appsQuery.data ?? []) as Application[]);
 

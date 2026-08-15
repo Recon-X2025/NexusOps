@@ -153,7 +153,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Breach Register", href: "/app/dpdp?tab=breach" },
         ],
       },
-      { label: "ESG Reporting", href: "/app/esg", icon: "Leaf", module: "grc" },
+      // ESG Reporting removed from nav — the page is fabricated data behind
+      // FEATURE_ESG (off by default). Restore this entry when it reads real data.
       {
         label: "Approvals & Workflow",
         href: "/app/approvals",
@@ -323,7 +324,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Board & Meetings", href: "/app/secretarial?tab=board" },
           { label: "MCA / ROC Filings", href: "/app/secretarial?tab=filings" },
           { label: "Share Capital & ESOP", href: "/app/secretarial?tab=share" },
-          { label: "Statutory Registers", href: "/app/secretarial?tab=registers" },
+          // "Statutory Registers" removed — the href resolved to a tab that does not
+          // exist and has no API behind it. Restore when the registers tab is built.
           { label: "Compliance Calendar", href: "/app/secretarial?tab=calendar" },
         ],
       },

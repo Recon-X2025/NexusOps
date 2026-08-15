@@ -7,6 +7,7 @@ import { Leaf, Sun, Droplets, Users2, Shield, TrendingDown, BarChart3, Download,
 import { EmptyState } from "@coheronconnect/ui";
 import { cn } from "@/lib/utils";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { FEATURE_ESG } from "@/lib/feature-flags";
 
 type Pillar = "overview" | "environment" | "social" | "governance";
 
@@ -115,6 +116,22 @@ export default function ESGPage() {
   const [pillar, setPillar] = useState<Pillar>("overview");
 
   if (!can("grc", "read")) return <AccessDenied module="ESG Reporting" />;
+
+  if (!FEATURE_ESG) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Leaf className="w-4 h-4 text-muted-foreground" />
+          <h1 className="text-body-sm font-semibold text-foreground">ESG Reporting</h1>
+        </div>
+        <EmptyState
+          icon={Leaf}
+          title="ESG Reporting is not available in this release"
+          description="This module is not yet connected to your data. No ESG figures are being recorded or reported."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">

@@ -20,6 +20,7 @@ import {
 import { getKmsProvider } from "../services/kms";
 import { getIntegrationAdapter } from "../services/integrations/registry";
 import { getEsignProvider } from "../services/esign";
+import { API_KEY_PREFIX } from "@coheronconnect/types";
 
 /**
  * Server-side catalog of supported provider configurations.
@@ -629,10 +630,10 @@ export const integrationsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
 
-      // Generate nxk_<random32hex>
-      const rawKey = "nxk_" + crypto.randomBytes(32).toString("hex");
+      // Generate <API_KEY_PREFIX><random32hex>
+      const rawKey = API_KEY_PREFIX + crypto.randomBytes(32).toString("hex");
       const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
-      const keyPrefix = rawKey.slice(0, 12); // "nxk_" + 8 chars
+      const keyPrefix = rawKey.slice(0, API_KEY_PREFIX.length + 8); // prefix + 8 chars
 
       const expiresAt = input.expiresInDays
         ? new Date(Date.now() + input.expiresInDays * 86_400_000)

@@ -18,10 +18,16 @@ import {
 } from "./schema";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
+import { assertSeedAllowed } from "./seed-guard";
 
 const BASE_ORG_SLUG = "coheron-demo";
 
 export async function seed() {
+  // Refuses under NODE_ENV=production unless ALLOW_PRODUCTION_SEED=true. Inside
+  // seed() rather than only the CLI block below because apps/api/src/seed.ts
+  // imports and calls this function directly inside the deployed container.
+  assertSeedAllowed("db:seed");
+
   const db = getDb();
   console.log("🌱 Seeding CoheronConnect database (base org + users + RBAC + config)...");
 

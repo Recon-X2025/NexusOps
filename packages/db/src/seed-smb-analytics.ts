@@ -11,6 +11,7 @@
  *   SMB_HISTORY_YEARS    — backfill depth for dated records (default 3 calendar years of span)
  */
 import bcrypt from "bcryptjs";
+import { assertSeedAllowed } from "./seed-guard";
 import { getDb } from "./client";
 import {
   organizations,
@@ -191,6 +192,8 @@ function pickEmploymentMix(rng: () => number): { status: EmpStatus; type: EmpTyp
 }
 
 async function seedSmbAnalytics() {
+  assertSeedAllowed("db:seed:smb");
+
   const db = getDb();
   const headcount = envInt("SMB_HEADCOUNT", 650);
   const force = process.env.SMB_SEED_FORCE === "1";

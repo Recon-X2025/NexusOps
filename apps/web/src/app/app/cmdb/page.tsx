@@ -50,14 +50,8 @@ export default function CMDBPage() {
   const { data: topologyData } = trpc.assets.cmdb.getTopology.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.getTopology", { refetchOnWindowFocus: false },));
   const discoveryRunsQuery = trpc.assets.cmdb.listDiscoveryRuns.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.listDiscoveryRuns", { refetchOnWindowFocus: false }));
 
-  const runDiscoveryMutation = trpc.assets.cmdb.runDiscovery.useMutation({
-    onSuccess: () => {
-      toast.success("Discovery scan completed — refreshing CI inventory…");
-      refetchCIs();
-      discoveryRunsQuery.refetch();
-    },
-    onError: (e) => toast.error(e.message || "Failed to run discovery"),
-  });
+  // runDiscovery mutation removed with its (now disabled) button — the procedure
+  // writes a discovery_runs row with a random discoveredCount and scans nothing.
 
 
   const [mapMode, setMapMode] = useState<"full" | "focused">("full");
@@ -114,12 +108,13 @@ export default function CMDBPage() {
           <span className="text-[11px] text-muted-foreground/70">CI Browser · Service Map · Discovery</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Disabled: cmdb.runDiscovery scans nothing — it writes a discovery_runs
+              row with a random discoveredCount. No scanner is connected. */}
           <button
-            onClick={() => runDiscoveryMutation.mutate({ target: "Network Scan" })}
-            disabled={runDiscoveryMutation.isPending}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-50">
-            <RefreshCw className={`w-3 h-3 ${runDiscoveryMutation.isPending ? "animate-spin" : ""}`} /> 
-            {runDiscoveryMutation.isPending ? "Running..." : "Run Discovery"}
+            disabled
+            title="Discovery is not connected in this release — no scanner is configured, so this would report a result it did not find."
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded text-muted-foreground opacity-50 cursor-not-allowed">
+            <RefreshCw className="w-3 h-3" /> Run Discovery
           </button>
           {can("cmdb", "write") && (
             <>
@@ -181,18 +176,17 @@ export default function CMDBPage() {
                   <th>Class</th>
                   <th>Environment</th>
                   <th>Status</th>
-                  <th>OS / Version</th>
-                  <th>IP Address</th>
-                  <th>Owner</th>
+                  {/* OS / Version, IP Address, Owner and CMDB Health removed —
+                      ci_items stores none of them (packages/db/src/schema/assets.ts:226-248),
+                      so all four rendered "—" or an empty bar on every row. */}
                   <th className="text-center">Relationships</th>
-                  <th>CMDB Health</th>
                   <th>Last Discovered</th>
                   <th className="text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {ciList.length === 0 ? (
-                  <tr><td colSpan={13} className="text-center py-6 text-[11px] text-muted-foreground/50">No configuration items discovered yet</td></tr>
+                  <tr><td colSpan={9} className="text-center py-6 text-[11px] text-muted-foreground/50">No configuration items discovered yet</td></tr>
                 ) : displayCIs.map((ci: any) => {
                   const ciType = (ci.ciType ?? ci.class ?? "server") as string;
                   const Icon = CI_TYPE_ICON[ciType] ?? Database;
@@ -215,20 +209,8 @@ export default function CMDBPage() {
                       </td>
                       <td><span className={`status-badge capitalize ${ci.environment === "Production" || ci.env === "Production" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>{ci.environment ?? ci.env ?? "—"}</span></td>
                       <td><span className={`status-badge capitalize ${st === "down" ? "text-red-700 bg-red-100" : st === "degraded" ? "text-yellow-700 bg-yellow-100" : "text-green-700 bg-green-100"}`}>{st}</span></td>
-                      <td className="text-muted-foreground text-[11px]">{ci.os ?? "—"}</td>
-                      <td className="font-mono text-[11px] text-muted-foreground">{ci.ip ?? "—"}</td>
-                      <td className="text-muted-foreground">{ci.owner ?? "—"}</td>
                       <td className="text-center">
                         <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px]">{typeof ci.relationships === "number" ? ci.relationships : "—"}</span>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-1.5 bg-border rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${ci.cmdbHealth === 100 ? "bg-green-500" : "bg-yellow-400"}`}
-                              style={{ width: `${ci.cmdbHealth}%` }} />
-                          </div>
-                          <span className="text-[11px] text-muted-foreground">{ci.cmdbHealth}%</span>
-                        </div>
                       </td>
                       <td className="text-muted-foreground/70 text-[11px]">{ci.lastDiscovered}</td>
                       <td className="text-center" onClick={e => e.stopPropagation()}>

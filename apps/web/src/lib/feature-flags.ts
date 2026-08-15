@@ -42,3 +42,14 @@ export const DEVOPS_ENABLED: boolean = envFlag("NEXT_PUBLIC_ENABLE_DEVOPS");
  * are gated behind this flag.
  */
 export const APM_ENABLED: boolean = envFlag("NEXT_PUBLIC_ENABLE_APM");
+
+/**
+ * ESG Reporting.
+ *
+ * OFF by default and unlike the flags above this one hides fabricated output,
+ * not a deferred surface: every figure on /app/esg is a hardcoded literal, and
+ * there is no ESG router, schema, or write path behind it. The page is kept
+ * behind the flag rather than deleted so the flag is the audit trail. Do not
+ * enable it until the numbers are read from the database.
+ */
+export const FEATURE_ESG: boolean = envFlag("NEXT_PUBLIC_FEATURE_ESG");

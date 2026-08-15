@@ -158,6 +158,17 @@ export const PermissionSchema = z.object({
 export type Permission = z.infer<typeof PermissionSchema>;
 
 // ── API Key ────────────────────────────────────────────────────────────────
+/**
+ * The single source of truth for the API-key token prefix.
+ *
+ * Generation (`integrations.createApiKey`), the bearer-token check in the API
+ * auth middleware, and the user-facing copy on the API-keys settings page must
+ * all agree — they previously did not (`nxk_` was minted, `nxo_` was accepted),
+ * so no issued key could ever authenticate. Import this constant; never inline
+ * the literal.
+ */
+export const API_KEY_PREFIX = "nxo_";
+
 export const ApiKeySchema = z.object({
   id: z.string().uuid(),
   orgId: z.string().uuid(),

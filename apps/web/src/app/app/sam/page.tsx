@@ -73,9 +73,12 @@ export default function SAMPage() {
           <span className="text-[11px] text-muted-foreground/70">License Compliance · Usage · Optimization</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Disabled: this only refetched the licence list while claiming a sync
+              "from connected endpoints". There are no connected endpoints. */}
           <button
-            onClick={() => { licensesQuery.refetch(); toast.success("Discovery sync initiated — refreshing software inventory from connected endpoints."); }}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+            disabled
+            title="Discovery is not connected in this release — no endpoints are connected, so no installed-software data is synced."
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded text-muted-foreground opacity-50 cursor-not-allowed"
           >
             <RefreshCw className="w-3 h-3" /> Sync Discovery
           </button>

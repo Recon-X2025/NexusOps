@@ -83,6 +83,12 @@ export const catalogRouter = router({
       const [item] = await db.select().from(catalogItems).where(and(eq(catalogItems.id, input.itemId), eq(catalogItems.orgId, org!.id)));
       if (!item) throw new TRPCError({ code: "NOT_FOUND" });
 
+      // Same variable validation the multi-item cart runs (submitCart, below).
+      // Without it the single-item path accepted an empty formData for an item
+      // whose form builder had marked fields required, and fulfilment received a
+      // request it could not action.
+      assertCatalogVariablesValid((item.formFields ?? []) as CatalogFormField[], input.formData as Record<string, unknown>);
+
       const status = item.approvalRequired ? "pending_approval" : "submitted";
       const [req] = await db.insert(catalogRequests).values({
         orgId: org!.id, itemId: input.itemId, requesterId: user!.id, formData: input.formData, status,

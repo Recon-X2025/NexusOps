@@ -6,6 +6,7 @@ import {
   Loader2, KeyRound, Plus, Trash2, Copy, CheckCircle2,
   Calendar, Shield,
 } from "lucide-react";
+import { API_KEY_PREFIX } from "@coheronconnect/types";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { cn } from "@/lib/utils";
@@ -276,7 +277,7 @@ export default function ApiKeysSettingsPage() {
       <div className="rounded-xl border border-border bg-muted/30 p-4 text-caption text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">Security notice</p>
         <p>API keys are shown <strong>once</strong> at creation time. CoheronConnect only stores a SHA-256 hash.</p>
-        <p>Keys are prefixed <code className="font-mono">nxk_</code> and can be revoked at any time from this page.</p>
+        <p>Keys are prefixed <code className="font-mono">{API_KEY_PREFIX}</code> and can be revoked at any time from this page.</p>
         <p>Scope each key to the minimum permissions required for its use case.</p>
       </div>
 
