@@ -228,8 +228,7 @@ prune_old_images() {
 }
 prune_old_images || true
 
-echo "── seed (best-effort; API already runs migrate on start) ──"
-"${EXEC[@]}" exec -T api node -e "try{require('./dist/seed.js')}catch(e){console.error(e)}" 2>/dev/null || true
+# NO SEED STEP HERE, DELIBERATELY — the base seed resets the org owner's password (packages/db/src/seed.ts) and must never run against a tenant database on deploy. Do not reinstate; guarded by vultr-remote-deploy-no-seed.test.ts.
 
 "${EXEC[@]}" ps
 echo "DONE"
