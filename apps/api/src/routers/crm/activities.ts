@@ -12,11 +12,13 @@ const activityTypeSchema = z.enum(["call", "email", "meeting", "demo", "follow_u
 
 export const crmActivitiesRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ dealId: z.string().uuid().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ dealId: z.string().uuid().optional(), leadId: z.string().uuid().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmActivities.orgId, org!.id), eq(crmActivities.archived, input.showArchived)];
       if (input.dealId) conditions.push(eq(crmActivities.dealId, input.dealId));
+      // A lead can now carry its own history — same filter shape as dealId.
+      if (input.leadId) conditions.push(eq(crmActivities.leadId, input.leadId));
       return db.select().from(crmActivities).where(and(...conditions)).orderBy(desc(crmActivities.createdAt)).limit(input.limit);
     }),
 
@@ -26,6 +28,7 @@ export const crmActivitiesRouter = router({
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
+      leadId: z.string().uuid().optional(),
       accountId: z.string().uuid().optional(),
       contactId: z.string().uuid().optional(),
       outcome: z.string().optional(),
@@ -51,6 +54,7 @@ export const crmActivitiesRouter = router({
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
+      leadId: z.string().uuid().optional(),
       accountId: z.string().uuid().optional(),
       contactId: z.string().uuid().optional(),
       outcome: z.string().optional(),

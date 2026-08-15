@@ -59,6 +59,30 @@ export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
     if (existing) return existing;
   }
 
+  /**
+   * A deal that cannot be forecast is not worth creating. Converting therefore
+   * REQUIRES an estimated value and an expected close date — enforced here, in the
+   * shared conversion path, so every caller (router, UI, future importer) is bound
+   * by it rather than only the screen that happens to ask.
+   *
+   * The value may come from the caller (an explicit override at convert time) or
+   * from the lead's own `estimatedValue`; the close date comes from the lead. The
+   * message names exactly which one is missing.
+   */
+  const resolvedValue = dealValue ?? (lead.estimatedValue ?? null);
+  const resolvedClose = lead.expectedClose ?? null;
+  const missing: string[] = [];
+  if (resolvedValue === null || resolvedValue === "") missing.push("estimated value");
+  if (resolvedClose === null) missing.push("expected close date");
+  if (missing.length > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        `Cannot convert this lead: ${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} missing. ` +
+        "A deal without both cannot be forecast — set them on the lead first.",
+    });
+  }
+
   // ── Upsert the account from the lead's company. ────────────────────────────
   let accountId = lead.accountId ?? undefined;
   if (!accountId && lead.company) {
@@ -130,11 +154,14 @@ export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
     .values({
       orgId,
       title: dealTitle,
-      value: dealValue,
+      // Carry the lead's qualification onto the opportunity. Before this a
+      // converted lead landed in the pipeline worth zero with no close date.
+      value: resolvedValue,
+      expectedClose: resolvedClose,
       ownerId: actorId,
       accountId,
       contactId,
-      weightedValue: dealValue ? String(Number(dealValue) * 0.1) : undefined,
+      weightedValue: resolvedValue ? String(Number(resolvedValue) * 0.1) : undefined,
     })
     .returning();
 

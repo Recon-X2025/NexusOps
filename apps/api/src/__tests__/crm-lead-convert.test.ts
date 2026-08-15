@@ -49,6 +49,12 @@ describe("G6: lossless lead→deal conversion", () => {
         title: "CTO",
         company: `Analytical Engines ${nanoid(4)}`,
         ownerId: userId,
+        // Round 9a: conversion now REQUIRES a forecastable opportunity — an
+        // estimated value and an expected close date. These tests assert the
+        // LOSSLESSNESS of the account/contact upsert, which is unchanged; only
+        // their setup needed the two fields the deal is now built from.
+        estimatedValue: "100000.00",
+        expectedClose: new Date("2026-12-31T00:00:00Z"),
         ...overrides,
       })
       .returning();

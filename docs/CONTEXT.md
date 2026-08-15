@@ -41,10 +41,10 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 - **LIVE on `connect.coheron.tech` = `e11e5f5`** (Round 7's push) — verified 2026-08-15 via
   `/api/health` returning `version: e11e5f54fddf7f63…` and CI run `31877482131`, all six jobs `success`.
   Migration head at that deploy: **`0085`**.
-- **HEAD = `origin/main` = `90f7b70` — DEPLOY IN FLIGHT, NOT YET VERIFIED LIVE.** Pushed 2026-08-15;
-  becomes the exit point only when its terminal `Deploy to Vultr` job is `success` **and** `/api/health`
-  returns `90f7b70…`. Re-verify both before treating it as live. It carries Rounds 6, 7 and 8-part-1 and
-  **two migrations, `0086` and `0087`** (head moves `0085` → `0087`).
+- **`90f7b70` DEPLOYED AND VERIFIED** — CI run `31887995023`, all six jobs `success` including the terminal
+  `Deploy to Vultr`; `/api/health` returned `version: 90f7b702a79d3f9b…`. It carried Rounds 6, 7 and
+  8-part-1 and **two migrations, `0086` and `0087`** (head `0085` → `0087`). Migration `0086` did NOT halt
+  the deploy, so no duplicate identifiers existed in production.
   - `0086_aromatic_swarm` — nine unique indexes on user-facing identifier columns, per org. **It can
     deliberately HALT the deploy**: it detects duplicates first and raises naming table/value/org/row-count,
     changing nothing. If that happens the api container will not start and the previous container keeps
@@ -759,7 +759,7 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31877482131` — commit `e11e5f5` — all six jobs `success` — 2026-08-15 — migration head `0085`.** That is the last VERIFIED exit point. `90f7b70` (Rounds 6/7/8-part-1, migrations `0086`+`0087`) is pushed and in flight; do not record it as the exit point until its `Deploy to Vultr` job is green and `/api/health` returns its SHA.
+**CI run `31887995023` — commit `90f7b70` (Rounds 6/7/8-part-1; migrations `0086`+`0087`) — all six jobs `success`, terminal `Deploy to Vultr` `success` — 2026-08-15 — migration head `0087`.** Verified via `/api/health` returning `version: 90f7b702a79d3f9b…`. Superseded exit point: CI `31877482131` / `e11e5f5` / head `0085`.
 
 **Superseded exit points (decision-history):** CI `31818337559` / `f659127` / head `0085` (leave-model batch,
 2026-08-14); CI `31761880777` / `831f21b` / head `0082` (security+payroll); CI `31701625521` / `f487ee8` /

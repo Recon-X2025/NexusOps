@@ -47,6 +47,15 @@ export async function resolveLeadScoringConfig(
     hasEmail: c.hasEmail ?? DEFAULT_LEAD_SCORING_CONFIG.hasEmail,
     hasPhone: c.hasPhone ?? DEFAULT_LEAD_SCORING_CONFIG.hasPhone,
     hasCompany: c.hasCompany ?? DEFAULT_LEAD_SCORING_CONFIG.hasCompany,
+    // BANT weights, merged the same way. This is what preserves determinism for a
+    // tenant whose stored config row PREDATES these keys: the spread falls back to
+    // the platform defaults key by key, so an old org row keeps its customised
+    // source/status/title weights AND picks up working BANT weights, rather than
+    // scoring qualification as zero.
+    budgetWeights: { ...DEFAULT_LEAD_SCORING_CONFIG.budgetWeights, ...(c.budgetWeights ?? {}) },
+    authorityWeights: { ...DEFAULT_LEAD_SCORING_CONFIG.authorityWeights, ...(c.authorityWeights ?? {}) },
+    timelineWeights: { ...DEFAULT_LEAD_SCORING_CONFIG.timelineWeights, ...(c.timelineWeights ?? {}) },
+    hasNeed: c.hasNeed ?? DEFAULT_LEAD_SCORING_CONFIG.hasNeed,
     maxScore: c.maxScore ?? DEFAULT_LEAD_SCORING_CONFIG.maxScore,
   };
 }

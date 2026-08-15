@@ -126,8 +126,18 @@ interface Lead {
   score: number;
   owner: string;
   created: string;
-  lastActivity: string;
-  campaign?: string | null;
+  /** Real most-recent COMPLETED activity, resolved by crm.leads.list. */
+  lastActivityAt?: string | Date | null;
+  // ── Qualification (BANT) + opportunity shape ──────────────────────────────
+  budgetBand?: string | null;
+  budgetNote?: string | null;
+  authority?: string | null;
+  need?: string | null;
+  timeline?: string | null;
+  estimatedValue?: string | null;
+  expectedClose?: string | Date | null;
+  nextAction?: string | null;
+  nextActionDate?: string | Date | null;
   notes?: string;
 }
 
@@ -252,7 +262,11 @@ export default function CRMPage() {
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const [editingLead, setEditingLead] = useState<any | null>(null);
-  const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string, status: "new" as any });
+  const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string, status: "new" as any,
+    // Qualification (BANT) + opportunity shape. Blank/"unknown" is a valid state —
+    // a web-form lead arrives with none of this and must still save.
+    budgetBand: "unknown" as string, budgetNote: "", authority: "unknown" as string, need: "",
+    timeline: "unknown" as string, estimatedValue: "", expectedClose: "", nextAction: "", nextActionDate: "" });
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [dealForm, setDealForm] = useState({
     title: "", value: "", probability: "30", expectedClose: "",
@@ -1273,7 +1287,9 @@ export default function CRMPage() {
                   <th>Title</th>
                   <th>Email</th>
                   <th>Source</th>
-                  <th>Campaign</th>
+                  <th className="text-right">Est. Value</th>
+                  <th>Expected Close</th>
+                  <th>Next Action</th>
                   <th className="text-center">Score</th>
                   <th>Status</th>
                   <th>Owner</th>
@@ -1291,18 +1307,24 @@ export default function CRMPage() {
                     <td className="text-muted-foreground text-[11px]">{l.title}</td>
                     <td className="text-muted-foreground text-[11px] font-mono">{l.email}</td>
                     <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{l.source}</span></td>
-                    <td className="text-[11px] text-muted-foreground/70">{l.campaign ?? "—"}</td>
+                    <td className="text-right font-mono text-[11px]">{l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString("en-IN")}` : "—"}</td>
+                    <td className="text-[11px] text-muted-foreground">{l.expectedClose ? new Date(l.expectedClose).toLocaleDateString() : "—"}</td>
+                    <td className="text-[11px] text-muted-foreground">{l.nextActionDate ? new Date(l.nextActionDate).toLocaleDateString() : "—"}</td>
                     <td className="text-center">
                       <span className={`font-mono font-bold text-[12px] ${SCORE_COLOR(l.score)}`}>{l.score}</span>
                     </td>
                     <td><span className={`status-badge capitalize ${LEAD_STATUS_CFG[l.status as LeadStatus]}`}>{l.status}</span></td>
                     <td className="text-muted-foreground">{l.owner}</td>
-                    <td className="text-[11px] text-muted-foreground/70">{l.lastActivity}</td>
+                    <td className="text-[11px] text-muted-foreground/70">{l.lastActivityAt ? new Date(l.lastActivityAt).toLocaleDateString() : "—"}</td>
                     <td>
                       <div className="flex gap-1.5">
                         {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
                         <button
-                          onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", phone: l.phone ?? "", status: l.status, source: l.source }); }}
+                          onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", phone: l.phone ?? "", status: l.status, source: l.source,
+                            budgetBand: l.budgetBand ?? "unknown", budgetNote: l.budgetNote ?? "", authority: l.authority ?? "unknown", need: l.need ?? "",
+                            timeline: l.timeline ?? "unknown", estimatedValue: l.estimatedValue ?? "",
+                            expectedClose: l.expectedClose ? new Date(l.expectedClose).toISOString().slice(0, 10) : "",
+                            nextAction: l.nextAction ?? "", nextActionDate: l.nextActionDate ? new Date(l.nextActionDate).toISOString().slice(0, 10) : "" }); }}
                           className="text-[11px] text-primary hover:underline"
                         >Edit</button>
                         {l.archived ? (
@@ -1634,6 +1656,79 @@ export default function CRMPage() {
                   {["new", "contacted", "qualified", "disqualified"].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+
+              {/* ── Qualification (BANT) + opportunity shape ────────────────────
+                  Everything above describes WHO the person is. These describe what
+                  they might buy, what it is worth and when — and they feed the score. */}
+              <div className="pt-2 mt-2 border-t border-border">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Qualification</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Budget band</label>
+                    <select data-testid="lead-budget-band" value={editLeadForm.budgetBand}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, budgetBand: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card">
+                      {[["unknown", "Unknown"], ["under_1l", "Under ₹1L"], ["1l_5l", "₹1L–5L"], ["5l_25l", "₹5L–25L"], ["over_25l", "Over ₹25L"]]
+                        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Authority</label>
+                    <select data-testid="lead-authority" value={editLeadForm.authority}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, authority: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card">
+                      {[["unknown", "Unknown"], ["decision_maker", "Decision maker"], ["influencer", "Influencer"], ["evaluator", "Evaluator"]]
+                        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Timeline</label>
+                    <select data-testid="lead-timeline" value={editLeadForm.timeline}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, timeline: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card">
+                      {[["unknown", "Unknown"], ["immediate", "Immediate"], ["this_quarter", "This quarter"], ["next_quarter", "Next quarter"], ["later", "Later"]]
+                        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Budget note</label>
+                    <input value={editLeadForm.budgetNote}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, budgetNote: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Need</label>
+                    <input data-testid="lead-need" value={editLeadForm.need}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, need: e.target.value }))}
+                      placeholder="What problem are they trying to solve?"
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Estimated value (₹)</label>
+                    <input data-testid="lead-estimated-value" type="number" min="0" step="0.01" value={editLeadForm.estimatedValue}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, estimatedValue: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Expected close</label>
+                    <input data-testid="lead-expected-close" type="date" value={editLeadForm.expectedClose}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, expectedClose: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Next action</label>
+                    <input value={editLeadForm.nextAction}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, nextAction: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Next action date</label>
+                    <input type="date" value={editLeadForm.nextActionDate}
+                      onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, nextActionDate: e.target.value }))}
+                      className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none" />
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
               <button onClick={() => setEditingLead(null)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/30">Cancel</button>
@@ -1641,7 +1736,16 @@ export default function CRMPage() {
                 disabled={updateLeadMutation.isPending}
                 onClick={() => {
                   if (/^[0-9a-f-]{36}$/i.test(editingLead.id)) {
-                    updateLeadMutation.mutate({ id: editingLead.id, ...editLeadForm, status: editLeadForm.status as any });
+                    updateLeadMutation.mutate({
+                      id: editingLead.id, ...editLeadForm, status: editLeadForm.status as any,
+                      // Empty strings are "not set", not values — the API takes undefined.
+                      budgetNote: editLeadForm.budgetNote || undefined,
+                      need: editLeadForm.need || undefined,
+                      estimatedValue: editLeadForm.estimatedValue || undefined,
+                      expectedClose: editLeadForm.expectedClose || undefined,
+                      nextAction: editLeadForm.nextAction || undefined,
+                      nextActionDate: editLeadForm.nextActionDate || undefined,
+                    } as any);
                   } else {
                     toast.success("Lead updated");
                     setEditingLead(null);

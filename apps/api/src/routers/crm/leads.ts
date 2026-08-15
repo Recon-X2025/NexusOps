@@ -8,10 +8,14 @@ import { router, permissionProcedure } from "../../lib/trpc";
 import { z } from "zod";
 import {
   crmLeads,
+  crmActivities,
   leadStatusEnum,
   leadSourceEnum,
   eq,
   and,
+  max,
+  inArray,
+  isNotNull,
   desc,
 } from "@coheronconnect/db";
 import { convertLeadToDeal } from "../../lib/crm/lead-convert";
@@ -24,7 +28,25 @@ export const crmLeadsRouter = router({
       const { db, org } = ctx;
       const conditions = [eq(crmLeads.orgId, org!.id), eq(crmLeads.archived, input.showArchived)];
       if (input.status) conditions.push(eq(crmLeads.status, input.status));
-      return db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
+      const rows = await db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
+      if (rows.length === 0) return rows;
+
+      // "Last Activity" on the list was empty by construction — crm_activities had
+      // no leadId, so no activity could ever belong to a lead. It now reads the most
+      // recent COMPLETED activity per lead. One grouped query, not one per row.
+      const leadIds = rows.map((r) => r.id);
+      const lastRows = await db
+        .select({ leadId: crmActivities.leadId, lastActivityAt: max(crmActivities.completedAt) })
+        .from(crmActivities)
+        .where(and(
+          eq(crmActivities.orgId, org!.id),
+          eq(crmActivities.archived, false),
+          isNotNull(crmActivities.completedAt),
+          inArray(crmActivities.leadId, leadIds),
+        ))
+        .groupBy(crmActivities.leadId);
+      const lastByLead = new Map(lastRows.map((r) => [r.leadId, r.lastActivityAt]));
+      return rows.map((r) => ({ ...r, lastActivityAt: lastByLead.get(r.id) ?? null }));
     }),
 
   create: permissionProcedure("accounts", "write")
@@ -36,6 +58,16 @@ export const crmLeadsRouter = router({
       company: z.string().optional(),
       title: z.string().optional(),
       source: z.enum(leadSourceEnum.enumValues).default("website"),
+      // ── Qualification (BANT) + opportunity shape ────────────────────────
+      budgetBand: z.enum(["under_1l", "1l_5l", "5l_25l", "over_25l", "unknown"]).optional(),
+      budgetNote: z.string().optional(),
+      authority: z.enum(["decision_maker", "influencer", "evaluator", "unknown"]).optional(),
+      need: z.string().optional(),
+      timeline: z.enum(["immediate", "this_quarter", "next_quarter", "later", "unknown"]).optional(),
+      estimatedValue: z.string().optional(),
+      expectedClose: z.union([z.string(), z.date()]).optional().transform(v => v ? new Date(v) : undefined),
+      nextAction: z.string().optional(),
+      nextActionDate: z.union([z.string(), z.date()]).optional().transform(v => v ? new Date(v) : undefined),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -53,6 +85,16 @@ export const crmLeadsRouter = router({
       company: z.string().optional(),
       title: z.string().optional(),
       status: z.enum(["new", "contacted", "qualified", "disqualified", "converted"]).optional(),
+      // ── Qualification (BANT) + opportunity shape ────────────────────────
+      budgetBand: z.enum(["under_1l", "1l_5l", "5l_25l", "over_25l", "unknown"]).optional(),
+      budgetNote: z.string().optional(),
+      authority: z.enum(["decision_maker", "influencer", "evaluator", "unknown"]).optional(),
+      need: z.string().optional(),
+      timeline: z.enum(["immediate", "this_quarter", "next_quarter", "later", "unknown"]).optional(),
+      estimatedValue: z.string().optional(),
+      expectedClose: z.union([z.string(), z.date()]).optional().transform(v => v ? new Date(v) : undefined),
+      nextAction: z.string().optional(),
+      nextActionDate: z.union([z.string(), z.date()]).optional().transform(v => v ? new Date(v) : undefined),
       archived: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

@@ -44,6 +44,39 @@ export const leadSourceEnum = pgEnum("lead_source", [
   "other",
 ]);
 
+/**
+ * BANT qualification. Each dimension is an ENUM BAND rather than a number because
+ * `computeLeadScore` scores by keyed lookup into Record<string, number> weight maps
+ * and has no numeric-threshold concept — a band keys straight into a weight table
+ * without restructuring the scoring config. The precise money lives separately in
+ * `estimatedValue`; `budgetBand` is the scoreable half.
+ *
+ * Every band includes "unknown" and defaults to it: a lead captured from a web form
+ * has none of this and must still save.
+ */
+export const leadBudgetBandEnum = pgEnum("lead_budget_band", [
+  "under_1l",
+  "1l_5l",
+  "5l_25l",
+  "over_25l",
+  "unknown",
+]);
+
+export const leadAuthorityEnum = pgEnum("lead_authority", [
+  "decision_maker",
+  "influencer",
+  "evaluator",
+  "unknown",
+]);
+
+export const leadTimelineEnum = pgEnum("lead_timeline", [
+  "immediate",
+  "this_quarter",
+  "next_quarter",
+  "later",
+  "unknown",
+]);
+
 export const leadStatusEnum = pgEnum("lead_status", [
   "new",
   "contacted",
@@ -175,6 +208,24 @@ export const crmLeads = pgTable(
     contactId: uuid("contact_id").references(() => crmContacts.id, { onDelete: "set null" }),
     convertedDealId: uuid("converted_deal_id").references(() => crmDeals.id, { onDelete: "set null" }),
     notes: text("notes"),
+    // ── Qualification (BANT) + opportunity shape ──────────────────────────
+    // The lead was a contact record: every column described WHO the person is,
+    // none what they might buy, what it is worth, or when. These are the sales
+    // half. All optional — a web-form lead arrives with none of them.
+    budgetBand: leadBudgetBandEnum("budget_band").notNull().default("unknown"),
+    /** Free-text detail behind the band ("approved capex, needs CFO sign-off"). */
+    budgetNote: text("budget_note"),
+    authority: leadAuthorityEnum("authority").notNull().default("unknown"),
+    /** What problem they are trying to solve. Qualitative by nature — scored on presence. */
+    need: text("need"),
+    timeline: leadTimelineEnum("timeline").notNull().default("unknown"),
+    /** Same precision/scale as crmDeals.value — carried onto the deal on conversion. */
+    estimatedValue: decimal("estimated_value", { precision: 14, scale: 2 }),
+    /** Mirrors crmDeals.expectedClose — carried onto the deal on conversion. */
+    expectedClose: timestamp("expected_close", { withTimezone: true }),
+    /** What the rep does next, and when. A lead with no next action is a stalled lead. */
+    nextAction: text("next_action"),
+    nextActionDate: timestamp("next_action_date", { withTimezone: true }),
     archived: boolean("archived").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -195,6 +246,9 @@ export const crmActivities = pgTable(
     subject: text("subject").notNull(),
     description: text("description"),
     dealId: uuid("deal_id").references(() => crmDeals.id, { onDelete: "cascade" }),
+    // A lead could not have a logged call, note or follow-up — so the Leads list's
+    // "Last Activity" column was empty by construction. Same FK + index shape as dealId.
+    leadId: uuid("lead_id").references(() => crmLeads.id, { onDelete: "cascade" }),
     contactId: uuid("contact_id").references(() => crmContacts.id, { onDelete: "set null" }),
     accountId: uuid("account_id").references(() => crmAccounts.id, { onDelete: "set null" }),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
@@ -208,6 +262,7 @@ export const crmActivities = pgTable(
   (t) => ({
     orgIdx: index("crm_activities_org_idx").on(t.orgId),
     dealIdx: index("crm_activities_deal_idx").on(t.dealId),
+    leadIdx: index("crm_activities_lead_idx").on(t.leadId),
     ownerIdx: index("crm_activities_owner_idx").on(t.ownerId),
   }),
 );
@@ -286,6 +341,12 @@ export const leadScoringRules = pgTable(
     config: jsonb("config")
       .$type<{
         sourceWeights?: Record<string, number>;
+        // BANT weights (Round 9a). Optional like every other key, so a row written
+        // before they existed still parses and the loader falls back to defaults.
+        budgetWeights?: Record<string, number>;
+        authorityWeights?: Record<string, number>;
+        timelineWeights?: Record<string, number>;
+        hasNeed?: number;
         statusWeights?: Record<string, number>;
         titleWeights?: Record<string, number>;
         hasEmail?: number;

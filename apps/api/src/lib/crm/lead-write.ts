@@ -136,6 +136,10 @@ function toScorable(lead: {
   email?: string | null;
   phone?: string | null;
   company?: string | null;
+  budgetBand?: string | null;
+  authority?: string | null;
+  timeline?: string | null;
+  need?: string | null;
 }): ScorableLead {
   return {
     source: lead.source,
@@ -144,5 +148,11 @@ function toScorable(lead: {
     email: lead.email,
     phone: lead.phone,
     company: lead.company,
+    // BANT — without these the qualification fields would be captured and then
+    // ignored by the score, which is the defect this round exists to remove.
+    budgetBand: lead.budgetBand,
+    authority: lead.authority,
+    timeline: lead.timeline,
+    need: lead.need,
   };
 }
