@@ -97,3 +97,7 @@ qa-run/
 
 # "Snapshots for AI" VS Code extension artifact (local tooling output)
 .snapshots/
+
+# Business / fundraising documents (kept local, not in the repo)
+NexusOps_Investor_*
+NexusOps_Believers_*
