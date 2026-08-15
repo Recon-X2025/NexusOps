@@ -280,8 +280,18 @@ describe("§3 HR — user stories", () => {
   describe("Requester: raise HR case", () => {
     const requester: SystemRole[] = ["requester"];
 
-    it("[success] requester can raise HR case (hr.write)", () => {
-      assertCan(requester, "hr", "write", "requester.raise_hr_case");
+    /**
+     * The CAPABILITY is unchanged — a requester can still raise an HR case — but
+     * the MECHANISM moved. It used to be granted by `hr:write` on the requester
+     * role; `hr:write` is the single gate on 34 procedures, so honouring this
+     * story also handed every employee expense approval, holiday creation and
+     * shift scheduling. `hr.cases.create` is now a protectedProcedure (raising
+     * your own case needs authentication, not a write grant) and the role no
+     * longer carries hr:write.
+     */
+    it("[success] requester can raise an HR case without holding hr.write", () => {
+      assertCannot(requester, "hr", "write", "requester.raise_hr_case_no_write");
+      assertCan(requester, "hr", "read", "requester.read_hr");
     });
 
     it("[unauthorized] requester CANNOT approve HR workflows", () => {
@@ -390,9 +400,11 @@ describe("§3 Finance & Procurement — user stories", () => {
       assertCan(fin, "procurement", "approve", "fin_mgr.pr_approve");
     });
 
-    it("[success] finance_manager can raise HR case (requester base gives hr.write)", () => {
-      // Every user is a requester — can submit self-service HR cases
-      assertCan(fin, "hr", "write", "fin_mgr.hr_selfservice");
+    it("[success] finance_manager can raise an HR case (self-service, not via hr.write)", () => {
+      // Self-service HR case creation is a protectedProcedure now; the requester
+      // base no longer carries hr:write. See "Requester: raise HR case" above.
+      assertCannot(fin, "hr", "write", "fin_mgr.hr_selfservice_no_write");
+      assertCan(fin, "hr", "read", "fin_mgr.hr_read");
     });
 
     it("[unauthorized] finance_manager CANNOT admin HR module", () => {
@@ -412,8 +424,9 @@ describe("§3 Finance & Procurement — user stories", () => {
       assertCan(vm, "contracts", "admin", "vendor_mgr.contracts");
     });
 
-    it("[success] vendor_manager can raise HR case (requester base gives hr.write)", () => {
-      assertCan(vm, "hr", "write", "vendor_mgr.hr_selfservice");
+    it("[success] vendor_manager can raise an HR case (self-service, not via hr.write)", () => {
+      assertCannot(vm, "hr", "write", "vendor_mgr.hr_selfservice_no_write");
+      assertCan(vm, "hr", "read", "vendor_mgr.hr_read");
     });
 
     it("[unauthorized] vendor_manager CANNOT admin HR module", () => {

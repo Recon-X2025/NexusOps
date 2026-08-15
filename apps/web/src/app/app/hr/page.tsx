@@ -24,7 +24,11 @@ const EMPLOYEE_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Name", required: true },
   { key: "email", label: "Email", required: true },
   { key: "structureName", label: "Salary Structure", required: true },
-  { key: "state", label: "State", required: true },
+  // Labelled WORK state deliberately. Professional tax is a place-of-EMPLOYMENT levy
+  // and payroll resolves the PT slab from this column
+  // (services/payroll-run-aggregates.ts). "State" alone reads as a home address, and
+  // a home address here computes the wrong tax silently.
+  { key: "state", label: "Work State (office location — sets professional tax; not home address)", required: true },
   { key: "department", label: "Department" },
   { key: "title", label: "Title" },
   { key: "jobGrade", label: "Job Grade" },

@@ -450,16 +450,42 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
    * Self-service only: submit incidents/requests, browse catalog/knowledge,
    * raise HR cases, submit purchase requests, view own approvals.
    */
+  /**
+   * requester — the MANDATORY base role every user in the org carries, including
+   * every plain employee. It must therefore grant only what an employee does for
+   * themselves.
+   *
+   * It previously held hr / facilities / procurement WRITE. Because `hr:write` is
+   * the single gate on 34 procedures, that let any employee manager-approve an
+   * expense claim (hr.ts expenses.managerApprove), create or delete company
+   * holidays, create shift schedules, bulk-mark attendance, and mark statutory
+   * PF/ESI/PT challans paid or submitted. facilities:write let them create
+   * buildings and rooms; procurement:write let them raise purchase requisitions.
+   *
+   * Those writes are removed here. The genuine self-service actions that also sat
+   * behind hr:write — request leave, submit an expense claim, clock in and out —
+   * are preserved by an ownership check on the caller's OWN employee record
+   * (assertSelfOrHrWriter in apps/api/src/routers/hr.ts), not by a role grant.
+   *
+   * Guarded by apps/api/src/__tests__/requester-least-privilege.test.ts.
+   */
   requester: {
-    catalog:     ["read", "write"],
+    catalog:     ["read", "write"],   // raise a catalog request
     knowledge:   ["read"],
-    incidents:   ["read", "write"],
+    incidents:   ["read", "write"],   // raise a ticket
     requests:    ["read", "write"],
-    approvals:   ["read"],
-    facilities:  ["read", "write"],
-    hr:          ["read", "write"],
+    approvals:   ["read"],            // see, never decide
+    facilities:  ["read"],
+    hr:          ["read"],
+    // KEPT as write, deliberately, and still an over-grant: raising a purchase
+    // request is an explicit user story ("requester can create purchase request",
+    // rbac-user-stories.test.ts), but `procurement:write` ALSO gates
+    // vendors.create, vendors.update and ingest.importVendors — so an employee can
+    // still create and edit vendor master data. Splitting vendor management into
+    // its own module is the fix; it is a procurement-wide change and is NOT
+    // attempted here, days before onboarding. Reported, not silently narrowed.
     procurement: ["read", "write"],
-    surveys:     ["read", "write"],
+    surveys:     ["read", "write"],   // respond to a survey
   },
 
   report_viewer: {

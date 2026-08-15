@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
     Plus, Search, FileText, ArrowRightLeft,
     Calendar, User, Tag, AlertCircle, CheckCircle2,
-    Trash2, PlusCircle, Save, X, RefreshCcw, ChevronRight,
+    Trash2, PlusCircle, Save, X, RefreshCcw,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { PermissionGate } from "@/lib/rbac-context";
@@ -39,6 +39,37 @@ export default function JournalPage() {
             qJournals.refetch();
         },
         onError: (e: any) => toast.error(e.message),
+    });
+
+    /**
+     * Posting is a deliberate second step. A manual journal is a correction, an
+     * accrual or a reclassification — the entries most likely to be wrong — so it
+     * is created as a DRAFT and affects no account balance until posted. Do not
+     * auto-post on save: the closed-period rule and the audit trail both assume a
+     * distinct posting moment (accounting.journal.post records postedById/postedAt).
+     *
+     * Server rejections (not-draft, unbalanced, closed period) are shown here on
+     * the page and stay visible — a toast disappears before an accountant has
+     * finished reading why their entry was refused.
+     */
+    const [ledgerError, setLedgerError] = useState<string | null>(null);
+
+    const mPost = trpc.accounting.journal.post.useMutation({
+        onSuccess: () => {
+            setLedgerError(null);
+            toast.success("Journal entry posted");
+            qJournals.refetch();
+        },
+        onError: (e: any) => setLedgerError(e?.message ?? "Failed to post journal entry"),
+    });
+
+    const mReverse = trpc.accounting.journal.reverse.useMutation({
+        onSuccess: () => {
+            setLedgerError(null);
+            toast.success("Journal entry reversed");
+            qJournals.refetch();
+        },
+        onError: (e: any) => setLedgerError(e?.message ?? "Failed to reverse journal entry"),
     });
 
     const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
@@ -251,6 +282,16 @@ export default function JournalPage() {
                 </div>
             ) : (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    {ledgerError && (
+                        <div
+                            data-testid="journal-ledger-error"
+                            role="alert"
+                            className="flex items-start gap-2 border-b border-red-200 bg-red-50 px-4 py-3 text-body-sm text-red-700"
+                        >
+                            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                            <span>{ledgerError}</span>
+                        </div>
+                    )}
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
                           <thead>
@@ -259,13 +300,14 @@ export default function JournalPage() {
                                   <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-32">Number</th>
                                   <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Subject</th>
                                   <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Amount</th>
-                                  <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
+                                  <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-28">Status</th>
+                                  <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-44 text-right">Actions</th>
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-border">
                               {qJournals.isLoading ? (
                                   <tr>
-                                      <td colSpan={5} className="px-4 py-12 text-center">
+                                      <td colSpan={6} className="px-4 py-12 text-center">
                                           <div className="flex items-center justify-center gap-2 text-muted-foreground">
                                               <RefreshCcw className="w-4 h-4 animate-spin" />
                                               Loading entries...
@@ -274,7 +316,7 @@ export default function JournalPage() {
                                   </tr>
                               ) : qJournals.data?.items.length === 0 ? (
                                   <tr>
-                                      <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                                      <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                           No journal entries found.
                                       </td>
                                   </tr>
@@ -294,10 +336,47 @@ export default function JournalPage() {
                                           <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
                                               ₹{Number(je.totalDebit).toLocaleString()}
                                           </td>
+                                          <td className="px-4 py-3">
+                                              {/* A draft affects NO account balance. Before this column
+                                                  there was no way to tell a draft from a posted entry. */}
+                                              <span
+                                                  data-testid={`je-status-${je.number}`}
+                                                  className={cn(
+                                                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                                      je.status === "posted" ? "text-green-700 bg-green-100"
+                                                          : je.status === "reversed" ? "text-orange-700 bg-orange-100"
+                                                          : je.status === "voided" ? "text-red-700 bg-red-100"
+                                                          : "text-muted-foreground bg-muted",
+                                                  )}
+                                              >
+                                                  {je.status ?? "draft"}
+                                              </span>
+                                          </td>
                                           <td className="px-4 py-3 text-right">
-                                              <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">
-                                                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                              </button>
+                                              <PermissionGate module="financial" action="write">
+                                                  <div className="flex items-center justify-end gap-2">
+                                                      {je.status === "draft" && (
+                                                          <button
+                                                              data-testid={`je-post-${je.number}`}
+                                                              onClick={() => mPost.mutate({ id: je.id })}
+                                                              disabled={mPost.isPending}
+                                                              className="px-2.5 py-1 bg-primary text-primary-foreground rounded text-caption font-medium hover:bg-primary/90 disabled:opacity-50"
+                                                          >
+                                                              {mPost.isPending ? "Posting…" : "Post"}
+                                                          </button>
+                                                      )}
+                                                      {je.status === "posted" && (
+                                                          <button
+                                                              data-testid={`je-reverse-${je.number}`}
+                                                              onClick={() => mReverse.mutate({ id: je.id })}
+                                                              disabled={mReverse.isPending}
+                                                              className="px-2.5 py-1 border border-border rounded text-caption font-medium hover:bg-muted disabled:opacity-50"
+                                                          >
+                                                              {mReverse.isPending ? "Reversing…" : "Reverse"}
+                                                          </button>
+                                                      )}
+                                                  </div>
+                                              </PermissionGate>
                                           </td>
                                       </tr>
                                   ))

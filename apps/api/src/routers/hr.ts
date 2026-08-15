@@ -1,5 +1,6 @@
-import { router, permissionProcedure, protectedProcedure, adminProcedure, paginationInput } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure, adminProcedure, paginationInput, type Context } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
+import { checkDbUserPermission } from "../lib/rbac-db";
 import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
 import { evaluateExpenseClaim } from "../lib/expense-policy";
@@ -145,6 +146,58 @@ async function resolveSelfEmployeeWithShift(
   }
 
   return { id: emp.id, shift: resolveShift(assigned, orgDefault) };
+}
+
+/**
+ * Self-service ownership guard.
+ *
+ * `hr:write` is the single gate on 34 procedures, mixing an employee's own
+ * actions (submit my claim, clock myself in) with manager and statutory ones
+ * (approve a claim, create a holiday, mark a PF challan paid). The base
+ * `requester` role therefore had to grant all of it or none of it, and it
+ * granted all of it — so any employee could approve expenses.
+ *
+ * `requester` now holds `hr:read` only. The genuinely self-service procedures
+ * call this instead: anyone who really holds `hr:write` (hr_manager, admin,
+ * owner) may act on any employee, and everyone else may act only on the employee
+ * record that belongs to them.
+ */
+type SelfServiceCtx = {
+  db: Context["db"];
+  org: Context["org"];
+  user: Context["user"];
+};
+
+async function assertSelfOrHrWriter(
+  ctx: SelfServiceCtx,
+  employeeId: string,
+): Promise<void> {
+  const user = ctx.user;
+  if (!user || !ctx.org) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+  }
+
+  const hasHrWrite = checkDbUserPermission(
+    String(user.role ?? ""),
+    "hr",
+    "write",
+    (user.matrixRole as string | null | undefined) ?? null,
+    user.customPermissions,
+  );
+  if (hasHrWrite) return;
+
+  const [own] = await ctx.db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(and(eq(employees.userId, user.id), eq(employees.orgId, ctx.org.id)))
+    .limit(1);
+
+  if (!own || own.id !== employeeId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "You may only do this for your own employee record.",
+    });
+  }
 }
 
 export const hrRouter = router({
@@ -717,7 +770,13 @@ export const hrRouter = router({
         return updated;
       }),
 
-    create: permissionProcedure("hr", "write")
+    // Self-service: raising an HR case is the HR analogue of raising a ticket, and
+    // is an explicit user story ("every user is a requester — can submit
+    // self-service HR cases", rbac-user-stories.test.ts). It was gated on hr:write,
+    // which is the same grant that carries expense approval, holidays and shift
+    // schedules — so honouring the story forced the whole over-grant onto every
+    // employee. Authentication is the correct gate for raising your own case.
+    create: protectedProcedure
       .input(
         z.object({
           employeeId: z.string().uuid(),
@@ -868,7 +927,10 @@ export const hrRouter = router({
           .orderBy(desc(leaveRequests.createdAt));
       }),
 
-    create: permissionProcedure("hr", "write")
+    // Self-service: resolves the caller's OWN employee record below and never
+    // accepts an employeeId, so authentication is the correct gate. It was
+    // hr:write, which is why `requester` had to carry hr:write at all.
+    create: protectedProcedure
       .input(CreateLeaveRequestSchema)
       .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -1947,11 +2009,13 @@ export const hrRouter = router({
         .where(dbAnd(...conds)).orderBy(dbDesc(attendanceRecords.date));
     }),
 
-    clockIn: permissionProcedure("hr", "write").input(z.object({
+    clockIn: protectedProcedure.input(z.object({
       employeeId: z.string().uuid(),
       date: z.coerce.date().optional(),
       shiftType: z.enum(["morning", "afternoon", "night", "flexible", "remote"]).default("flexible"),
     })).mutation(async ({ ctx, input }) => {
+      // Clock yourself in; only an hr:write holder may clock somebody else.
+      await assertSelfOrHrWriter(ctx, input.employeeId);
       const { org, db } = ctx;
       const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const date = input.date ?? new Date();
@@ -1960,11 +2024,13 @@ export const hrRouter = router({
       return rec!;
     }),
 
-    clockOut: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    clockOut: protectedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const [rec] = await db.select().from(attendanceRecords).where(dbAnd(dbEq(attendanceRecords.id, input.id), dbEq(attendanceRecords.orgId, org!.id))).limit(1);
       if (!rec) throw new TRPCError({ code: "NOT_FOUND" });
+      // Clock yourself out; only an hr:write holder may clock somebody else out.
+      await assertSelfOrHrWriter(ctx, rec.employeeId);
       const checkOut = new Date();
       const hoursWorked = rec.checkIn ? ((checkOut.getTime() - new Date(rec.checkIn).getTime()) / 3600000).toFixed(2) : "0";
       const [updated] = await db.update(attendanceRecords).set({ checkOut, hoursWorked, updatedAt: new Date() }).where(dbEq(attendanceRecords.id, input.id)).returning();
@@ -2358,7 +2424,7 @@ export const hrRouter = router({
       return res.map(r => ({ claim: r.claim, employee: r.employee ? { ...r.employee, name: r.userName } : null }));
     }),
 
-    create: permissionProcedure("hr", "write").input(z.object({
+    create: protectedProcedure.input(z.object({
       employeeId: z.string().uuid(),
       title: z.string().min(1),
       description: z.string().optional(),
@@ -2369,6 +2435,8 @@ export const hrRouter = router({
       receiptUrl: z.string().optional(),
       projectCode: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
+      // An employee may raise their own claim; hr:write holders may raise anyone's.
+      await assertSelfOrHrWriter(ctx, input.employeeId);
       const { org, db } = ctx;
       const { expenseClaims, count: dbCount, eq: dbEq } = await import("@coheronconnect/db");
       const [c] = await db.select({ n: dbCount() }).from(expenseClaims).where(dbEq(expenseClaims.orgId, org!.id));
@@ -2521,9 +2589,15 @@ export const hrRouter = router({
         .limit(input.limit);
     }),
 
-    submit: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    submit: protectedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      // Ownership is resolved from the claim itself — a requester may submit only
+      // their own claim, an hr:write holder may submit any.
+      const [existing] = await db.select({ employeeId: expenseClaims.employeeId }).from(expenseClaims)
+        .where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Expense claim not found" });
+      await assertSelfOrHrWriter(ctx, existing.employeeId);
       const [c] = await db.update(expenseClaims).set({ status: "submitted", updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
       return c!;
     }),
