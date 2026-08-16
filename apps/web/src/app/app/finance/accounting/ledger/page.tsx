@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
     Search, Filter, Calendar, ArrowRightLeft,
@@ -10,16 +11,45 @@ import {
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
+/**
+ * The ledger is the drill-through target for the Balance Sheet and the P&L:
+ * every account line on those statements links here with the account and the
+ * same date window pre-applied, so a figure can be opened onto the entries it
+ * was summed from. `useSearchParams` needs a Suspense boundary in the app
+ * router — same shape as `app/financial/page.tsx`.
+ */
 export default function LedgerPage() {
-    const [accountId, setAccountId] = useState<string>("");
-    const [dateFrom, setDateFrom] = useState("");
-    const [dateTo, setDateTo] = useState("");
+    return (
+        <Suspense
+            fallback={
+                <div className="flex items-center justify-center p-12 text-muted-foreground">
+                    <RefreshCcw className="w-4 h-4 animate-spin mr-2" />
+                    Loading ledger…
+                </div>
+            }
+        >
+            <LedgerPageInner />
+        </Suspense>
+    );
+}
+
+function LedgerPageInner() {
+    const searchParams = useSearchParams();
+    // Seed from the URL once. These are initial values, not a controlled sync:
+    // the filters stay hand-editable after arriving from a statement link.
+    const [accountId, setAccountId] = useState<string>(() => searchParams.get("accountId") ?? "");
+    const [dateFrom, setDateFrom] = useState(() => searchParams.get("from") ?? "");
+    const [dateTo, setDateTo] = useState(() => searchParams.get("to") ?? "");
 
     const qCoa = trpc.accounting.coa.list.useQuery({ limit: 200 });
     const qLedger = trpc.accounting.ledger.useQuery({
         accountId: accountId || undefined,
         startDate: dateFrom ? new Date(dateFrom) : undefined,
-        endDate: dateTo ? new Date(dateTo) : undefined,
+        // `journal_entries.date` is a timestamptz and the filter is `lte`, so a
+        // bare `new Date("2026-08-31")` is midnight UTC and drops anything
+        // stamped later that day. "To Date" has to include that date, or a
+        // month-end ledger silently disagrees with the month-end balance sheet.
+        endDate: dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : undefined,
     }, {
         enabled: !!accountId,
     });

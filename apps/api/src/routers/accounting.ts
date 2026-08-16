@@ -658,24 +658,67 @@ export const accountingRouter = router({
   /**
    * Balance Sheet as at a date — Assets = Liabilities + Equity.
    *
-   * Balances are taken from the `currentBalance` snapshot (opening + all posted
-   * movements to date), grouped by section. Because the accounting identity only
-   * closes once P&L is swept to retained earnings, the *net income to date*
-   * (income − expense) is folded into equity as a synthetic "Current Period
-   * Earnings" line so the sheet balances without requiring a period-close entry.
-   * Contra-asset balances (e.g. accumulated depreciation) net down assets.
+   * Two bases, chosen by whether `asOfDate` is supplied:
+   *
+   *  - **`as_at` (asOfDate given)** — each account's balance is DERIVED:
+   *    `openingBalance + Σ(debit − credit)` over posted journal lines whose
+   *    entry date is ≤ asOfDate. This is the same arithmetic `ledger` uses, so
+   *    a figure on this statement and the running balance on the General Ledger
+   *    for that account are the same number by construction. It is also the only
+   *    basis that can answer "what did this look like at the end of July".
+   *  - **`current_balance_snapshot` (no asOfDate)** — the denormalised
+   *    `chart_of_accounts.currentBalance`, which only `journal.post`/`reverse`
+   *    move. Retained as the default so existing callers are unchanged.
+   *
+   * The two agree on any org whose rows were all written through the product
+   * path; they diverge where something wrote a posted entry directly without
+   * moving the snapshot (`seed-modules.ts` does exactly that), and the derived
+   * basis is the trustworthy one there because the ledger is the record.
+   *
+   * Because the accounting identity only closes once P&L is swept to retained
+   * earnings, the *net income to date* (income − expense) is folded into equity
+   * as a synthetic "Current Period Earnings" line so the sheet balances without
+   * requiring a period-close entry. Contra-asset balances (e.g. accumulated
+   * depreciation) net down assets.
    */
   balanceSheet: permissionProcedure("financial", "read").input(z.object({
     asOfDate: z.coerce.date().optional(),
-  }).optional()).query(async ({ ctx }) => {
+  }).optional()).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
+    const { chartOfAccounts, journalEntries, journalEntryLines, eq: dbEq, and: dbAnd, lte, sql: dbSql } = await import("@coheronconnect/db");
 
     const accounts = await db.select().from(chartOfAccounts).where(dbEq(chartOfAccounts.orgId, org!.id));
 
+    const asOf = input?.asOfDate;
+
+    // Derived basis: sum posted movements up to and including asOfDate.
+    let balanceOf = (a: CoaRow) => Number(a.currentBalance);
+    if (asOf) {
+      const movements = await db
+        .select({
+          accountId: journalEntryLines.accountId,
+          net: dbSql<string>`coalesce(sum(${journalEntryLines.debitAmount} - ${journalEntryLines.creditAmount}), 0)`,
+        })
+        .from(journalEntryLines)
+        .innerJoin(
+          journalEntries,
+          dbAnd(
+            dbEq(journalEntryLines.journalEntryId, journalEntries.id),
+            dbEq(journalEntries.status, "posted"),
+            lte(journalEntries.date, asOf),
+          ),
+        )
+        .where(dbEq(journalEntryLines.orgId, org!.id))
+        .groupBy(journalEntryLines.accountId);
+
+      const netByAccount = new Map<string, number>();
+      for (const m of movements) netByAccount.set(m.accountId, Number(m.net));
+      balanceOf = (a: CoaRow) => Number(a.openingBalance) + (netByAccount.get(a.id) ?? 0);
+    }
+
     const section = (a: CoaRow) => ({
       id: a.id, code: a.code, name: a.name, type: a.type, subType: a.subType,
-      balance: Number(a.currentBalance),
+      balance: balanceOf(a),
     });
 
     // Assets are debit-normal (balance ≥ 0 typical); contra-assets are credit-
@@ -684,25 +727,34 @@ export const accountingRouter = router({
     const liabilityRows = accounts.filter((a: CoaRow) => a.type === "liability" || a.type === "contra_liability").map(section);
     const equityRows = accounts.filter((a: CoaRow) => a.type === "equity" || a.type === "contra_equity").map(section);
 
+    // Sign-flipping a zero yields -0, which Intl renders as "-₹0.00" on a
+    // statement line. Normalise it away at the source rather than in each
+    // consumer.
+    const noNegZero = (n: number) => (n === 0 ? 0 : n);
+
     // Asset total nets contra-assets (their balance is stored negative).
-    const totalAssets = assetRows.reduce((s, a) => s + a.balance, 0);
+    const totalAssets = noNegZero(assetRows.reduce((s, a) => s + a.balance, 0));
     // Liabilities/equity are credit-normal → stored negative; present as positive.
-    const totalLiabilities = -liabilityRows.reduce((s, a) => s + a.balance, 0);
-    const equityBase = -equityRows.reduce((s, a) => s + a.balance, 0);
+    const totalLiabilities = noNegZero(-liabilityRows.reduce((s, a) => s + a.balance, 0));
+    const equityBase = noNegZero(-equityRows.reduce((s, a) => s + a.balance, 0));
 
-    // Net income to date = income − expense (both from snapshot, sign-normalised).
-    const totalIncome = accounts
+    // Net income to date = income − expense (same basis, sign-normalised).
+    const totalIncome = noNegZero(accounts
       .filter((a: CoaRow) => a.type === "income" || a.type === "contra_income")
-      .reduce((s: number, a: CoaRow) => s - Number(a.currentBalance), 0);
-    const totalExpenses = accounts
+      .reduce((s: number, a: CoaRow) => s - balanceOf(a), 0));
+    const totalExpenses = noNegZero(accounts
       .filter((a: CoaRow) => a.type === "expense" || a.type === "contra_expense")
-      .reduce((s: number, a: CoaRow) => s + Number(a.currentBalance), 0);
-    const currentPeriodEarnings = totalIncome - totalExpenses;
+      .reduce((s: number, a: CoaRow) => s + balanceOf(a), 0));
+    const currentPeriodEarnings = noNegZero(totalIncome - totalExpenses);
 
-    const totalEquity = equityBase + currentPeriodEarnings;
+    const totalEquity = noNegZero(equityBase + currentPeriodEarnings);
     const isBalanced = Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01;
 
     return {
+      // Echoed so a screen states the date it actually computed for rather than
+      // the date the user believes they picked.
+      asOfDate: asOf ?? null,
+      basis: (asOf ? "as_at" : "current_balance_snapshot") as "as_at" | "current_balance_snapshot",
       assets: { rows: assetRows, total: totalAssets },
       liabilities: { rows: liabilityRows, total: totalLiabilities },
       equity: {

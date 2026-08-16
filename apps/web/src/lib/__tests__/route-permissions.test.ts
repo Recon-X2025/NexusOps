@@ -32,6 +32,10 @@ describe("resolveRouteModule — route → module map", () => {
     expect(resolveRouteModule("/app/hr/abc123")).toBe("hr");
     expect(resolveRouteModule("/app/financial")).toBe("financial");
     expect(resolveRouteModule("/app/finance/accounting/coa")).toBe("financial");
+    // The financial statements. A balance sheet and a P&L are the two screens
+    // most likely to be assumed "just a report anyone can see" — pin the gate.
+    expect(resolveRouteModule("/app/finance/accounting/balance-sheet")).toBe("financial");
+    expect(resolveRouteModule("/app/finance/accounting/pnl")).toBe("financial");
     expect(resolveRouteModule("/app/procurement")).toBe("financial");
     expect(resolveRouteModule("/app/admin")).toBe("admin");
     expect(resolveRouteModule("/app/admin/custom-fields")).toBe("admin");
@@ -70,6 +74,8 @@ describe("guard outcome — requester denied leaked modules, admin allowed", () 
     for (const path of [
       "/app/financial",
       "/app/finance/accounting/journal",
+      "/app/finance/accounting/balance-sheet",
+      "/app/finance/accounting/pnl",
       "/app/admin",
       "/app/vendors",
       "/app/crm",

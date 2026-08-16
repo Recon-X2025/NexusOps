@@ -280,6 +280,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Chart of Accounts", href: "/app/finance/accounting/coa" },
           { label: "Journal Entries", href: "/app/finance/accounting/journal" },
           { label: "General Ledger", href: "/app/finance/accounting/ledger" },
+          { label: "Balance Sheet", href: "/app/finance/accounting/balance-sheet" },
+          { label: "Profit & Loss", href: "/app/finance/accounting/pnl" },
           { label: "Bank Reconciliation", href: "/app/finance/accounting/reconciliation" },
           { label: "Vendors", href: "/app/vendors" },
         ],

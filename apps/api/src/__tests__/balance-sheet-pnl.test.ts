@@ -138,6 +138,90 @@ describe("Balance sheet + date-ranged P&L (Sprint 2.2)", () => {
     expect(bs.isBalanced).toBe(true);
   });
 
+  /**
+   * `asOfDate` was in the input schema from the start but the handler never
+   * destructured it, so every call returned the same inception-to-date sheet.
+   * These pin the derived basis: the statement must move when the date moves,
+   * must agree with the snapshot once the date covers everything posted, and
+   * must reconcile to the P&L over the same window.
+   */
+  describe("asOfDate", () => {
+    beforeEach(async () => {
+      // April: capital in, a credit sale, an expense on credit.
+      await postEntry(new Date("2025-04-01"), [
+        { accountId: acct("1120"), debitAmount: 500_000, creditAmount: 0 },
+        { accountId: acct("3100"), debitAmount: 0, creditAmount: 500_000 },
+      ], "Capital injection");
+      await postEntry(new Date("2025-04-10"), [
+        { accountId: acct("1130"), debitAmount: 200_000, creditAmount: 0 },
+        { accountId: acct("4110"), debitAmount: 0, creditAmount: 200_000 },
+      ], "April credit sale");
+      // May: a second sale that must be invisible to an April balance sheet.
+      await postEntry(new Date("2025-05-10"), [
+        { accountId: acct("1130"), debitAmount: 90_000, creditAmount: 0 },
+        { accountId: acct("4110"), debitAmount: 0, creditAmount: 90_000 },
+      ], "May credit sale");
+    });
+
+    it("excludes entries dated after asOfDate", async () => {
+      const april = await caller.balanceSheet({ asOfDate: new Date("2025-04-30") });
+      expect(april.basis).toBe("as_at");
+      // Bank 500k + AR 200k — the May 90k sale is not there yet.
+      expect(april.totalAssets).toBe(700_000);
+      expect(april.equity.currentPeriodEarnings).toBe(200_000);
+      expect(april.isBalanced).toBe(true);
+
+      const may = await caller.balanceSheet({ asOfDate: new Date("2025-05-31") });
+      expect(may.totalAssets).toBe(790_000);
+      expect(may.equity.currentPeriodEarnings).toBe(290_000);
+      expect(may.isBalanced).toBe(true);
+    });
+
+    it("agrees with the currentBalance snapshot once asOfDate covers every posting", async () => {
+      const snapshot = await caller.balanceSheet();
+      const derived = await caller.balanceSheet({ asOfDate: new Date("2099-12-31") });
+      expect(snapshot.basis).toBe("current_balance_snapshot");
+      expect(derived.totalAssets).toBe(snapshot.totalAssets);
+      expect(derived.liabilities.total).toBe(snapshot.liabilities.total);
+      expect(derived.equity.total).toBe(snapshot.equity.total);
+      expect(derived.equity.currentPeriodEarnings).toBe(snapshot.equity.currentPeriodEarnings);
+    });
+
+    it("still excludes drafts on the derived basis", async () => {
+      await caller.journal.create({
+        date: new Date("2025-04-15"),
+        description: "Unposted",
+        lines: [
+          { accountId: acct("1120"), debitAmount: 777_777, creditAmount: 0 },
+          { accountId: acct("3100"), debitAmount: 0, creditAmount: 777_777 },
+        ],
+      });
+      const april = await caller.balanceSheet({ asOfDate: new Date("2025-04-30") });
+      expect(april.totalAssets).toBe(700_000);
+    });
+
+    /**
+     * The number the two screens must agree on: the balance sheet's current-period
+     * earnings at a date IS the P&L's net profit from inception to that date. If
+     * these ever disagree the pair of screens is lying about one of them.
+     */
+    it("current-period earnings equal the inception-to-date P&L at the same date", async () => {
+      const asOf = new Date("2025-04-30");
+      const bs = await caller.balanceSheet({ asOfDate: asOf });
+      const pnl = await caller.profitAndLoss({ startDate: new Date("1900-01-01"), endDate: asOf });
+      expect(bs.equity.currentPeriodEarnings).toBe(pnl.netProfit);
+    });
+
+    it("reports zero for a date before any entry was posted", async () => {
+      const bs = await caller.balanceSheet({ asOfDate: new Date("2025-01-01") });
+      expect(bs.totalAssets).toBe(0);
+      expect(bs.liabilities.total).toBe(0);
+      expect(bs.equity.total).toBe(0);
+      expect(bs.isBalanced).toBe(true);
+      expect(bs.assets.rows.every((r: any) => r.balance === 0)).toBe(true);
+    });
+  });
+
   it("scopes both statements to the caller's org", async () => {
     // Post revenue in a *different* org; it must not leak into ours.
     const other = await seedFullOrg();

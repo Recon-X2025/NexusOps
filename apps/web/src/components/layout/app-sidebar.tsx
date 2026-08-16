@@ -323,7 +323,10 @@ function SidebarNavContent({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto scrollbar-thin py-1 min-h-0">
+      {/* Labelled so it is distinguishable from the header's breadcrumb <nav>.
+          An acceptance spec that claims "reachable by clicking the nav" has to
+          be able to prove it clicked THIS nav and not an in-page cross-link. */}
+      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto scrollbar-thin py-1 min-h-0">
         {/* ── Favorites section ─────────────────────────── */}
         {pinnedHrefs.length > 0 && !searchActive && (
           <div className="mb-0.5">
