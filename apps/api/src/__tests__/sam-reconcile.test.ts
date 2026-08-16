@@ -94,6 +94,27 @@ describe("SAM reconciliation (G11)", () => {
     expect(names.indexOf("Over1")).toBeLessThan(names.indexOf("UnderUsed"));
   });
 
+  /**
+   * A licence with NO seat count (unlimited / site licence) that has an install
+   * count recorded. `delta` is unknowable, so the posture must stay `unknown`
+   * rather than collapsing to 0 and reading as at-parity. The SAM screen renders
+   * this row's variance as an em-dash on the strength of this behaviour.
+   */
+  it("stays unknown when installs are recorded against a licence with no entitlement", async () => {
+    const db = testDb();
+    const [lic] = await db
+      .insert(softwareLicenses)
+      .values({ orgId, name: "Site Licence (unlimited)", type: "per_seat" })
+      .returning();
+
+    const recon = await caller.licenses.ingestInstalled({ licenseId: lic!.id, installedCount: 12 });
+    expect(recon.entitled).toBeNull();
+    expect(recon.installed).toBe(12);
+    expect(recon.delta).toBeNull();
+    expect(recon.status).toBe("unknown");
+    expect(recon.shortfall).toBe(0);
+  });
+
   it("ingestInstalled rejects a license from another org", async () => {
     const other = await seedFullOrg();
     const otherCaller = assetsRouter.createCaller(createMockContext(other.adminId, other.orgId));
