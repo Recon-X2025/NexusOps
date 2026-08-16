@@ -512,7 +512,18 @@ export default function CRMPage() {
   // Mutations
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const convertLead = trpc.crm.leads.convert.useMutation({
-    onSuccess: (res: any) => { toast.success(`Lead converted to account: ${res?.account?.name ?? ""}`); refetchLeads(); refetchAccounts(); },
+    onSuccess: (res: any) => {
+      toast.success(`Lead converted to account: ${res?.account?.name ?? ""}`);
+      // Conversion creates an account, a contact AND a deal in one transaction, so
+      // all four lists are stale afterwards. Only leads and accounts were being
+      // refetched, so the new deal did not appear on the Pipeline until something
+      // else happened to refetch — a real gap that leftover test data had been
+      // masking, and that a fresh database exposed.
+      refetchLeads();
+      refetchAccounts();
+      refetchContacts();
+      refetchDeals();
+    },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks

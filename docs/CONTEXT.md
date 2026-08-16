@@ -45,6 +45,15 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `/api/health` → `c8b3af72e16e7176…`.
 - **`d436969`** (Round 9b/9c CRM: lead dialog de-duplication, row progression, converted bypass closed) —
   CI run `31906880564`, conclusion `success`. No migration.
+- **`340de34` — PUSHED, then CI run `31929138540` FAILED at E2E. Build and Deploy were SKIPPED, so it
+  never deployed** and production stayed on `393e5d7`. CI caught **two real defects the local run missed**,
+  both masked by a long-lived local test DB vs CI's fresh one: the seed inserted pipeline stages with no
+  `probability` (flat 10 on every fresh database — new, from this round), and `convertLead` never
+  refetched deals so a converted lead's deal did not appear on the Pipeline (**pre-existing**, verified
+  byte-identical at `393e5d7`). Detail: `reports/fix-plan.md` → CI CAUGHT TWO DEFECTS.
+- **Follow-up commit — PUSHED, NOT YET VERIFIED LIVE at the time of writing.** Fixes both, and carries
+  migration `0089` forward. Read the outcome from the terminal `Deploy to Vultr` job of the latest `main`
+  CI run and `/api/health`; do not treat this bullet as confirmation.
 - **LIVE = `393e5d7`** (CRM Round 11: quote line-item editor + the deprecated-mutation sweep) — CI run
   `31921763485`, all five jobs `success` on **attempt 1** including the terminal `Deploy to Vultr`,
   `/api/health` → `393e5d78e9988770…`, 2026-08-16. **No migration** — head stays `0088`.
@@ -91,6 +100,47 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `docker-compose.vultr.images.yml`, **not** `docker-compose.prod.yml`'s `migrator` service.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0082`).
+
+## 2026-08-16 — CRM Pipeline: audit + stage rules (`340de34`, migration `0089`)
+
+_Two rounds in one commit (they share `crm/page.tsx` and `crm/index.ts`; splitting would not compile).
+Per-item detail in `reports/fix-plan.md` → CRM PIPELINE. **Read the deploy outcome from the exit-point
+line at the bottom of this file, not from here.**_
+
+- **`source` was collected, REQUIRED, and unstorable.** The New Deal form made Lead Source mandatory and
+  `crm_deals` has no source column, so the value was discarded on submit. Removed from the form rather
+  than adding a column: a deal is usable without one, and source is already recorded upstream on
+  `crm_leads.source` with `convertedDealId` linking them — a second copy would be a second source of
+  truth that can disagree with the first.
+- **Four phantom fields off the Pipeline card** (`number`, `owner`, `closeDate`, `lastActivity` — none a
+  column, nothing computes them; `DEALS_LIVE` is the raw API rows, unmapped).
+- **CORRECTION OF RECORD — the parity audit's "Pipeline renders deal cards through TWO code paths" is
+  WRONG.** `page.tsx:1179` is the **Dashboard** tab's "Deals Requiring Attention" widget; `:1275` is the
+  **Pipeline** kanban card. Different tabs, different queries, different fields — they must NOT be
+  merged. What was duplicated was the `data-testid`, on both, which fully explains the reported symptom
+  ("a test id added to one had no effect") with no duplicate rendering involved.
+- **`crm_activities.leadId` was an aggregate with no producer.** Round 9a gave it an FK, an index, a list
+  filter and the aggregate behind the Leads list's "Last Activity" column — and **nothing in the product
+  could write it** (`grep -rn "leadId" apps/web/src` → zero). The Log Activity dialog offered Account,
+  Contact and Deal and marked the first two required; a lead has no account until it converts, so a lead
+  activity was unreachable by construction. Lead selector added; the form now requires **at least one**
+  association, matching the procedure.
+- **STAGE DEFAULT PROBABILITY (migration `0089`).** `crm_pipeline_stages` gains `probability` — that table
+  already exists for per-tenant config over the fixed enum. Defaults keyed to what the BUYER has
+  confirmed: 10 / 25 / 50 / 70 / 90, with 100 / 0 definitional. **A default, never a lock** — the rep can
+  override it, and `movePipeline` does not rewrite it on a stage change.
+- **LOST REASON required on closed_lost**, picklist with an "Other" that stores free text, displayed on
+  the deal record and the Pipeline card. **CLOSED-WON GUARD** — refuses without a value and an expected
+  close, naming what is missing. Both validate the **transition, never the stored row**, so existing rows
+  are untouched and nothing is rewritten.
+- **⚠️ Two contract changes, not just UI:** `activities.create` now requires an association and
+  `movePipeline` to closed_lost now requires a reason. **Any external API client doing either gets a
+  400.** One in-repo caller was affected (`layer8-module-smoke.test.ts`) — a setup call, not an assertion.
+- **Reported, NOT fixed** (each its own round): the Dashboard widget's identical phantom-field class
+  (its `closeDate` has no fallback, so it renders `nulld`); the Analytics "Deals by Source" filter; the
+  `interface Deal` mock shape at `page.tsx:60-78` that type-checks nothing and is the root cause of the
+  phantom class; the truncated UUID on the deal detail page; `Lead #`; and the Move popover closing only
+  via its X (no Escape, no backdrop) unlike the stage-config modal beside it.
 
 ## 2026-08-16 — CRM Round 11: the quote engine made reachable + the deprecated-mutation sweep (`393e5d7`)
 
@@ -807,6 +857,11 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 ---
 
 ## Last validated deployment (exit point)
+
+> **IN FLIGHT (2026-08-16): `340de34` pushed, CI run `31929138540`.** CRM Pipeline audit + stage rules;
+> **carries migration `0089`** (head `0088` → `0089`). **This is NOT a validated deployment** — the exit
+> point below still names the last one that was. Confirm from the terminal `Deploy to Vultr` job of the
+> run's **latest attempt** (`gh run view 31929138540 --json jobs`) plus `/api/health`, then re-stamp.
 
 **CI run `31921763485` — commit `393e5d7` (CRM Round 11: quote line-item editor + the deprecated-mutation
 sweep; **no migration**, head stays `0088`) — all five jobs `success` on **attempt 1**, including the terminal

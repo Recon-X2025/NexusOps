@@ -117,6 +117,148 @@ anything** — same class as `.turbo` making "cold lint" warm.
 
 ---
 
+## CRM PIPELINE — audit round + stage rules — `340de34` (2026-08-16; **migration `0089`**)
+
+_Two rounds in one commit; they share `crm/page.tsx` and `crm/index.ts` and splitting would not compile
+(same precedent as Rounds 6/7/8-part-1). Gate: build 11/11; **213 files / 1886 tests**; `lint:cold` **9/9
+forced**; playwright **117 passed / 3 failed** — `rbac.spec.ts:105` + `:115` (known hydration) plus the
+roaming login-timeout flake, which landed on `module-routes.spec.ts:108` this run and **passes standalone
+in 12.8s**. `e2e/crm-pipeline.spec.ts` **3/3 standalone**. Pushed; CI `31929138540`. **Deploy verification
+lives in `docs/CONTEXT.md`'s exit-point line — do not read "live" off this section.**_
+
+### Round A — the Pipeline audit
+
+- **`source`: collected, REQUIRED, unstorable (Class C).** The New Deal form made Lead Source mandatory
+  and `crm_deals` has no such column, so the value was dropped on submit. **Removed from the form, column
+  NOT added.** A deal is usable without one, and source is already recorded upstream on `crm_leads.source`
+  linked by `convertedDealId` — a second copy would be a second source of truth. The form's ten free-text
+  strings did not match `leadSourceEnum` either, so storing them would have created a third vocabulary.
+- **Four Class E fields removed from the Pipeline card** — `number`, `owner`, `closeDate`, `lastActivity`.
+  None is a column and nothing computes them (`DEALS_LIVE` is the raw rows, unmapped). `number` and the
+  owner avatar rendered permanently blank; the other two already fell back to real columns, now read
+  directly. Account/contact names kept — they resolve through real FKs (Class B, correct).
+- **`stage` was already fixed in Round 11 and held** — verified at the mutate payload, pinned by a router
+  test and now by e2e.
+
+### CORRECTION OF RECORD — "the Pipeline renders deal cards through TWO code paths" is WRONG
+
+The parity audit's Sweep 4 recorded `page.tsx:1007` and `:1102` as duplicate Pipeline renderings. They are
+not. The first is the **Dashboard** tab's "Deals Requiring Attention" widget (`activeDeals.slice(0,5)`);
+the second is the **Pipeline** kanban card (`stageDeals`). Different tabs, different queries, different
+field sets. **They must not be merged.** What was actually duplicated is the
+`data-testid="pipeline-deal-value"`, present on both — which fully explains the reported symptom ("a test
+id added to one had no effect": the selector was ambiguous across two tabs) with no duplicate rendering
+involved. The Dashboard copy is now `dashboard-deal-value`.
+
+### `crm_activities.leadId` — a real aggregate with no producer
+
+Round 9a gave it an FK, an index, a `list` filter and the aggregate behind the Leads list's "Last
+Activity" column. **Nothing in the product could write it** — `grep -rn "leadId" apps/web/src` returned
+**zero**. Round 9a's own commit message concedes it: _"The dialog payload diff is still outstanding."_
+The Log Activity dialog offered Account, Contact and Deal, marked Account and Contact required, and
+disabled Save without both — but a lead has no account until it converts, so a lead activity was
+unreachable **by construction**. Meanwhile the procedure required **nothing**, so the Dashboard's "+ New"
+button was minting rows attached to nothing at all. Lead selector added; the form now requires **at least
+one** association; the quick-log button opens the dialog instead of firing a mutation.
+
+### Round B — stage rules (migration `0089`)
+
+- **STAGE DEFAULT PROBABILITY.** `crm_pipeline_stages` gains `probability`; that table already exists for
+  per-tenant config over the fixed enum, so no second home was created. Defaults keyed to what the BUYER
+  has confirmed, not rep optimism — prospect 10, qualification 25, proposal 50 (we have quoted; they can
+  now say no), negotiation 70 (buyers only argue terms when they intend to buy), verbal_commit 90 (paper
+  still slips), closed_won 100 / closed_lost 0 definitional. Monotonic by construction.
+  **A DEFAULT, never a lock:** the form pre-fills, the rep can override, and once they type their own
+  value a stage change no longer touches it. **`movePipeline` does NOT rewrite `probability`** — doing so
+  would move the forecast underneath the rep; `weightedValue` therefore stays correct, neither input
+  having changed. Admin control added to the existing stage-config modal (that screen **already existed**;
+  it was an extension, not a finding).
+- **The migration carries a hand-written backfill.** Drizzle's generated `ADD COLUMN … DEFAULT 10` would
+  have left every existing tenant flat at 10 across all seven stages — **worse than no default, because it
+  looks configured**. Per-key `UPDATE`s seed the factory values. `pnpm check:migrations` green.
+- **LOST REASON — required, picklist, with an honest tail.** `crm_deals.lostReason` existed as a column
+  only `seed-smb-analytics.ts:965` had ever written. Now required on the move to closed_lost. A PICKLIST
+  because the point of capturing it is win/loss analysis and free text yields two hundred strings and no
+  analysis; `lostReason` is `text`, not an enum, so values store verbatim with no migration. **"Other"
+  swaps to a text box and stores what the rep typed instead of the literal "Other"**, keeping the tail
+  honest inside the one column. Displayed on the deal record AND the Pipeline card (the Closed Lost column
+  is where a manager scans for the pattern). Moving back out **clears** it — it described a conclusion
+  that no longer holds.
+- **CLOSED-WON GUARD.** A deal could reach closed_won with no value and no expected close, making every
+  forecast figure wrong from the moment it landed — silently, because the row looks finished. Refused,
+  naming what is missing; a **zero** value counts as missing. **ONE guard on ONE transition, deliberately
+  not a transition map** — prospect → verbal_commit still works. The approval tier and the
+  closed_won→active block are untouched, and a test asserts the tier still fires *after* the guard passes
+  so the new rule cannot shadow the old one.
+- **Both validate the TRANSITION, never the stored row.** A deal already sitting in closed_won without a
+  value is untouched and nothing is rewritten (pinned by a test that inserts one directly). It only has to
+  satisfy the rule if moved out and back — at which point it is being re-asserted as won.
+
+### ⚠️ Contract changes — not just UI
+
+Two tightenings reject calls that previously succeeded: `activities.create` (an association is now
+required) and `movePipeline` to closed_lost (a reason is now required). **Any external API client doing
+either gets a 400.** One in-repo caller was affected, `layer8-module-smoke.test.ts:883` — a **setup call,
+not an assertion**; the assertion it supports (a closed_lost deal appears under the closed_lost filter) is
+unchanged and still passes. Guards live in shared helpers (`assertDealCloseTransition`,
+`assertActivityHasAssociation`) called by both the canonical and deprecated paths, so the two cannot drift.
+
+### Verification — what the first-ever run of the pipeline spec found
+
+`e2e/crm-pipeline.spec.ts` had **never executed**. Its first run failed twice, **both test defects**:
+(1) `data-value` compared as a string `"750000"` against `"750000.00"` — `crm_deals.value` is
+`decimal(14,2)`, so the attribute carries the scale; replaced with a numeric assertion. (2) `Escape` does
+not dismiss the Move popover, so its overlay swallowed the next click; now clicks the close button. This
+is the case for e2e that API tests cannot make: all 21 targeted API tests passed throughout.
+
+### CI CAUGHT TWO DEFECTS THE LOCAL RUN MISSED — correction of record
+
+`340de34` **failed CI** (run `31929138540`): Lint and Tests green, **E2E failed**, Build and Deploy
+**skipped** — so it never deployed and production stayed on `393e5d7`. I had reported "no product defect
+surfaced" from the local run. **That was wrong; two surfaced.** Both were hidden by the same thing: a
+long-lived local test database versus CI's fresh one.
+
+1. **SEED-FLAT-PROBABILITY (new, introduced by this round).** `packages/db/src/seed.ts:215` inserted all
+   seven pipeline stages **without `probability`**, so every row took the column default of 10. Migration
+   `0089`'s backfill only touches rows that exist when it runs; on a fresh database the table is empty at
+   migration time, so **the seed is what every new environment actually gets** — flat 10 across all seven
+   stages, the exact "looks configured but isn't" failure the migration's own comment warned about.
+   Locally, pre-existing rows had been backfilled correctly, so the spec passed. Fixed in the seed, with
+   the three sources (factory constant, `0089` backfill, seed) now explicitly noted as needing to stay in
+   step.
+2. **CONVERT-NO-DEAL-REFETCH (PRE-EXISTING, not caused by this round).** `convertLead.onSuccess`
+   refetched leads and accounts but **never deals**, so a converted lead's deal did not appear on the
+   Pipeline until something else triggered a refetch. Verified byte-identical at `393e5d7` via
+   `git show`, so this round did not cause it — leftover deals in the local DB had been satisfying the
+   spec's `.first()` assertion all along. Now refetches contacts and deals too.
+
+**Standing lessons (added to `CLAUDE.md`):** when a migration backfills, grep the seeds for inserts into
+the same table in the same change; reproduce CI-only e2e failures against a **reset** database before
+calling them a flake; and a CI E2E failure is *more* trustworthy than a local pass, because CI runs with
+retries — a genuinely broken spec fails three attempts there, while the known `rbac` hydration failures
+clear on retry.
+
+Re-verified on a **reset** database after both fixes: build 11/11 · **213 files / 1886 tests** ·
+`lint:cold` 9/9 forced · playwright **118 passed / 2 failed** (known `rbac:105`/`:115` only; the roaming
+flake did not appear) · `crm-pipeline` + `crm-lead-lifecycle` **4/4**.
+
+### Recorded, NOT fixed (each its own round)
+
+- The **Dashboard "Deals Requiring Attention" widget** — same phantom-field class, and worse: its
+  `closeDate` has **no fallback**, so `daysToClose` is always null and the cell renders `nulld`.
+- The **Analytics "Deals by Source"** filter, reading a field that has never existed.
+- **`interface Deal` (`page.tsx:60-78`)** — a mock-data shape from before the API existed; `DEALS_LIVE` is
+  `any[]`, so it type-checks nothing and misleads every reader. **This is the root cause of the
+  phantom-field class on this page.**
+- The **truncated UUID** on the deal detail subtitle, and **`Lead #`** (`crm_leads` has no `number`
+  column, so the truncated id is the only path, not a fallback) — Sweep 1.
+- The **Move popover closes only via its X** — no Escape handler, no backdrop click, unlike the
+  stage-config modal beside it. Pre-existing; surfaced by the e2e failure above.
+- **`lostReason` on historical closed_lost rows stays empty.** No backfill: the guard is on the
+  transition, and inventing reasons for closed deals would be fabrication.
+
+---
+
 ## CRM ROUND 11 — quote line-item editor + the deprecated-mutation sweep — `393e5d7` (2026-08-16; NO migration)
 
 _Driven by `docs/audits/form-list-schema-parity_2026-08-16.md`. CRM only. Gate before push: build 11/11;

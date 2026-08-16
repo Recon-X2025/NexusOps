@@ -99,9 +99,12 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
   The leave/exit run `0083`–`0085`: `0083_wooden_doctor_spectrum` adds no table (leave-policy columns);
   `0084_bright_roland_deschain` adds the **`leave_exit_rules`** + **`leave_state_baselines`** tables (RLS-walled,
   +2 — took base tables 240→242); `0085_cloudy_jack_murdock` adds no table.
-  **Do not trust a head number quoted here — read it from `packages/db/drizzle/meta/_journal.json` (as of
-  2026-08-15 it was `0087` (`0086` identifier uniqueness, `0087` payroll approval chain length)). A hardcoded "live head is X" is exactly the per-commit state
-  that does not belong in this file.**
+  The CRM run `0086`–`0089` adds no table: `0086` identifier uniqueness (nine unique indexes), `0087`
+  payroll approval-chain length, `0088_concerned_guardsmen` lead BANT columns + `crm_activities.leadId`,
+  `0089_furry_tattoo` `crm_pipeline_stages.probability` (**additive column + a hand-written per-key
+  backfill** — see the backfill convention below).
+  **Do not trust a head number quoted here — read it from `packages/db/drizzle/meta/_journal.json`. A
+  hardcoded "live head is X" is exactly the per-commit state that does not belong in this file.**
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -248,6 +251,58 @@ These are conventions, not per-commit state. They were established by code audit
   (`accounts.list` openOpps/totalRevenue, `leads.list` lastActivityAt). **Do not delete the deprecated
   procedures** — other callers may exist. Before adding a field to any form, check which procedure the
   caller targets.
+- **A guard that exists on a canonical procedure must exist on its deprecated twin, from ONE shared
+  helper.** `crm/index.ts` keeps flat copies of procedures whose bodies were copy-pasted, so a rule added
+  to only one side leaves the other as an open hole — and the two then drift silently. Extract the rule
+  (`assertDealCloseTransition`, `assertActivityHasAssociation`, `assertQuoteHasValue`) and call it from
+  both. The same applies to any picklist or vocabulary a rule depends on: put it in one shared module
+  rather than a copy per screen (`apps/web/src/lib/crm-lost-reasons.ts` is the pattern).
+
+- **Tightening an input can break existing callers, including tests and any external API client.**
+  `activities.create` accepted an activity attached to nothing; `movePipeline` accepted closed_lost with
+  no reason. Adding the requirement is correct, but it turns previously-valid calls into 400s. Before
+  tightening: grep the test suite for callers, and say plainly in the commit that it is a contract
+  change, not a UI change. **A test that fails afterwards is usually an outdated SETUP call, not a
+  broken assertion** — establish which before editing either (see the TESTS-ENCODE-DEFECTS rule).
+
+- **Validate the TRANSITION, not the stored row.** The closed-won guard (value + expected close) and the
+  lost-reason requirement fire only inside `movePipeline`, so rows written before they existed are never
+  re-validated and nothing is rewritten. This is how a new rule ships without a backfill and without
+  breaking historical data. A row only has to satisfy the rule if it is moved again.
+
+- **CRM deal stage config lives on `crm_pipeline_stages`** — label, colour, rank, active AND the stage's
+  default close probability, per tenant, layered over the fixed `deal_stage` enum. Do not create a second
+  config home for anything stage-shaped. The probability is a **default the New Deal form pre-fills and
+  the rep can override**, never a lock: `movePipeline` must NOT rewrite `crm_deals.probability` on a
+  stage change, because that would move the forecast underneath the rep without them touching anything
+  (`weightedValue` = value × probability then stays correct, since neither input changed). Factory
+  defaults in `DEFAULT_PIPELINE_STAGES` (`routers/crm/deals.ts`) and the backfill in migration `0089`
+  MUST stay in step; a test pins them together.
+
+- **A backfill is only half the job — the SEED is what every fresh database gets.** A migration backfill
+  touches rows that exist *when it runs*; on a new database the table is empty at migration time, so
+  `packages/db/src/seed.ts` is the real source of initial values. `0089` backfilled
+  `crm_pipeline_stages.probability` correctly for existing tenants and the seed still inserted rows
+  without it, leaving every fresh environment flat at 10. **When a migration backfills, grep the seeds for
+  inserts into the same table in the same change.**
+- **A long-lived local test DB masks seed and missing-refetch defects; CI's fresh DB does not.** Both
+  defects above passed locally and failed in CI: leftover rows satisfied `.first()`-style assertions that
+  the code under test should have produced itself. **Reproduce e2e failures against a RESET database
+  (`pnpm docker:test:reset`) before concluding a CI-only failure is a flake or an environment quirk.**
+  Related: CI's Playwright runs with retries, so a genuinely broken spec fails three attempts there while
+  the known `rbac` hydration failures clear on retry — a CI E2E failure is therefore *more* trustworthy
+  than a local one, not less.
+- **A mutation must refetch every list its procedure writes.** `crm.leads.convert` creates an account, a
+  contact AND a deal in one transaction; the caller refetched only leads and accounts, so the new deal did
+  not appear on the Pipeline. Check what the procedure actually writes, not what the screen is called.
+
+- **A migration adding a column with per-row-appropriate values needs a hand-written backfill.** Drizzle
+  generates a single `ADD COLUMN … DEFAULT x`, which fills every existing row with the same value —
+  for `crm_pipeline_stages.probability` that would have left every tenant flat at 10 across all seven
+  stages, which is *worse* than no default because it looks configured. Edit the generated `.sql` to add
+  the per-key `UPDATE`s (the snapshot stays valid; `pnpm check:migrations` still passes). Same shape as
+  `0089_furry_tattoo.sql`.
+
 - **`trpc-procedure-rbac.generated.ts` does not cover nested sub-routers imported from other files.**
   Its generator walks router files and does not follow `crm/index.ts`'s imported sub-routers, so **no
   `crm.<sub>.<proc>` path is in the map at all**. A `mergeTrpcQueryOpts` key with no rule falls back to

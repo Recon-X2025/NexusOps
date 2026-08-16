@@ -212,14 +212,21 @@ export async function seed() {
   console.log(`✅ Chart of accounts: ${coaCodeToId.size}`);
 
   // ── CRM Pipeline Stages ──────────────────────────────────────────────────────
+  // `probability` MUST be set here. Migration 0089 added the column with a default
+  // of 10 and backfilled the real per-stage values — but a backfill only touches
+  // rows that exist when it runs. On a FRESH database the table is empty at
+  // migration time, so these inserts are what every new environment actually gets:
+  // omitting probability leaves all seven stages at a flat 10, which is worse than
+  // no default because it looks configured. Keep in step with
+  // DEFAULT_PIPELINE_STAGES (apps/api/src/routers/crm/deals.ts) and the 0089 backfill.
   await db.insert(crmPipelineStages).values([
-    { orgId, key: "prospect" as const,      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true },
-    { orgId, key: "qualification" as const, label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true },
-    { orgId, key: "proposal" as const,      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true },
-    { orgId, key: "negotiation" as const,   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true },
-    { orgId, key: "verbal_commit" as const, label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true },
-    { orgId, key: "closed_won" as const,    label: "Closed Won",    color: "text-green-700 bg-green-100",     rank: 5, active: false },
-    { orgId, key: "closed_lost" as const,   label: "Closed Lost",   color: "text-red-700 bg-red-100",         rank: 6, active: false },
+    { orgId, key: "prospect" as const,      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true,  probability: 10 },
+    { orgId, key: "qualification" as const, label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true,  probability: 25 },
+    { orgId, key: "proposal" as const,      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true,  probability: 50 },
+    { orgId, key: "negotiation" as const,   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true,  probability: 70 },
+    { orgId, key: "verbal_commit" as const, label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true,  probability: 90 },
+    { orgId, key: "closed_won" as const,    label: "Closed Won",    color: "text-green-700 bg-green-100",     rank: 5, active: false, probability: 100 },
+    { orgId, key: "closed_lost" as const,   label: "Closed Lost",   color: "text-red-700 bg-red-100",         rank: 6, active: false, probability: 0 },
   ]).onConflictDoNothing();
   console.log(`✅ CRM pipeline stages: 7`);
 
