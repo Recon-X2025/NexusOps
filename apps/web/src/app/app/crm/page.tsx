@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import {
@@ -14,6 +14,7 @@ import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
+import { GSTIN_STATE_CODES } from "@coheronconnect/payroll-math";
 
 const LEAD_IMPORT_FIELDS: ImportField[] = [
   { key: "firstName", label: "First Name", required: true },
@@ -148,6 +149,73 @@ const LEAD_NEXT_STEP: Record<string, { to: string; label: string; hint: string }
   disqualified: [],
 };
 
+// ── Quote line-item editor model ────────────────────────────────────────────
+/** GST rates the engine accepts (`quote-tax.ts` → `VALID_GST_RATES`). */
+const QUOTE_GST_RATES = [0, 5, 12, 18, 28] as const;
+
+/**
+ * A line as the editor holds it. Every money/number field is a STRING because
+ * these are bound to text inputs: coercing on each keystroke turns "12." into
+ * NaN and eats the decimal point. Coercion happens once, in `lineTotal`.
+ */
+interface QuoteLineDraft {
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  discountPct: string;
+  hsnCode: string;
+  gstRate: string;
+}
+
+function blankQuoteLine(): QuoteLineDraft {
+  return { description: "", quantity: "1", unitPrice: "", discountPct: "0", hsnCode: "", gstRate: "18" };
+}
+
+/** Line total = qty × unit price, less this line's own discount. Rounded to paise. */
+function lineTotal(l: QuoteLineDraft): number {
+  const qty = Number(l.quantity);
+  const price = Number(l.unitPrice);
+  const disc = Number(l.discountPct);
+  if (!Number.isFinite(qty) || !Number.isFinite(price)) return 0;
+  const pct = Number.isFinite(disc) ? Math.min(100, Math.max(0, disc)) : 0;
+  return Math.round(qty * price * (1 - pct / 100) * 100) / 100;
+}
+
+/** Draft → the wire shape `crm.deals.quotes.*` accepts. */
+function toQuoteApiLine(l: QuoteLineDraft) {
+  return {
+    description: l.description.trim() || "Line item",
+    quantity: Number(l.quantity) || 0,
+    unitPrice: String(Number(l.unitPrice) || 0),
+    total: String(lineTotal(l)),
+    hsnCode: l.hsnCode.trim() || undefined,
+    gstRate: Number(l.gstRate),
+    discountPct: Number(l.discountPct) || 0,
+  };
+}
+
+const inr = (v: unknown) => `₹${Number(v ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * One line of the quote totals panel. `data-value` carries the RAW number so a
+ * test can assert the arithmetic without being coupled to rupee formatting
+ * (there is no shared money formatter yet — recorded in the parity audit).
+ */
+function Row({ label, value, testid, bold }: { label: string; value: unknown; testid: string; bold?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between px-3 py-1.5 text-[12px] ${bold ? "font-bold text-foreground" : "text-muted-foreground"}`}>
+      <span>{label}</span>
+      <span data-testid={testid} data-value={Number(value ?? 0)} className={`font-mono ${bold ? "text-[14px]" : ""}`}>{inr(value)}</span>
+    </div>
+  );
+}
+
+/** GST state options for the account form — the IRP vocabulary, not INDIAN_STATES. */
+const GST_STATE_OPTIONS: [string, string][] = Object.entries(GSTIN_STATE_CODES)
+  .filter(([, name]) => !/Other Territory|Centre Jurisdiction/.test(name))
+  .sort((a, b) => a[1].localeCompare(b[1]));
+const GST_STATE_NAME: Record<string, string> = GSTIN_STATE_CODES;
+
 interface Lead {
   id: string;
   number: string;
@@ -255,14 +323,19 @@ const ACTIVITY_TYPE_CFG: Record<ActivityType, { color: string; icon: string }> =
   task: { color: "text-muted-foreground bg-muted", icon: "✓" },
 };
 
+/**
+ * Keys are exactly `quote_status`: draft | sent | accepted | rejected | expired.
+ * "viewed" and "declined" were offered by the status picker and do not exist in
+ * the enum — picking either produced a zod error toast and no change.
+ */
 const QUOTE_STATUS_CFG: Record<string, string> = {
   draft: "text-muted-foreground bg-muted",
   sent: "text-blue-700 bg-blue-100",
-  viewed: "text-purple-700 bg-purple-100",
   accepted: "text-green-700 bg-green-100",
-  declined: "text-red-700 bg-red-100",
+  rejected: "text-red-700 bg-red-100",
   expired: "text-muted-foreground/70 bg-muted/30",
 };
+const QUOTE_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"] as const;
 
 const TIER_CFG: Record<string, string> = {
   enterprise: "text-purple-700 bg-purple-100",
@@ -270,13 +343,9 @@ const TIER_CFG: Record<string, string> = {
   smb: "text-muted-foreground bg-muted",
 };
 
-const SENIORITY_CFG: Record<string, string> = {
-  c_level: "text-red-700 bg-red-100",
-  vp: "text-orange-700 bg-orange-100",
-  director: "text-yellow-700 bg-yellow-100",
-  manager: "text-blue-700 bg-blue-100",
-  individual: "text-muted-foreground bg-muted",
-};
+/* SENIORITY_CFG deleted with the Contacts Seniority column: `crm_contacts.seniority`
+   is written by nothing except the analytics seed, so the badge was always "—".
+   (Its "individual" key never matched the enum's `individual_contributor` either.) */
 
 const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-yellow-600" : "text-red-600";
 
@@ -312,9 +381,12 @@ export default function CRMPage() {
   const [showStageConfig, setShowStageConfig] = useState(false);
   const [stageDraft, setStageDraft] = useState<Array<{ key: string; label: string; color: string; rank: number; active: boolean }>>([]);
   const [showNewAccount, setShowNewAccount] = useState(false);
-  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "" });
+  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", stateCode: "", gstin: "" });
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
-  const [editAccountForm, setEditAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "" });
+  // stateCode/gstin are editable here too: every account created BEFORE this round
+  // has no state, so the Add-form fix alone would leave existing customers billed
+  // as intra-state for ever with no way to correct them.
+  const [editAccountForm, setEditAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", stateCode: "", gstin: "" });
   const [showArchivedAccounts, setShowArchivedAccounts] = useState(false);
   const [showArchivedContacts, setShowArchivedContacts] = useState(false);
   const [showNewContact, setShowNewContact] = useState(false);
@@ -323,13 +395,34 @@ export default function CRMPage() {
   const [editContactForm, setEditContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" });
   const [showArchivedLeads, setShowArchivedLeads] = useState(false);
   const [showNewLead, setShowNewLead] = useState(false);
-  const [leadForm, setLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string });
+  /**
+   * The nine qualification fields lived on the EDIT form only, so a rep captured a
+   * lead and then had to reopen it to qualify. They are here now — and every one
+   * is OPTIONAL. On first contact you rarely know budget or timeline, and a
+   * capture form that demands them gets abandoned mid-call.
+   */
+  const [leadForm, setLeadForm] = useState({
+    firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string,
+    budgetBand: "unknown", budgetNote: "", authority: "unknown", need: "", timeline: "unknown",
+    estimatedValue: "", expectedClose: "", nextAction: "", nextActionDate: "",
+  });
+  const [showLeadQualification, setShowLeadQualification] = useState(false);
   const [importKind, setImportKind] = useState<null | "leads" | "contacts" | "deals">(null);
   const importLeads = trpc.ingest.importLeads.useMutation();
   const importContacts = trpc.ingest.importContacts.useMutation();
   const importDeals = trpc.ingest.importDeals.useMutation();
   const [showNewQuote, setShowNewQuote] = useState(false);
-  const [newQuoteDesc, setNewQuoteDesc] = useState("");
+  /**
+   * The New Quote dialog used to be a single free-text box that sent ONE hardcoded
+   * line at quantity 1 / unit price 0, so every quote the product could produce
+   * totalled ₹0 and carried ₹0 of GST. The engine behind it was always capable of
+   * the real thing (`buildQuoteTaxColumns` → `computeGST`); nothing reached it.
+   *
+   * Money is kept as strings here so a half-typed "12." does not become NaN mid
+   * keystroke. `lineTotal()` derives the line total — it is never typed.
+   */
+  const [quoteForm, setQuoteForm] = useState({ dealId: "", discountPct: "0", validUntil: "" });
+  const [quoteLines, setQuoteLines] = useState<QuoteLineDraft[]>([blankQuoteLine()]);
   const [showNewActivity, setShowNewActivity] = useState(false);
   const [activityForm, setActivityForm] = useState({
     type: "call", subject: "", description: "", dealId: "", accountId: "", contactId: "",
@@ -348,22 +441,54 @@ export default function CRMPage() {
 
 
   // ── tRPC data ──────────────────────────────────────────────────────────────
+  // NOTE on the mergeTrpcQueryOpts key: it is an RBAC-RULE LOOKUP, not the
+  // procedure being called. `trpc-procedure-rbac.generated.ts` is produced by
+  // walking the router files, and its generator does not follow sub-routers
+  // imported from OTHER files — so no nested `crm.*.*` path is in the map at all
+  // (`crm.deals.stages.list` has been missing since it shipped). Passing the flat
+  // path keeps the exact `accounts:read` gate these queries had before they were
+  // repointed; the canonical path would silently fall back to "any logged-in
+  // user". Recorded as RBAC-MAP-DRIFT — fixing the generator is its own change.
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: dealsData, refetch: refetchDeals } = trpc.crm.listDeals.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listDeals", undefined));
+  const { data: dealsData, refetch: refetchDeals } = trpc.crm.deals.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listDeals", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.listAccounts.useQuery({ limit: 200, showArchived: showArchivedAccounts }, mergeTrpcQueryOpts("crm.listAccounts", undefined));
+  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.accounts.list.useQuery({ limit: 200, showArchived: showArchivedAccounts }, mergeTrpcQueryOpts("crm.listAccounts", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: contactsData, refetch: refetchContacts } = trpc.crm.listContacts.useQuery({ limit: 200, showArchived: showArchivedContacts }, mergeTrpcQueryOpts("crm.listContacts", undefined));
+  const { data: contactsData, refetch: refetchContacts } = trpc.crm.contacts.list.useQuery({ limit: 200, showArchived: showArchivedContacts }, mergeTrpcQueryOpts("crm.listContacts", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: leadsData, refetch: refetchLeads } = trpc.crm.listLeads.useQuery({ limit: 200, showArchived: showArchivedLeads }, mergeTrpcQueryOpts("crm.listLeads", undefined));
+  const { data: leadsData, refetch: refetchLeads } = trpc.crm.leads.list.useQuery({ limit: 200, showArchived: showArchivedLeads }, mergeTrpcQueryOpts("crm.listLeads", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.listActivities.useQuery({ limit: 200, showArchived: showArchivedActivities }, mergeTrpcQueryOpts("crm.listActivities", undefined));
+  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.activities.list.useQuery({ limit: 200, showArchived: showArchivedActivities }, mergeTrpcQueryOpts("crm.listActivities", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: quotesData, refetch: refetchQuotes } = trpc.crm.listQuotes.useQuery({}, mergeTrpcQueryOpts("crm.listQuotes", undefined));
+  const { data: quotesData, refetch: refetchQuotes } = trpc.crm.deals.quotes.list.useQuery({}, mergeTrpcQueryOpts("crm.listQuotes", undefined));
+
+  // ── Live quote totals: computed on the SERVER, never in the browser ────────
+  // The intra- vs inter-state split depends on two DB reads the browser cannot
+  // do — the org's GSTIN state and the buyer account's state — and a second
+  // client-side implementation of the GST rules would drift from the one that
+  // actually writes the quote. So the editor asks `previewTax` and renders what
+  // it is told. Debounced so typing a unit price is not one request per key.
+  const quotePreviewInput = useMemo(() => ({
+    dealId: quoteForm.dealId || undefined,
+    items: quoteLines.map(toQuoteApiLine),
+    discountPct: quoteForm.discountPct || "0",
+  }), [quoteForm.dealId, quoteForm.discountPct, quoteLines]);
+  const [debouncedQuoteInput, setDebouncedQuoteInput] = useState(quotePreviewInput);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuoteInput(quotePreviewInput), 250);
+    return () => clearTimeout(t);
+  }, [quotePreviewInput]);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const quotePreviewQ = trpc.crm.deals.quotes.previewTax.useQuery(
+    debouncedQuoteInput,
+    mergeTrpcQueryOpts("crm.listQuotes", { enabled: showNewQuote, refetchOnWindowFocus: false }),
+  );
+  const quotePreview = quotePreviewQ.data;
 
   // Mutations
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const convertLead = trpc.crm.convertLead.useMutation({
+  const convertLead = trpc.crm.leads.convert.useMutation({
     onSuccess: (res: any) => { toast.success(`Lead converted to account: ${res?.account?.name ?? ""}`); refetchLeads(); refetchAccounts(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
@@ -376,11 +501,17 @@ export default function CRMPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to update lead"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const createQuoteMutation = trpc.crm.createQuote.useMutation({
-    onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} created`); refetchQuotes(); setShowNewQuote(false); setNewQuoteDesc(""); },
+  const createQuoteMutation = trpc.crm.deals.quotes.create.useMutation({
+    onSuccess: (q: any) => {
+      toast.success(`Quote ${q?.quoteNumber ?? ""} created`);
+      refetchQuotes();
+      setShowNewQuote(false);
+      setQuoteForm({ dealId: "", discountPct: "0", validUntil: "" });
+      setQuoteLines([blankQuoteLine()]);
+    },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create quote"),
   });
-  const createActivity = trpc.crm.createActivity.useMutation({
+  const createActivity = trpc.crm.activities.create.useMutation({
     onSuccess: () => {
       toast.success("Activity logged");
       refetchActivities();
@@ -390,7 +521,7 @@ export default function CRMPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const updateActivity = trpc.crm.updateActivity.useMutation({
+  const updateActivity = trpc.crm.activities.update.useMutation({
     onSuccess: () => {
       toast.success("Activity updated");
       refetchActivities();
@@ -399,12 +530,12 @@ export default function CRMPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const movePipeline = trpc.crm.movePipeline.useMutation({
+  const movePipeline = trpc.crm.deals.movePipeline.useMutation({
     onSuccess: () => { toast.success("Deal stage updated"); refetchDeals(); setMovingDeal(null); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  const dealThresholdsQ = trpc.crm.dealApprovalThresholds.get.useQuery(
+  const dealThresholdsQ = trpc.crm.deals.approvalThresholds.get.useQuery(
     undefined,
     mergeTrpcQueryOpts("crm.dealApprovalThresholds.get", { refetchOnWindowFocus: false }),
   );
@@ -452,7 +583,7 @@ export default function CRMPage() {
     setShowStageConfig(true);
   }
 
-  const approveDealWon = trpc.crm.approveDealWon.useMutation({
+  const approveDealWon = trpc.crm.deals.approveDealWon.useMutation({
     onSuccess: () => {
       toast.success("Deal close approval recorded");
       refetchDeals();
@@ -461,7 +592,7 @@ export default function CRMPage() {
   });
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const createDeal = trpc.crm.createDeal.useMutation({
+  const createDeal = trpc.crm.deals.create.useMutation({
     onSuccess: () => {
       toast.success("Deal created");
       refetchDeals();
@@ -472,12 +603,15 @@ export default function CRMPage() {
   });
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const createAccountMutation = trpc.crm.createAccount.useMutation({
-    onSuccess: () => { toast.success("Account created"); refetchAccounts(); setShowNewAccount(false); setAccountForm({ name: "", industry: "", tier: "smb", website: "" }); },
+  const createAccountMutation = // Canonical crm.accounts.create, NOT the deprecated crm.createAccount — the
+  // deprecated input has no stateCode/gstin, so zod would strip both silently
+  // while the toast said success. Exactly the Round 9b defect.
+  trpc.crm.accounts.create.useMutation({
+    onSuccess: () => { toast.success("Account created"); refetchAccounts(); setShowNewAccount(false); setAccountForm({ name: "", industry: "", tier: "smb", website: "", stateCode: "", gstin: "" }); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create account"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const updateAccountMutation = trpc.crm.updateAccount.useMutation({
+  const updateAccountMutation = trpc.crm.accounts.update.useMutation({
     onSuccess: () => { toast.success("Account updated"); refetchAccounts(); setEditingAccount(null); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to update account"),
   });
@@ -506,27 +640,32 @@ export default function CRMPage() {
     updateLeadMutation.mutate({ id, archived: false });
   };
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const createContactMutation = trpc.crm.createContact.useMutation({
+  const createContactMutation = trpc.crm.contacts.create.useMutation({
     onSuccess: () => { toast.success("Contact created"); refetchContacts(); setShowNewContact(false); setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" }); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create contact"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const updateContactMutation = trpc.crm.updateContact.useMutation({
+  const updateContactMutation = trpc.crm.contacts.update.useMutation({
     onSuccess: () => { toast.success("Contact updated"); refetchContacts(); setEditingContact(null); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to update contact"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const updateQuote = trpc.crm.updateQuote.useMutation({
+  const updateQuote = trpc.crm.deals.quotes.update.useMutation({
     onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} updated`); refetchQuotes(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const createLeadMutation = trpc.crm.createLead.useMutation({
+  const createLeadMutation = trpc.crm.leads.create.useMutation({
     onSuccess: () => {
       toast.success("Lead created");
       refetchLeads();
       setShowNewLead(false);
-      setLeadForm({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" });
+      setShowLeadQualification(false);
+      setLeadForm({
+        firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website",
+        budgetBand: "unknown", budgetNote: "", authority: "unknown", need: "", timeline: "unknown",
+        estimatedValue: "", expectedClose: "", nextAction: "", nextActionDate: "",
+      });
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create lead"),
   });
@@ -537,6 +676,12 @@ export default function CRMPage() {
   const DEALS_LIVE = ((dealsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ACCOUNTS_LIVE = ((accountsData as any[]) ?? []) as any[];
+  // Declared here rather than further down: the contacts and quotes mappings below
+  // both need to turn an accountId into a name, and both run before the old
+  // `accountNameMap` was defined.
+  const accountNameMap = new Map<string, string>(ACCOUNTS_LIVE.map((a: any) => [a.id, a.name]));
+  const getDealAccountNameById = (accountId: string | null | undefined) =>
+    (accountId ? accountNameMap.get(accountId) : undefined) ?? null;
 
   // Build live leaderboard from closed_won deals
   const leaderboardMap = new Map<string, { ownerId: string; won: number; deals: number }>();
@@ -547,7 +692,13 @@ export default function CRMPage() {
   });
   const leaderboard = Array.from(leaderboardMap.values()).sort((a, b) => b.won - a.won).slice(0, 5);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const CONTACTS_LIVE = ((contactsData as any[]) ?? []) as any[];
+  // `account` was read straight off the row and is not a column — crm_contacts
+  // carries `accountId`. The name is resolved from the accounts this page has
+  // already loaded, the same way the deals list does it.
+  const CONTACTS_LIVE = (((contactsData as any[]) ?? []) as any[]).map((c: any) => ({
+    ...c,
+    accountName: getDealAccountNameById(c.accountId),
+  }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const LEADS_LIVE = (((leadsData as any[]) ?? []) as any[]).map((l: any) => ({ ...l, number: l.number || `LD-${l.id?.substring(0, 6).toUpperCase()}` }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -560,7 +711,19 @@ export default function CRMPage() {
     completedDate: a.completedAt ? new Date(a.completedAt).toLocaleString() : "—",
   }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const QUOTES_LIVE = ((quotesData as any[]) ?? []) as any[];
+  // The quote card read q.number / q.name / q.account / q.owner / q.created /
+  // q.currency — none of which is a column on crm_quotes, so all six rendered
+  // blank. What IS real: quoteNumber, createdAt, validUntil, the tax columns, and
+  // dealId, through which the deal title and account name are resolvable from
+  // data this page has already loaded. crm_quotes has no owner column at all.
+  const QUOTES_LIVE = (((quotesData as any[]) ?? []) as any[]).map((q: any) => {
+    const deal = DEALS_LIVE.find((d: any) => d.id === q.dealId);
+    return {
+      ...q,
+      dealTitle: deal?.title ?? null,
+      accountName: deal ? getDealAccountNameById(deal.accountId) : null,
+    };
+  });
 
   const activeDeals = DEALS_LIVE.filter((d: any) => !["closed_won", "closed_lost"].includes(d.stage ?? ""));
   const wonDeals = DEALS_LIVE.filter((d: any) => d.stage === "closed_won");
@@ -571,8 +734,9 @@ export default function CRMPage() {
   const closedCount = DEALS_LIVE.filter((d: any) => ["closed_won", "closed_lost"].includes(d.stage ?? "")).length;
   const winRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : 0;
 
-  // Look up account name from loaded accounts (avoids needing a join in listDeals)
-  const accountNameMap = new Map<string, string>(ACCOUNTS_LIVE.map((a: any) => [a.id, a.name]));
+  // Look up account name from loaded accounts (avoids needing a join in deals.list).
+  // `accountNameMap` is declared with ACCOUNTS_LIVE above — the contacts and quotes
+  // mappings need it earlier than this.
   const contactNameMap = new Map<string, string>(CONTACTS_LIVE.map((c: any) => [c.id, `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim()]));
 
   const getDealAccountName = (deal: any) =>
@@ -737,6 +901,12 @@ export default function CRMPage() {
                   expectedClose: dealForm.expectedClose || undefined,
                   accountId: dealForm.accountId || undefined,
                   contactId: dealForm.contactId || undefined,
+                  // Stage is a REQUIRED field on this form and was never sent —
+                  // every deal landed on the `prospect` column default regardless
+                  // of what the rep picked. `source` is still collected and still
+                  // goes nowhere: crm_deals has no source column (recorded, not
+                  // fixed here — the Pipeline screen is outside this round).
+                  stage: (dealForm.stage || undefined) as any,
                 })}
                 className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
               >
@@ -1157,16 +1327,13 @@ export default function CRMPage() {
                   <th className="w-4" />
                   <th>Account Name</th>
                   <th>Industry</th>
-                  <th>Type</th>
                   <th>Tier</th>
-                  <th>Country</th>
-                  <th>Employees</th>
+                  <th>Website</th>
+                  <th>State</th>
                   <th>Annual Revenue</th>
                   <th className="text-center">Open Opps</th>
                   <th>Total Revenue</th>
                   <th>Health</th>
-                  <th>Owner</th>
-                  <th>Last Contact</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -1178,24 +1345,33 @@ export default function CRMPage() {
                       <Link href={`/app/crm/accounts/${a.id}`}>{a.name}</Link>
                     </td>
                     <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{a.industry}</span></td>
-                    <td><span className={`status-badge capitalize ${a.type === "customer" ? "text-green-700 bg-green-100" : a.type === "prospect" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.type}</span></td>
+                    {/* Type, Country, Employees, Owner and Last Contact deleted — none was
+                        a column on crm_accounts and nothing computed them, so every one
+                        rendered blank. Open Opps and Total Revenue are KEPT and are now real
+                        aggregates over crm_deals (accounts.ts). Website is a real stored
+                        column that was simply never shown. */}
                     <td><span className={`status-badge capitalize ${TIER_CFG[a.tier]}`}>{a.tier.replace("_", " ")}</span></td>
-                    <td className="text-muted-foreground">{a.country}</td>
-                    <td className="font-mono text-[11px] text-muted-foreground">{a.employees != null ? a.employees.toLocaleString() : "—"}</td>
+                    <td className="text-[11px] text-muted-foreground">
+                      {a.website ? <a href={a.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{a.website.replace(/^https?:\/\//, "")}</a> : "—"}
+                    </td>
+                    <td className="text-[11px] text-muted-foreground" title={a.stateCode ? undefined : "No place of supply — quotes for this account assume intra-state GST"}>
+                      {a.stateCode ? (GST_STATE_NAME[a.stateCode] ?? a.stateCode) : <span className="text-amber-600">Not set</span>}
+                    </td>
                     <td className="font-mono text-[11px] text-muted-foreground">₹{((a.annualRevenue ?? 0) / 10000000).toFixed(0)}Cr</td>
-                    <td className="text-center"><span className={`font-bold ${a.openOpps > 0 ? "text-primary" : "text-slate-300"}`}>{a.openOpps}</span></td>
-                    <td className="font-mono text-[11px] font-bold text-foreground">{a.totalRevenue > 0 ? `₹${(a.totalRevenue / 1000).toFixed(0)}K` : "—"}</td>
+                    {/* Both come back from the grouped crm_deals aggregate on
+                        crm.accounts.list. totalRevenue is a Postgres numeric, so it
+                        arrives as a STRING — coerce before comparing or dividing. */}
+                    <td className="text-center" data-testid="account-open-opps"><span className={`font-bold ${Number(a.openOpps ?? 0) > 0 ? "text-primary" : "text-slate-300"}`}>{Number(a.openOpps ?? 0)}</span></td>
+                    <td className="font-mono text-[11px] font-bold text-foreground" data-testid="account-total-revenue" data-value={Number(a.totalRevenue ?? 0)}>{Number(a.totalRevenue ?? 0) > 0 ? `₹${(Number(a.totalRevenue) / 1000).toFixed(0)}K` : "—"}</td>
                     <td>
                       <div className="flex items-center gap-1.5">
                         <div className={`w-6 h-1.5 rounded-full ${a.healthScore >= 80 ? "bg-green-500" : a.healthScore >= 60 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${a.healthScore * 0.4}px` }} />
                         <span className={`text-[11px] font-bold ${SCORE_COLOR(a.healthScore)}`}>{a.healthScore}</span>
                       </div>
                     </td>
-                    <td className="text-muted-foreground">{a.owner}</td>
-                    <td className="text-[11px] text-muted-foreground/70">{a.lastContact}</td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => { setEditingAccount(a); setEditAccountForm({ name: a.name ?? "", industry: a.industry ?? "", tier: a.tier ?? "smb", website: a.website ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
+                        <button onClick={() => { setEditingAccount(a); setEditAccountForm({ name: a.name ?? "", industry: a.industry ?? "", tier: a.tier ?? "smb", website: a.website ?? "", stateCode: a.stateCode ?? "", gstin: a.gstin ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
                         {a.archived ? (
                           <button onClick={() => handleUnarchiveAccount(a.id)} className="text-green-500 hover:text-green-600 px-1" title="Unarchive"><Repeat size={14} /></button>
                         ) : (
@@ -1237,24 +1413,26 @@ export default function CRMPage() {
             <table className="ent-table w-full">
               <thead>
                 <tr>
+                  {/* Deleted: Seniority, Department, Open Deals, Owner, Last Activity.
+                      `department`, `openDeals`, `owner` and `lastActivity` are not columns
+                      on crm_contacts and nothing computed them — five blank cells on every
+                      row. `seniority` IS a real column but the ONLY thing that writes it is
+                      `seed-smb-analytics.ts`; no product path sets it, so in a real tenant
+                      it is always "—". Account stays and is now resolved through the real
+                      `accountId` FK. */}
                   <th className="w-4" />
                   <th>Name</th>
                   <th>Title</th>
-                  <th>Seniority</th>
                   <th>Account</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th>Department</th>
-                  <th className="text-center">Open Deals</th>
-                  <th>Owner</th>
-                  <th>Last Activity</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {CONTACTS_LIVE.map((c) => (
                   <tr key={c.id} className={c.doNotContact ? "opacity-50" : ""}>
-                    <td className="p-0"><div className={`priority-bar ${c.seniority === "c_level" ? "bg-red-500" : c.seniority === "vp" ? "bg-orange-500" : "bg-blue-400"}`} /></td>
+                    <td className="p-0"><div className="priority-bar bg-blue-400" /></td>
                     <td>
                       <div className="flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
@@ -1265,20 +1443,9 @@ export default function CRMPage() {
                       </div>
                     </td>
                     <td className="text-muted-foreground">{c.title}</td>
-                    <td>
-                      <span
-                        className={`status-badge capitalize ${SENIORITY_CFG[c.seniority ?? ""] ?? "text-muted-foreground bg-muted"}`}
-                      >
-                        {c.seniority ? c.seniority.replace("_", " ") : "—"}
-                      </span>
-                    </td>
-                    <td className="text-primary hover:underline cursor-pointer">{c.account}</td>
+                    <td className="text-primary" data-testid="contact-account">{c.accountName ?? "—"}</td>
                     <td className="text-muted-foreground text-[11px] font-mono">{c.email}</td>
                     <td className="text-muted-foreground text-[11px]">{c.phone}</td>
-                    <td className="text-muted-foreground">{c.department}</td>
-                    <td className="text-center"><span className={`font-bold ${c.openDeals > 0 ? "text-primary" : "text-slate-300"}`}>{c.openDeals}</span></td>
-                    <td className="text-muted-foreground">{c.owner}</td>
-                    <td className="text-[11px] text-muted-foreground/70">{c.lastActivity}</td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => { setEditingContact(c); setEditContactForm({ firstName: c.firstName ?? "", lastName: c.lastName ?? "", email: c.email ?? "", phone: c.phone ?? "", title: c.title ?? "", accountId: c.accountId ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
@@ -1335,7 +1502,11 @@ export default function CRMPage() {
                   <th>Next Action</th>
                   <th className="text-center">Score</th>
                   <th>Status</th>
-                  <th>Owner</th>
+                  {/* Owner deleted: crm_leads has `ownerId` but nothing resolves it to a
+                      name and the list never joined users, so the cell was always blank —
+                      the same defect the Accounts tab had. Last Activity stays: it IS a
+                      real aggregate, but only on the CANONICAL crm.leads.list, which this
+                      screen was not calling until this round. */}
                   <th>Last Activity</th>
                   <th>Actions</th>
                 </tr>
@@ -1379,8 +1550,7 @@ export default function CRMPage() {
                         ))}
                       </div>
                     </td>
-                    <td className="text-muted-foreground">{l.owner}</td>
-                    <td className="text-[11px] text-muted-foreground/70">{l.lastActivityAt ? new Date(l.lastActivityAt).toLocaleDateString() : "—"}</td>
+                    <td className="text-[11px] text-muted-foreground/70" data-testid="lead-last-activity">{l.lastActivityAt ? new Date(l.lastActivityAt).toLocaleDateString() : "—"}</td>
                     <td>
                       <div className="flex gap-1.5">
                         {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
@@ -1515,17 +1685,23 @@ export default function CRMPage() {
                     onClick={() => setExpandedQuote(isExpanded ? null : q.id)}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-mono text-[11px] text-primary">{q.number}</span>
+                        <span className="font-mono text-[11px] text-primary" data-testid="quote-number">{q.quoteNumber}</span>
                         <span className={`status-badge capitalize ${QUOTE_STATUS_CFG[q.status]}`}>{q.status}</span>
-                        <span className="text-[11px] text-muted-foreground/70">Valid until: {q.validUntil}</span>
-                        {q.deal && <span className="font-mono text-[11px] text-primary">{q.deal}</span>}
+                        {q.validUntil && <span className="text-[11px] text-muted-foreground/70">Valid until: {new Date(q.validUntil).toLocaleDateString()}</span>}
+                        <span className={`status-badge text-[10px] ${q.isInterstate ? "text-indigo-700 bg-indigo-100" : "text-green-700 bg-green-100"}`}>
+                          {q.isInterstate ? "Inter-state · IGST" : "Intra-state · CGST+SGST"}
+                        </span>
                       </div>
-                      <p className="text-[13px] font-semibold text-foreground">{q.name}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Account: <strong>{q.account}</strong> · Owner: {q.owner} · Created: {q.created}</p>
+                      <p className="text-[13px] font-semibold text-foreground">{q.dealTitle ?? "Unlinked quote"}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Account: <strong>{q.accountName ?? "—"}</strong>
+                        {" · "}Place of supply: {GST_STATE_NAME[q.placeOfSupply] ?? q.placeOfSupply ?? "—"}
+                        {" · "}Created: {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "—"}
+                      </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[18px] font-bold text-foreground">₹{(q.total ?? 0).toLocaleString("en-IN")}</div>
-                      <div className="text-[11px] text-muted-foreground/70">{q.currency} · {q.lineItems.length} line items</div>
+                      <div className="text-[18px] font-bold text-foreground" data-testid="quote-card-total" data-value={Number(q.total ?? 0)}>{inr(q.total)}</div>
+                      <div className="text-[11px] text-muted-foreground/70">{q.lineItems.length} line items</div>
                     </div>
                   </div>
                   {isExpanded && (
@@ -1550,27 +1726,55 @@ export default function CRMPage() {
                               <td className="font-semibold text-foreground">{li.product}</td>
                               <td className="text-muted-foreground text-[11px]">{li.description}</td>
                               <td className="text-center font-mono">{li.qty}</td>
-                              <td className="font-mono text-[11px]">₹{(li.unitPrice ?? 0).toLocaleString("en-IN")}</td>
+                              <td className="font-mono text-[11px]">{inr(li.unitPrice)}</td>
                               <td className="text-center text-[11px]">{li.discount > 0 ? `${li.discount}%` : "—"}</td>
-                              <td className="font-mono font-bold text-foreground">₹{(li.total ?? 0).toLocaleString("en-IN")}</td>
+                              <td className="font-mono font-bold text-foreground">{inr(li.total)}</td>
                             </tr>
                           ))}
+                          {/* The stored tax columns, shown. The quote already carried a
+                              CGST/SGST/IGST split; the detail view showed none of it, so a
+                              rep could not see what the customer was being charged. */}
                           <tr className="bg-card">
                             <td colSpan={5} />
                             <td className="text-right text-[11px] text-muted-foreground font-semibold">Subtotal:</td>
-                            <td className="font-mono text-foreground/80">₹{(q.subtotal ?? 0).toLocaleString("en-IN")}</td>
+                            <td className="font-mono text-foreground/80">{inr(q.subtotal)}</td>
                           </tr>
-                          {q.discount > 0 && (
+                          {Number(q.discountPct ?? 0) > 0 && (
                             <tr className="bg-card">
                               <td colSpan={5} />
-                              <td className="text-right text-[11px] text-green-600 font-semibold">Discount:</td>
-                              <td className="font-mono text-green-600">-₹{(q.discount ?? 0).toLocaleString("en-IN")}</td>
+                              <td className="text-right text-[11px] text-green-600 font-semibold">Discount ({Number(q.discountPct)}%):</td>
+                              <td className="font-mono text-green-600">-{inr(Number(q.subtotal ?? 0) - Number(q.taxableValue ?? 0))}</td>
                             </tr>
+                          )}
+                          <tr className="bg-card">
+                            <td colSpan={5} />
+                            <td className="text-right text-[11px] text-muted-foreground font-semibold">Taxable value:</td>
+                            <td className="font-mono text-foreground/80">{inr(q.taxableValue)}</td>
+                          </tr>
+                          {q.isInterstate ? (
+                            <tr className="bg-card">
+                              <td colSpan={5} />
+                              <td className="text-right text-[11px] text-muted-foreground font-semibold">IGST:</td>
+                              <td className="font-mono text-foreground/80" data-testid="quote-detail-igst" data-value={Number(q.igstAmount ?? 0)}>{inr(q.igstAmount)}</td>
+                            </tr>
+                          ) : (
+                            <>
+                              <tr className="bg-card">
+                                <td colSpan={5} />
+                                <td className="text-right text-[11px] text-muted-foreground font-semibold">CGST:</td>
+                                <td className="font-mono text-foreground/80" data-testid="quote-detail-cgst" data-value={Number(q.cgstAmount ?? 0)}>{inr(q.cgstAmount)}</td>
+                              </tr>
+                              <tr className="bg-card">
+                                <td colSpan={5} />
+                                <td className="text-right text-[11px] text-muted-foreground font-semibold">SGST:</td>
+                                <td className="font-mono text-foreground/80" data-testid="quote-detail-sgst" data-value={Number(q.sgstAmount ?? 0)}>{inr(q.sgstAmount)}</td>
+                              </tr>
+                            </>
                           )}
                           <tr className="bg-card font-bold">
                             <td colSpan={5} />
                             <td className="text-right text-[12px] text-foreground font-bold">TOTAL:</td>
-                            <td className="font-mono text-[14px] font-black text-foreground">₹{(q.total ?? 0).toLocaleString("en-IN")}</td>
+                            <td className="font-mono text-[14px] font-black text-foreground" data-testid="quote-detail-total" data-value={Number(q.total ?? 0)}>{inr(q.total)}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1590,8 +1794,8 @@ export default function CRMPage() {
                         </button>
                         <button
                           onClick={() => {
-                            const newStatus = prompt(`Change quote status (current: ${q.status}):\ndraft / sent / viewed / accepted / declined / expired`);
-                            if (newStatus && ["draft", "sent", "viewed", "accepted", "declined", "expired"].includes(newStatus)) {
+                            const newStatus = prompt(`Change quote status (current: ${q.status}):\n${QUOTE_STATUSES.join(" / ")}`);
+                            if (newStatus && (QUOTE_STATUSES as readonly string[]).includes(newStatus)) {
                               updateQuote.mutate({ id: q.id, status: newStatus as any });
                             }
                           }}
@@ -1844,30 +2048,193 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* New Quote Modal */}
-      {showNewQuote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm mx-4">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+      {/* New Quote Modal — line-item editor with server-computed totals */}
+      {showNewQuote && (() => {
+        const grossTotal = quoteLines.reduce((s, l) => s + lineTotal(l), 0);
+        const canCreate = quoteLines.length > 0 && grossTotal > 0;
+        const setLine = (i: number, patch: Partial<QuoteLineDraft>) =>
+          setQuoteLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+        return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          {/* max-h + a scrolling body, with the footer pinned OUTSIDE it. A prior
+              round put fields in a dialog that had neither and pushed Save below the
+              fold: rendered, unclickable, unreachable for a whole deploy cycle. */}
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" data-testid="new-quote-dialog">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0">
               <h2 className="text-body-sm font-semibold">New Quote</h2>
               <button onClick={() => setShowNewQuote(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
-            <div className="p-5 space-y-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Description / Item</label>
-                <input
-                  value={newQuoteDesc}
-                  onChange={(e) => setNewQuoteDesc(e.target.value)}
-                  placeholder="e.g. CoheronConnect Enterprise License"
-                  className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none"
-                />
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {/* ── Which deal, and therefore which buyer ──────────────────── */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Deal</label>
+                  {/* The deal is how the quote reaches an account, and the account is
+                      how the tax engine learns the place of supply. Without it every
+                      quote defaults to the org's own state — intra-state CGST/SGST. */}
+                  <select data-testid="quote-deal" value={quoteForm.dealId}
+                    onChange={(e) => setQuoteForm(f => ({ ...f, dealId: e.target.value }))}
+                    className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card">
+                    <option value="">— No deal (place of supply unknown) —</option>
+                    {DEALS_LIVE.map((d: any) => (
+                      <option key={d.id} value={d.id}>{d.title} · {getDealAccountName(d)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Valid until</label>
+                  <input type="date" data-testid="quote-valid-until" value={quoteForm.validUntil}
+                    onChange={(e) => setQuoteForm(f => ({ ...f, validUntil: e.target.value }))}
+                    className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card" />
+                </div>
               </div>
+
+              {/* ── Place of supply, resolved server-side ───────────────────── */}
+              {/* Bd: nothing anywhere warned that an account had no state. A missing
+                  state is treated by the engine as a legitimate unknown and logs
+                  NOTHING, so the quote silently bills intra-state. Say it out loud. */}
+              {quotePreview && (
+                quotePreview.buyerStateMissing || quotePreview.buyerStateUnrecognised ? (
+                  <div data-testid="quote-pos-warning" className="border border-amber-300 bg-amber-50 text-amber-900 rounded px-3 py-2 text-[11px]">
+                    <strong>No place of supply for {quotePreview.accountName ?? "this account"}.</strong>{" "}
+                    {quotePreview.buyerStateUnrecognised
+                      ? <>Its state is recorded as “{quotePreview.buyerStateRaw}”, which is not a GST state. </>
+                      : <>The account has no state on file. </>}
+                    This quote will be taxed as an <strong>intra-state</strong> supply
+                    ({quotePreview.orgStateName ?? "your own state"}) — CGST + SGST. If the
+                    customer is in another state that is the wrong split. Set the state on
+                    the account first.
+                  </div>
+                ) : (
+                  <div data-testid="quote-pos" className="border border-border bg-muted/30 rounded px-3 py-2 text-[11px] text-muted-foreground">
+                    Place of supply:{" "}
+                    <strong className="text-foreground">{quotePreview.buyerStateName ?? quotePreview.orgStateName ?? "—"}</strong>
+                    {" · "}
+                    <span className={quotePreview.isInterstate ? "text-indigo-700 font-semibold" : "text-green-700 font-semibold"}>
+                      {quotePreview.isInterstate ? "Inter-state — IGST" : "Intra-state — CGST + SGST"}
+                    </span>
+                    {quotePreview.orgStateName && <> · supplying from {quotePreview.orgStateName}</>}
+                  </div>
+                )
+              )}
+
+              {/* ── Lines ───────────────────────────────────────────────────── */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase">Line items</label>
+                  <button data-testid="quote-add-line" onClick={() => setQuoteLines(ls => [...ls, blankQuoteLine()])}
+                    className="flex items-center gap-1 px-2 py-0.5 text-[11px] border border-border rounded hover:bg-accent">
+                    <Plus className="w-3 h-3" /> Add line
+                  </button>
+                </div>
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-[10px] uppercase text-muted-foreground">
+                      <th className="text-left font-semibold pb-1">Description</th>
+                      <th className="text-left font-semibold pb-1 w-20">HSN/SAC</th>
+                      <th className="text-right font-semibold pb-1 w-16">Qty</th>
+                      <th className="text-right font-semibold pb-1 w-24">Unit price</th>
+                      <th className="text-right font-semibold pb-1 w-16">Disc %</th>
+                      <th className="text-right font-semibold pb-1 w-20">GST %</th>
+                      <th className="text-right font-semibold pb-1 w-28">Line total</th>
+                      <th className="w-6" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quoteLines.map((l, i) => (
+                      <tr key={i} data-testid="quote-line">
+                        <td className="pr-1 py-0.5">
+                          <input data-testid="quote-line-description" value={l.description} placeholder="e.g. Enterprise licence, 25 seats"
+                            onChange={(e) => setLine(i, { description: e.target.value })}
+                            className="w-full border border-border rounded px-2 py-1 bg-background" />
+                        </td>
+                        <td className="pr-1 py-0.5">
+                          <input data-testid="quote-line-hsn" value={l.hsnCode} placeholder="9983"
+                            onChange={(e) => setLine(i, { hsnCode: e.target.value })}
+                            className="w-full border border-border rounded px-2 py-1 bg-background font-mono text-[11px]" />
+                        </td>
+                        <td className="pr-1 py-0.5">
+                          <input data-testid="quote-line-qty" type="number" min="0" step="1" value={l.quantity}
+                            onChange={(e) => setLine(i, { quantity: e.target.value })}
+                            className="w-full border border-border rounded px-2 py-1 bg-background text-right font-mono" />
+                        </td>
+                        <td className="pr-1 py-0.5">
+                          <input data-testid="quote-line-price" type="number" min="0" step="0.01" value={l.unitPrice}
+                            onChange={(e) => setLine(i, { unitPrice: e.target.value })}
+                            className="w-full border border-border rounded px-2 py-1 bg-background text-right font-mono" />
+                        </td>
+                        <td className="pr-1 py-0.5">
+                          <input data-testid="quote-line-discount" type="number" min="0" max="100" step="0.01" value={l.discountPct}
+                            onChange={(e) => setLine(i, { discountPct: e.target.value })}
+                            className="w-full border border-border rounded px-2 py-1 bg-background text-right font-mono" />
+                        </td>
+                        <td className="pr-1 py-0.5">
+                          <select data-testid="quote-line-gst" value={l.gstRate}
+                            onChange={(e) => setLine(i, { gstRate: e.target.value })}
+                            className="w-full border border-border rounded px-1 py-1 bg-background text-right font-mono">
+                            {QUOTE_GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                          </select>
+                        </td>
+                        {/* Computed, never typed — read-only by construction. */}
+                        <td data-testid="quote-line-total" data-value={lineTotal(l)}
+                          className="text-right font-mono font-semibold pr-1">{inr(lineTotal(l))}</td>
+                        <td className="text-right">
+                          <button data-testid="quote-remove-line" title="Remove line"
+                            disabled={quoteLines.length === 1}
+                            onClick={() => setQuoteLines(ls => ls.filter((_, idx) => idx !== i))}
+                            className="text-muted-foreground hover:text-red-600 disabled:opacity-30 px-1">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ── Totals: every figure below comes from the server ─────────── */}
+              <div className="flex items-start gap-4">
+                <div className="w-40">
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Quote discount %</label>
+                  <input data-testid="quote-discount" type="number" min="0" max="100" step="0.01" value={quoteForm.discountPct}
+                    onChange={(e) => setQuoteForm(f => ({ ...f, discountPct: e.target.value }))}
+                    className="w-full border border-border rounded px-2 py-1 text-[12px] bg-background text-right font-mono" />
+                  <p className="text-[10px] text-muted-foreground mt-1">Applied before GST.</p>
+                </div>
+                <div className="flex-1 border border-border rounded divide-y divide-border" data-testid="quote-totals">
+                  <Row label="Subtotal" value={quotePreview?.subtotal} testid="quote-subtotal" />
+                  <Row label="Taxable value (after discount)" value={quotePreview?.taxableValue} testid="quote-taxable" />
+                  {quotePreview?.isInterstate ? (
+                    <Row label="IGST" value={quotePreview?.igstAmount} testid="quote-igst" />
+                  ) : (
+                    <>
+                      <Row label="CGST" value={quotePreview?.cgstAmount} testid="quote-cgst" />
+                      <Row label="SGST" value={quotePreview?.sgstAmount} testid="quote-sgst" />
+                    </>
+                  )}
+                  <Row label="Total GST" value={quotePreview?.taxTotal} testid="quote-tax-total" />
+                  <Row label="TOTAL" value={quotePreview?.total} testid="quote-grand-total" bold />
+                </div>
+              </div>
+              {!canCreate && (
+                <p data-testid="quote-zero-warning" className="text-[11px] text-amber-700">
+                  A quote must have at least one line worth more than ₹0 before it can be created.
+                </p>
+              )}
             </div>
-            <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
+
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2 shrink-0">
               <button onClick={() => setShowNewQuote(false)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/30">Cancel</button>
               <button
-                disabled={createQuoteMutation.isPending || !newQuoteDesc.trim()}
-                onClick={() => createQuoteMutation.mutate({ items: [{ description: newQuoteDesc, quantity: 1, unitPrice: "0", total: "0" }] })}
+                data-testid="quote-create"
+                disabled={createQuoteMutation.isPending || !canCreate}
+                onClick={() => createQuoteMutation.mutate({
+                  dealId: quoteForm.dealId || undefined,
+                  items: quoteLines.map(toQuoteApiLine),
+                  discountPct: quoteForm.discountPct || "0",
+                  validUntil: quoteForm.validUntil || undefined,
+                })}
                 className="px-4 py-1.5 text-[12px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
               >
                 {createQuoteMutation.isPending ? "Creating…" : "Create Quote"}
@@ -1875,12 +2242,15 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Add Account Modal */}
       {showNewAccount && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          {/* Six fields now (was four). Capped height + a scrolling body so the
+              Create button can never be pushed below the fold. */}
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-5" data-testid="new-account-dialog">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-body-sm font-bold">Add Account</h2>
               <button onClick={() => setShowNewAccount(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -1906,11 +2276,33 @@ export default function CRMPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Website *</label>
                 <input type="url" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={accountForm.website} onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))} />
               </div>
+              <div>
+                {/* Place of supply. The account's state drives the intra- vs inter-state
+                    GST split on every quote (quote-tax.ts resolves buyer state from here).
+                    Options come from GSTIN_STATE_CODES — the IRP's vocabulary — NOT from
+                    INDIAN_STATES, which was realigned to the PT vocabulary in Round 6 and
+                    disagrees on three UTs. We display the name and store the two-digit code,
+                    which normaliseStateToCode passes through unchanged. */}
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">State (place of supply)</label>
+                <select data-testid="account-state-code" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                  value={accountForm.stateCode} onChange={(e) => setAccountForm(f => ({ ...f, stateCode: e.target.value }))}>
+                  <option value="">— Not set (quotes will assume intra-state) —</option>
+                  {GST_STATE_OPTIONS.map(([code, name]) => (
+                    <option key={code} value={code}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">GSTIN</label>
+                <input data-testid="account-gstin" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background font-mono"
+                  placeholder="29ABCDE1234F1Z5" value={accountForm.gstin}
+                  onChange={(e) => setAccountForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))} />
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewAccount(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } if (!accountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!accountForm.website.trim()) { toast.error("Website is required"); return; } if (!accountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with https://"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry.trim(), tier: accountForm.tier, website: accountForm.website.trim() }); }}
+                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } if (!accountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!accountForm.website.trim()) { toast.error("Website is required"); return; } if (!accountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with https://"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry.trim(), tier: accountForm.tier, website: accountForm.website.trim(), stateCode: accountForm.stateCode || undefined, gstin: accountForm.gstin.trim() || undefined }); }}
                 disabled={createAccountMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createAccountMutation.isPending ? "Creating…" : "Create Account"}</button>
@@ -1922,7 +2314,7 @@ export default function CRMPage() {
       {/* Edit Account Modal */}
       {editingAccount && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-5" data-testid="edit-account-dialog">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-body-sm font-bold">Edit Account</h2>
               <button onClick={() => setEditingAccount(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -1948,11 +2340,27 @@ export default function CRMPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Website *</label>
                 <input type="url" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={editAccountForm.website} onChange={(e) => setEditAccountForm(f => ({ ...f, website: e.target.value }))} />
               </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">State (place of supply)</label>
+                <select data-testid="edit-account-state-code" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                  value={editAccountForm.stateCode} onChange={(e) => setEditAccountForm(f => ({ ...f, stateCode: e.target.value }))}>
+                  <option value="">— Not set (quotes will assume intra-state) —</option>
+                  {GST_STATE_OPTIONS.map(([code, name]) => (
+                    <option key={code} value={code}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">GSTIN</label>
+                <input data-testid="edit-account-gstin" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background font-mono"
+                  placeholder="29ABCDE1234F1Z5" value={editAccountForm.gstin}
+                  onChange={(e) => setEditAccountForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))} />
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setEditingAccount(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!editAccountForm.name.trim()) { toast.error("Company name is required"); return; } if (!editAccountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!editAccountForm.website.trim()) { toast.error("Website is required"); return; } if (!editAccountForm.website.startsWith("http://") && !editAccountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with http:// or https://"); return; } updateAccountMutation.mutate({ id: editingAccount.id, name: editAccountForm.name.trim(), industry: editAccountForm.industry.trim(), tier: editAccountForm.tier, website: editAccountForm.website.trim() }); }}
+                onClick={() => { if (!editAccountForm.name.trim()) { toast.error("Company name is required"); return; } if (!editAccountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!editAccountForm.website.trim()) { toast.error("Website is required"); return; } if (!editAccountForm.website.startsWith("http://") && !editAccountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with http:// or https://"); return; } updateAccountMutation.mutate({ id: editingAccount.id, name: editAccountForm.name.trim(), industry: editAccountForm.industry.trim(), tier: editAccountForm.tier, website: editAccountForm.website.trim(), stateCode: editAccountForm.stateCode || undefined, gstin: editAccountForm.gstin.trim() || undefined }); }}
                 disabled={updateAccountMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateAccountMutation.isPending ? "Saving…" : "Save Changes"}</button>
@@ -2067,11 +2475,15 @@ export default function CRMPage() {
       {/* New Lead Modal */}
       {showNewLead && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
-            <div className="flex items-center justify-between mb-4">
+          {/* Scrolling body with the footer pinned outside it — the qualification
+              block below can double this dialog's height, and a Save button pushed
+              past the fold is a button that does not exist. */}
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col" data-testid="new-lead-dialog">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
               <h2 className="text-body-sm font-bold">New Lead</h2>
               <button onClick={() => setShowNewLead(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
+            <div className="p-5 overflow-y-auto">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
@@ -2106,11 +2518,123 @@ export default function CRMPage() {
                 </select>
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+
+            {/* ── Qualification (optional, collapsed) ────────────────────────
+                Deliberately secondary: collapsed by default, every field
+                optional, and nothing here can block Create. On a first call a
+                rep has a name and a company and little else; the nine fields
+                are here so that when they DO know, they do not have to save the
+                lead and immediately reopen it. */}
+            <div className="mt-4 border-t border-border pt-3">
+              <button
+                type="button"
+                data-testid="lead-qualification-toggle"
+                onClick={() => setShowLeadQualification(v => !v)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+              >
+                <ChevronRight className={`w-3 h-3 transition-transform ${showLeadQualification ? "rotate-90" : ""}`} />
+                Qualification <span className="font-normal normal-case tracking-normal">(optional — add later if you don&apos;t know yet)</span>
+              </button>
+              {showLeadQualification && (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Budget band</label>
+                    <select data-testid="new-lead-budget-band" value={leadForm.budgetBand}
+                      onChange={(e) => setLeadForm(f => ({ ...f, budgetBand: e.target.value }))}
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background">
+                      {[["unknown", "Unknown"], ["under_1l", "Under ₹1L"], ["1l_5l", "₹1L–5L"], ["5l_25l", "₹5L–25L"], ["over_25l", "Over ₹25L"]]
+                        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Authority</label>
+                    <select data-testid="new-lead-authority" value={leadForm.authority}
+                      onChange={(e) => setLeadForm(f => ({ ...f, authority: e.target.value }))}
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background">
+                      {[["unknown", "Unknown"], ["decision_maker", "Decision maker"], ["influencer", "Influencer"], ["evaluator", "Evaluator"]]
+                        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Timeline</label>
+                    <select data-testid="new-lead-timeline" value={leadForm.timeline}
+                      onChange={(e) => setLeadForm(f => ({ ...f, timeline: e.target.value }))}
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background">
+                      {[["unknown", "Unknown"], ["immediate", "Immediate"], ["this_quarter", "This quarter"], ["next_quarter", "Next quarter"], ["later", "Later"]]
+                        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Estimated value (₹)</label>
+                    <input data-testid="new-lead-estimated-value" type="number" min="0" step="0.01" value={leadForm.estimatedValue}
+                      onChange={(e) => setLeadForm(f => ({ ...f, estimatedValue: e.target.value }))}
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Budget note</label>
+                    <input data-testid="new-lead-budget-note" value={leadForm.budgetNote}
+                      onChange={(e) => setLeadForm(f => ({ ...f, budgetNote: e.target.value }))}
+                      placeholder="e.g. approved capex, needs CFO sign-off"
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Need</label>
+                    <input data-testid="new-lead-need" value={leadForm.need}
+                      onChange={(e) => setLeadForm(f => ({ ...f, need: e.target.value }))}
+                      placeholder="What are they trying to solve?"
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Expected close</label>
+                    <input data-testid="new-lead-expected-close" type="date" value={leadForm.expectedClose}
+                      onChange={(e) => setLeadForm(f => ({ ...f, expectedClose: e.target.value }))}
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Next action date</label>
+                    <input data-testid="new-lead-next-action-date" type="date" value={leadForm.nextActionDate}
+                      onChange={(e) => setLeadForm(f => ({ ...f, nextActionDate: e.target.value }))}
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Next action</label>
+                    <input data-testid="new-lead-next-action" value={leadForm.nextAction}
+                      onChange={(e) => setLeadForm(f => ({ ...f, nextAction: e.target.value }))}
+                      placeholder="e.g. send pricing, book a demo"
+                      className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" />
+                  </div>
+                </div>
+              )}
+            </div>
+            </div>
+            <div className="flex gap-2 px-5 py-3 border-t border-border bg-muted/20 shrink-0">
               <button onClick={() => setShowNewLead(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
+                data-testid="new-lead-save"
                 disabled={!leadForm.firstName.trim() || !leadForm.lastName.trim() || !leadForm.company.trim() || !leadForm.email.trim() || !leadForm.phone.trim() || createLeadMutation.isPending}
-                onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email.trim(), phone: leadForm.phone.trim(), company: leadForm.company.trim(), title: leadForm.title.trim() || undefined, source: leadForm.source as "other" | "website" | "event" | "partner" | "referral" | "cold_outreach" | "advertising" })}
+                onClick={() => createLeadMutation.mutate({
+                  firstName: leadForm.firstName.trim(),
+                  lastName: leadForm.lastName.trim(),
+                  email: leadForm.email.trim(),
+                  phone: leadForm.phone.trim(),
+                  company: leadForm.company.trim(),
+                  title: leadForm.title.trim() || undefined,
+                  source: leadForm.source as "other" | "website" | "event" | "partner" | "referral" | "cold_outreach" | "advertising",
+                  // Sent to the CANONICAL crm.leads.create. The deprecated
+                  // crm.createLead does not declare one of these nine, so zod
+                  // would have dropped every last one while the toast said
+                  // "Lead created" — the third occurrence of that trap.
+                  // Empty string is "not set", not a value.
+                  budgetBand: leadForm.budgetBand as any,
+                  authority: leadForm.authority as any,
+                  timeline: leadForm.timeline as any,
+                  budgetNote: leadForm.budgetNote.trim() || undefined,
+                  need: leadForm.need.trim() || undefined,
+                  estimatedValue: leadForm.estimatedValue || undefined,
+                  expectedClose: leadForm.expectedClose || undefined,
+                  nextAction: leadForm.nextAction.trim() || undefined,
+                  nextActionDate: leadForm.nextActionDate || undefined,
+                })}
                 className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createLeadMutation.isPending ? "Creating…" : "Create Lead"}</button>
             </div>

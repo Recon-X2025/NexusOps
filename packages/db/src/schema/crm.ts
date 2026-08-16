@@ -277,7 +277,14 @@ export const crmQuotes = pgTable(
     quoteNumber: text("quote_number").notNull(),
     status: quoteStatusEnum("status").notNull().default("draft"),
     validUntil: timestamp("valid_until", { withTimezone: true }),
-    items: jsonb("items").$type<Array<{ description: string; quantity: number; unitPrice: string; total: string; hsnCode?: string; gstRate?: number }>>().default([]),
+    /**
+     * `discountPct` here is the PER-LINE discount, already folded into that
+     * line's `total` (so subtotal is net of line discounts and the header
+     * `discountPct` below applies on top). It is stored rather than only
+     * applied because the quote detail view has a "Discount %" column: without
+     * the field that column could only ever render 0, which is what it did.
+     */
+    items: jsonb("items").$type<Array<{ description: string; quantity: number; unitPrice: string; total: string; hsnCode?: string; gstRate?: number; discountPct?: number }>>().default([]),
     subtotal: decimal("subtotal", { precision: 14, scale: 2 }).notNull().default("0"),
     discountPct: decimal("discount_pct", { precision: 5, scale: 2 }).default("0"),
     /** G7: GST — place of supply + intra/inter split, computed on the discounted taxable value. */

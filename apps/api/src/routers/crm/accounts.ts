@@ -7,7 +7,7 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmAccounts, organizations, accountTierEnum, eq, and, desc } from "@coheronconnect/db";
+import { crmAccounts, crmDeals, organizations, accountTierEnum, eq, and, desc, inArray, sql } from "@coheronconnect/db";
 
 export const crmAccountsRouter = router({
   list: permissionProcedure("accounts", "read")
@@ -16,7 +16,31 @@ export const crmAccountsRouter = router({
       const { db, org } = ctx;
       const conditions = [eq(crmAccounts.orgId, org!.id), eq(crmAccounts.archived, input.showArchived)];
       if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier));
-      return db.select().from(crmAccounts).where(and(...conditions)).orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
+      const rows = await db.select().from(crmAccounts).where(and(...conditions))
+        .orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
+      if (rows.length === 0) return rows;
+
+      // Open Opps and Total Revenue were rendered from fields that do not exist —
+      // the query was a plain select and nothing computed them. They ARE what a
+      // salesperson expects on an account row, so they are computed here rather
+      // than deleted: one grouped pass over crm_deals for the page's accounts, not
+      // a query per row.
+      const accountIds = rows.map((r) => r.id);
+      const agg = await db
+        .select({
+          accountId: crmDeals.accountId,
+          openOpps: sql<number>`count(*) filter (where ${crmDeals.stage} not in ('closed_won','closed_lost'))`,
+          totalRevenue: sql<string>`coalesce(sum(${crmDeals.value}) filter (where ${crmDeals.stage} = 'closed_won'), 0)`,
+        })
+        .from(crmDeals)
+        .where(and(eq(crmDeals.orgId, org!.id), inArray(crmDeals.accountId, accountIds)))
+        .groupBy(crmDeals.accountId);
+      const byAccount = new Map(agg.map((r) => [r.accountId, r]));
+      return rows.map((r) => ({
+        ...r,
+        openOpps: Number(byAccount.get(r.id)?.openOpps ?? 0),
+        totalRevenue: byAccount.get(r.id)?.totalRevenue ?? "0",
+      }));
     }),
 
   get: permissionProcedure("accounts", "read")

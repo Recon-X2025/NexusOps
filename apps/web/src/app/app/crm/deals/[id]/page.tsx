@@ -36,20 +36,20 @@ export default function DealDetailPage() {
     const id = params.id as string;
     const { isAdmin } = useRBAC();
 
-    const qDeal = trpc.crm.getDeal.useQuery({ id });
-    const qActivities = trpc.crm.listActivities.useQuery({ dealId: id });
+    const qDeal = trpc.crm.deals.get.useQuery({ id });
+    const qActivities = trpc.crm.activities.list.useQuery({ dealId: id });
 
-    const qAccounts = trpc.crm.listAccounts.useQuery({ limit: 200 });
-    const qContacts = trpc.crm.listContacts.useQuery({ limit: 200 });
+    const qAccounts = trpc.crm.accounts.list.useQuery({ limit: 200 });
+    const qContacts = trpc.crm.contacts.list.useQuery({ limit: 200 });
 
-    const movePipeline = trpc.crm.movePipeline.useMutation({
+    const movePipeline = trpc.crm.deals.movePipeline.useMutation({
         onSuccess: () => { toast.success("Deal stage updated"); qDeal.refetch(); },
         onError: (e) => toast.error(e.message),
     });
 
-    const dealThresholdsQ = trpc.crm.dealApprovalThresholds.get.useQuery(undefined, { refetchOnWindowFocus: false });
+    const dealThresholdsQ = trpc.crm.deals.approvalThresholds.get.useQuery(undefined, { refetchOnWindowFocus: false });
 
-    const approveDealWon = trpc.crm.approveDealWon.useMutation({
+    const approveDealWon = trpc.crm.deals.approveDealWon.useMutation({
         onSuccess: () => {
             toast.success("Deal close approval recorded");
             qDeal.refetch();
@@ -57,12 +57,12 @@ export default function DealDetailPage() {
         onError: (e: any) => toast.error(e?.message ?? "Approval failed"),
     });
 
-    const updateDeal = trpc.crm.updateDeal.useMutation({
+    const updateDeal = trpc.crm.deals.update.useMutation({
         onSuccess: () => { toast.success("Deal updated successfully"); qDeal.refetch(); setShowEdit(false); },
         onError: (e: any) => toast.error(e.message),
     });
 
-    const deleteDeal = trpc.crm.deleteDeal.useMutation({
+    const deleteDeal = trpc.crm.deals.delete.useMutation({
         onSuccess: () => { toast.success("Deal deleted"); router.push("/app/crm"); },
         onError: (e) => toast.error(e.message),
     });

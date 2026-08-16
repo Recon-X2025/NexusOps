@@ -25,7 +25,9 @@ import {
   desc,
   type DbOrTx,
 } from "@coheronconnect/db";
-import { computeGST, type GSTRate } from "../india/gst-engine";
+import { TRPCError } from "@trpc/server";
+import { GSTIN_STATE_CODES } from "@coheronconnect/payroll-math";
+import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../india/gst-engine";
 
 /** GST rates the engine accepts. */
 const VALID_GST_RATES: readonly number[] = [0, 5, 12, 18, 28];
@@ -40,9 +42,12 @@ export interface QuoteLine {
   description: string;
   quantity: number;
   unitPrice: string;
+  /** Line gross, already net of this line's own `discountPct`. */
   total: string;
   hsnCode?: string;
   gstRate?: number;
+  /** Per-line discount, folded into `total`; stored so the quote can show it. */
+  discountPct?: number;
 }
 
 export interface QuoteTaxColumns {
@@ -68,6 +73,46 @@ export async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string
   return row?.stateCode ?? row?.stateName ?? null;
 }
 
+/** Human-readable name for a resolved 2-digit GST state code. */
+export function gstStateName(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return GSTIN_STATE_CODES[code] ?? null;
+}
+
+/**
+ * Who the quote is billed to, and what state they are in.
+ *
+ * `resolveQuoteBuyerState` returned only the raw state, so the caller could not
+ * tell "this account is in Karnataka" from "this quote has no account at all" —
+ * both arrived as a bare string-or-null and both silently became intra-state.
+ * The editor has to show the difference, so the context comes back whole.
+ */
+export interface QuoteBuyerContext {
+  /** True when the quote is linked to a deal that is linked to an account. */
+  hasAccount: boolean;
+  accountId: string | null;
+  accountName: string | null;
+  /** Exactly as stored on `crm_accounts.state_code` — may be a name, may be a code. */
+  rawState: string | null;
+}
+
+export async function resolveQuoteBuyerContext(
+  db: DbOrTx,
+  orgId: string,
+  dealId: string | null | undefined,
+): Promise<QuoteBuyerContext> {
+  const empty: QuoteBuyerContext = { hasAccount: false, accountId: null, accountName: null, rawState: null };
+  if (!dealId) return empty;
+  const [row] = await db
+    .select({ accountId: crmAccounts.id, accountName: crmAccounts.name, stateCode: crmAccounts.stateCode })
+    .from(crmDeals)
+    .innerJoin(crmAccounts, eq(crmDeals.accountId, crmAccounts.id))
+    .where(and(eq(crmDeals.id, dealId), eq(crmDeals.orgId, orgId)))
+    .limit(1);
+  if (!row) return empty;
+  return { hasAccount: true, accountId: row.accountId, accountName: row.accountName, rawState: row.stateCode ?? null };
+}
+
 /**
  * Buyer state for a quote: the linked deal's account `stateCode`. Returns null
  * when there's no deal or the account has no state (→ intra-state default).
@@ -77,14 +122,28 @@ export async function resolveQuoteBuyerState(
   orgId: string,
   dealId: string | null | undefined,
 ): Promise<string | null> {
-  if (!dealId) return null;
-  const [row] = await db
-    .select({ stateCode: crmAccounts.stateCode })
-    .from(crmDeals)
-    .innerJoin(crmAccounts, eq(crmDeals.accountId, crmAccounts.id))
-    .where(and(eq(crmDeals.id, dealId), eq(crmDeals.orgId, orgId)))
-    .limit(1);
-  return row?.stateCode ?? null;
+  return (await resolveQuoteBuyerContext(db, orgId, dealId)).rawState;
+}
+
+/**
+ * A quote with no lines, or lines that total zero, is not a quote — it is an
+ * empty document that reads as priced. The New Quote dialog used to send one
+ * hardcoded line worth zero, so every quote the UI produced totalled ₹0 and
+ * carried ₹0 of tax while looking complete. Rejecting in the dialog alone would
+ * leave the API able to mint them, so the rule lives here and both the canonical
+ * and the deprecated create path call it.
+ */
+export function assertQuoteHasValue(items: QuoteLine[]): void {
+  if (!items || items.length === 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "A quote needs at least one line item." });
+  }
+  const gross = items.reduce((acc, i) => acc + Number(i.total || 0), 0);
+  if (!(gross > 0)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "A quote must total more than zero — give each line a quantity and a unit price.",
+    });
+  }
 }
 
 /**
@@ -150,9 +209,30 @@ export function computeQuoteTax(params: {
   };
 }
 
+/** What `buildQuoteTaxColumns` resolved, so a caller can explain the split it got. */
+export interface QuoteTaxResolution extends QuoteTaxColumns {
+  /** Supplier state as a 2-digit code, or null when the org has no active GSTIN. */
+  orgStateCode: string | null;
+  orgStateName: string | null;
+  /** Buyer state as a 2-digit code, or null when unknown (→ treated as intra-state). */
+  buyerStateCode: string | null;
+  buyerStateName: string | null;
+  buyer: QuoteBuyerContext;
+}
+
 /**
  * Resolve states + compute tax in one call — the common path for the quote
  * create/update procedures.
+ *
+ * Both sides are reduced to a 2-digit GST code FIRST. `computeGST` decides
+ * intra-vs-inter by a raw case-insensitive string compare, and this path used to
+ * hand it whatever was stored: the org side arrives from `gstin_registry` as a
+ * code ("29") while `crm_accounts.state_code` is free text that may hold a NAME
+ * ("Karnataka"). "29" ≠ "karnataka", so a local sale was billed as inter-state
+ * IGST — the right total, the wrong split, on a document that looks correct.
+ * `normaliseGstStateOrWarn` also LOGS a present-but-unrecognised state; an
+ * absent one stays a silent, legitimate unknown (see `hasAccount`/`rawState` on
+ * the returned buyer context, which is how the editor can say so out loud).
  */
 export async function buildQuoteTaxColumns(
   db: DbOrTx,
@@ -163,18 +243,30 @@ export async function buildQuoteTaxColumns(
     discountPct: string;
     defaultGstRate?: GSTRate;
   },
-): Promise<QuoteTaxColumns> {
-  const [orgState, buyerState] = await Promise.all([
+): Promise<QuoteTaxResolution> {
+  const [rawOrgState, buyer] = await Promise.all([
     resolveOrgState(db, params.orgId),
-    resolveQuoteBuyerState(db, params.orgId, params.dealId),
+    resolveQuoteBuyerContext(db, params.orgId, params.dealId),
   ]);
-  return computeQuoteTax({
+  const orgStateCode = normaliseGstStateOrWarn(rawOrgState, "org");
+  const buyerStateCode = normaliseGstStateOrWarn(buyer.rawState, "crm_account");
+
+  const columns = computeQuoteTax({
     items: params.items,
     discountPct: params.discountPct,
-    orgState,
-    buyerState,
+    orgState: orgStateCode,
+    buyerState: buyerStateCode,
     defaultGstRate: params.defaultGstRate,
   });
+
+  return {
+    ...columns,
+    orgStateCode,
+    orgStateName: gstStateName(orgStateCode),
+    buyerStateCode,
+    buyerStateName: gstStateName(buyerStateCode),
+    buyer,
+  };
 }
 
 function round2(n: number): number {

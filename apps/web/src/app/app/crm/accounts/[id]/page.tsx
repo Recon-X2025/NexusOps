@@ -19,12 +19,12 @@ export default function AccountDetailPage() {
     const router = useRouter();
     const id = params.id as string;
 
-    const qAccount = trpc.crm.getAccount.useQuery({ id });
-    const qContacts = trpc.crm.listContacts.useQuery({ accountId: id });
-    const qDeals = trpc.crm.listDeals.useQuery({ accountId: id });
-    const qActivities = trpc.crm.listActivities.useQuery({ limit: 50 });
+    const qAccount = trpc.crm.accounts.get.useQuery({ id });
+    const qContacts = trpc.crm.contacts.list.useQuery({ accountId: id });
+    const qDeals = trpc.crm.deals.list.useQuery({ accountId: id });
+    const qActivities = trpc.crm.activities.list.useQuery({ limit: 50 });
 
-    const deleteAccount = trpc.crm.deleteAccount.useMutation({
+    const deleteAccount = trpc.crm.accounts.delete.useMutation({
         onSuccess: () => {
             toast.success("Account deleted");
             router.push("/app/crm");

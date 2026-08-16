@@ -81,7 +81,19 @@ export function maskAadhaar(aadhaar: string): string {
 // Format: 2-digit state code + 10-char PAN + 1-digit entity number + Z + 1 checksum
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
-const GSTIN_STATE_CODES: Record<string, string> = {
+/**
+ * GST state codes → names, the IRP's own vocabulary.
+ *
+ * EXPORTED so the CRM account form can offer these names and store the two-digit
+ * code. It must NOT use INDIAN_STATES (apps/web/src/lib/india-states.ts): that list
+ * was realigned in Round 6 to professional_tax_slabs.state_name and disagrees with
+ * this one on three union territories ("Jammu & Kashmir" here vs "Jammu and
+ * Kashmir" there). `normaliseStateToCode` does a lowercased EXACT match with no
+ * &/and handling, so a PT-vocabulary name would resolve to null, the buyer state
+ * would be unknown, and every quote would silently fall back to intra-state
+ * CGST/SGST — wrong tax on a document that looks correct.
+ */
+export const GSTIN_STATE_CODES: Record<string, string> = {
   "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab",
   "04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana",
   "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",

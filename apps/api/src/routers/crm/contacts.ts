@@ -11,10 +11,14 @@ import { crmContacts, eq, and } from "@coheronconnect/db";
 
 export const crmContactsRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ accountId: z.string().uuid().optional(), limit: z.coerce.number().default(50) }))
+    // `showArchived` existed only on the deprecated `crm.listContacts`, which is why
+    // the Contacts tab was still calling it. Without it here, repointing the screen
+    // at the canonical procedure would have quietly shown archived contacts in the
+    // active list and made the Archived filter inert.
+    .input(z.object({ accountId: z.string().uuid().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const conditions = [eq(crmContacts.orgId, org!.id)];
+      const conditions = [eq(crmContacts.orgId, org!.id), eq(crmContacts.archived, input.showArchived)];
       if (input.accountId) conditions.push(eq(crmContacts.accountId, input.accountId));
       return db.select().from(crmContacts).where(and(...conditions)).orderBy(crmContacts.lastName).limit(input.limit);
     }),
@@ -52,6 +56,10 @@ export const crmContactsRouter = router({
       phone: z.string().optional(),
       title: z.string().optional(),
       accountId: z.string().uuid().optional(),
+      // Archive/unarchive is the only way the Contacts tab retires a contact. The
+      // canonical input did not accept it, so repointing the screen here without
+      // it would have made both buttons toast "Contact updated" and change nothing.
+      archived: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;

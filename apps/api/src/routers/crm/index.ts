@@ -45,7 +45,7 @@ import { crmActivitiesRouter } from "./activities";
 import { crmDashboardRouter } from "./dashboard";
 import { convertLeadToDeal } from "../../lib/crm/lead-convert";
 import { createScoredLead, updateScoredLead } from "../../lib/crm/lead-write";
-import { buildQuoteTaxColumns, type QuoteLine } from "../../lib/crm/quote-tax";
+import { buildQuoteTaxColumns, assertQuoteHasValue, type QuoteLine } from "../../lib/crm/quote-tax";
 
 // ─── Dashboard helper (shared between legacy + new sub-router) ────────────────
 async function getCrmExecutiveSummary(db: DbOrTx, orgId: string) {
@@ -448,9 +448,12 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.deals.quotes.create */
   createQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ dealId: z.string().uuid().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
+    .input(z.object({ dealId: z.string().uuid().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional(), discountPct: z.coerce.number().min(0).max(100).optional() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      // Same validity rule as the canonical path — a ₹0 quote is not a quote,
+      // and leaving the hole open here would only move it.
+      assertQuoteHasValue(input.items as QuoteLine[]);
       const quoteNumber = await getNextNumber(db, org!.id, "QT");
       // G7 — GST computed via the shared quote-tax helper (discount before tax).
       const tax = await buildQuoteTaxColumns(db, {
@@ -480,7 +483,7 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.deals.quotes.update */
   updateQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional() })).optional(), discountPct: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional(), discountPct: z.coerce.number().min(0).max(100).optional() })).optional(), discountPct: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, items, discountPct, ...data } = input;

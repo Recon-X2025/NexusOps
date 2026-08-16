@@ -1956,7 +1956,7 @@ function SlaPauseReasonsTab() {
 function CrmDealThresholdsTab() {
   const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
   const utils = trpc.useUtils();
-  const q = trpc.crm.dealApprovalThresholds.get.useQuery(
+  const q = trpc.crm.deals.approvalThresholds.get.useQuery(
     undefined,
     mergeTrpcQueryOpts("crm.dealApprovalThresholds.get", undefined),
   );
@@ -1972,9 +1972,12 @@ function CrmDealThresholdsTab() {
     }
   }, [q.data]);
 
-  const save = trpc.crm.dealApprovalThresholds.update.useMutation({
+  const save = trpc.crm.deals.approvalThresholds.update.useMutation({
     onSuccess: () => {
-      utils.crm.dealApprovalThresholds.get.invalidate();
+      // Must match the procedure the query above actually uses. Invalidating the
+      // deprecated key leaves the canonical query's cache untouched, so the saved
+      // thresholds would not appear until a reload.
+      utils.crm.deals.approvalThresholds.get.invalidate();
       toast.success("CRM deal thresholds saved. Closed-won gating uses these values immediately.");
     },
     onError: (e) => toast.error(e.message ?? "Save failed"),

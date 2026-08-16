@@ -14,7 +14,19 @@ import {
   getDealCloseApprovalTier,
   type DealCloseApprovalTier,
 } from "../../lib/org-settings";
-import { buildQuoteTaxColumns, type QuoteLine } from "../../lib/crm/quote-tax";
+import { buildQuoteTaxColumns, assertQuoteHasValue, type QuoteLine } from "../../lib/crm/quote-tax";
+
+/** One quote line as the editor sends it. Shared by create / update / previewTax. */
+const quoteLineSchema = z.object({
+  description: z.string(),
+  quantity: z.coerce.number(),
+  unitPrice: z.string(),
+  /** Already net of `discountPct`; the editor computes it, nobody types it. */
+  total: z.string(),
+  hsnCode: z.string().optional(),
+  gstRate: z.number().optional(),
+  discountPct: z.coerce.number().min(0).max(100).optional(),
+});
 
 /** Shape a stored quote row for the frontend (adds a friendly lineItems view). */
 export function serializeQuote(quote: typeof crmQuotes.$inferSelect) {
@@ -27,7 +39,9 @@ export function serializeQuote(quote: typeof crmQuotes.$inferSelect) {
       description: item.description || "",
       qty: item.quantity || 1,
       unitPrice: Number(item.unitPrice || 0),
-      discount: 0,
+      // Was hardcoded 0, so the quote detail's "Discount %" column could never
+      // show anything. Reads the stored per-line discount now.
+      discount: Number(item.discountPct ?? 0),
       total: Number(item.total || 0),
       hsnCode: item.hsnCode ?? null,
       gstRate: item.gstRate ?? null,
@@ -119,6 +133,10 @@ export const crmDealsRouter = router({
       value: z.string().optional(),
       probability: z.coerce.number().default(10),
       expectedClose: z.string().optional(),
+      // The New Deal form makes Stage a REQUIRED field and then never sent it —
+      // every deal created through the UI landed on the `prospect` column default,
+      // including one the rep explicitly opened at Negotiation.
+      stage: dealStageSchema.optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -350,22 +368,67 @@ export const crmDealsRouter = router({
         return rows.map(serializeQuote);
       }),
 
+    /**
+     * Live totals for the line-item editor, WITHOUT writing a quote.
+     *
+     * The editor cannot do this arithmetic in the browser: the intra-vs-inter
+     * split depends on the org's GSTIN state and the buyer account's state, both
+     * of which are DB reads, and a second client-side implementation of the same
+     * rules is a drift waiting to happen. So the editor asks the server, and the
+     * answer carries the resolved buyer state alongside the money — one call
+     * feeds both the totals panel and the place-of-supply banner.
+     */
+    previewTax: permissionProcedure("accounts", "read")
+      .input(z.object({
+        dealId: z.string().uuid().optional(),
+        items: z.array(quoteLineSchema).default([]),
+        discountPct: z.string().default("0"),
+      }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const tax = await buildQuoteTaxColumns(db, {
+          orgId: org!.id,
+          dealId: input.dealId ?? null,
+          items: input.items as QuoteLine[],
+          discountPct: input.discountPct,
+        });
+        const gross = input.items.reduce((acc, i) => acc + Number(i.total || 0), 0);
+        return {
+          subtotal: tax.subtotal,
+          taxableValue: tax.taxableValue,
+          cgstAmount: tax.cgstAmount,
+          sgstAmount: tax.sgstAmount,
+          igstAmount: tax.igstAmount,
+          taxTotal: tax.taxTotal,
+          total: tax.total,
+          isInterstate: tax.isInterstate,
+          placeOfSupply: tax.placeOfSupply,
+          orgStateCode: tax.orgStateCode,
+          orgStateName: tax.orgStateName,
+          buyerStateCode: tax.buyerStateCode,
+          buyerStateName: tax.buyerStateName,
+          accountName: tax.buyer.accountName,
+          /** The quote is linked to an account, but that account has no state on file. */
+          buyerStateMissing: tax.buyer.hasAccount && tax.buyerStateCode === null,
+          /** The state is set but is not a value the GST vocabulary recognises. */
+          buyerStateUnrecognised: tax.buyer.rawState !== null && tax.buyerStateCode === null,
+          buyerStateRaw: tax.buyer.rawState,
+          hasAccount: tax.buyer.hasAccount,
+          /** Mirrors `assertQuoteHasValue` so the dialog can disable Create for the same reason. */
+          creatable: input.items.length > 0 && gross > 0,
+        };
+      }),
+
     create: permissionProcedure("accounts", "write")
       .input(z.object({
         dealId: z.string().uuid().optional(),
-        items: z.array(z.object({
-          description: z.string(),
-          quantity: z.coerce.number(),
-          unitPrice: z.string(),
-          total: z.string(),
-          hsnCode: z.string().optional(),
-          gstRate: z.number().optional(),
-        })).default([]),
+        items: z.array(quoteLineSchema).default([]),
         discountPct: z.string().default("0"),
         validUntil: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        assertQuoteHasValue(input.items as QuoteLine[]);
         const quoteNumber = await getNextNumber(db, org!.id, "QT");
         // G7 — GST: discount applies before tax; per-line CGST/SGST/IGST rolled up.
         const tax = await buildQuoteTaxColumns(db, {
@@ -400,14 +463,7 @@ export const crmDealsRouter = router({
         status: z.enum(quoteStatusEnum.enumValues).optional(),
         notes: z.string().optional(),
         // Editing lines/discount re-computes GST so the quote never drifts.
-        items: z.array(z.object({
-          description: z.string(),
-          quantity: z.coerce.number(),
-          unitPrice: z.string(),
-          total: z.string(),
-          hsnCode: z.string().optional(),
-          gstRate: z.number().optional(),
-        })).optional(),
+        items: z.array(quoteLineSchema).optional(),
         discountPct: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -425,6 +481,8 @@ export const crmDealsRouter = router({
         if (items !== undefined || discountPct !== undefined) {
           const nextItems = (items ?? existing.items ?? []) as QuoteLine[];
           const nextDiscount = discountPct ?? existing.discountPct ?? "0";
+          // Same rule as create: an edit must not be able to empty a quote to ₹0.
+          if (items !== undefined) assertQuoteHasValue(nextItems);
           const tax = await buildQuoteTaxColumns(db, {
             orgId: org!.id,
             dealId: existing.dealId,
