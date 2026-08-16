@@ -323,6 +323,20 @@ export const crmPipelineStages = pgTable(
     rank: integer("rank").notNull().default(0),
     /** Whether this stage is shown as an active kanban column (closed stages are typically hidden). */
     active: boolean("active").notNull().default(true),
+    /**
+     * Default close probability for deals AT this stage, 0–100.
+     *
+     * Lives here rather than in a second config home because this table already
+     * exists for exactly this: per-tenant configuration layered over the fixed
+     * `deal_stage` enum. It is a DEFAULT the New Deal form pre-fills, never a
+     * lock — `crm_deals.probability` remains per-deal and rep-editable, and
+     * moving a deal between stages does NOT rewrite it.
+     *
+     * The column default of 10 matches `crm_deals.probability`'s own default
+     * (= prospect); migration 0089 backfills the real per-stage values so no
+     * existing tenant is left with a flat 10 across every stage.
+     */
+    probability: integer("probability").notNull().default(10),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

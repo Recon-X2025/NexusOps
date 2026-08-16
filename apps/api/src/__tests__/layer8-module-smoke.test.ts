@@ -880,7 +880,10 @@ describe("Layer 8: Module Smoke Tests", () => {
         value: "5000",
         accountId: account.id,
       })) as { id: string };
-      await caller.crm.movePipeline({ id: deal.id, stage: "closed_lost" });
+      // A lost reason is required on the move to closed_lost. This is SETUP for
+      // the list-filter assertion below, not the thing under test — the assertion
+      // (a closed_lost deal shows under the closed_lost filter) is unchanged.
+      await caller.crm.movePipeline({ id: deal.id, stage: "closed_lost", lostReason: "Lost to a competitor" });
       const lost = (await caller.crm.listDeals({
         stage: "closed_lost",
         limit: 20,

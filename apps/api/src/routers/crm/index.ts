@@ -38,10 +38,10 @@ import {
 // ── Import sub-routers ────────────────────────────────────────────────────────
 import { crmAccountsRouter } from "./accounts";
 import { crmContactsRouter } from "./contacts";
-import { crmDealsRouter, serializeQuote } from "./deals";
+import { crmDealsRouter, serializeQuote, assertDealCloseTransition } from "./deals";
 import { crmLeadsRouter } from "./leads";
 import { crmLeadScoringRouter } from "./lead-scoring";
-import { crmActivitiesRouter } from "./activities";
+import { crmActivitiesRouter, assertActivityHasAssociation } from "./activities";
 import { crmDashboardRouter } from "./dashboard";
 import { convertLeadToDeal } from "../../lib/crm/lead-convert";
 import { createScoredLead, updateScoredLead } from "../../lib/crm/lead-write";
@@ -203,11 +203,17 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.deals.movePipeline */
   movePipeline: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
+    .input(z.object({
+      id: z.string().uuid(),
+      stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]),
+      lostReason: z.string().trim().min(1).max(500).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [existing] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      // Identical guards to the canonical path, from the same helper.
+      assertDealCloseTransition(existing, input.stage, input.lostReason);
       const [freshOrg] = await db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, org!.id));
       const settings = freshOrg?.settings ?? org!.settings;
       const amount = Number(existing.value ?? 0);
@@ -218,6 +224,7 @@ export const crmRouter = router({
       }
       const updates: Partial<typeof crmDeals.$inferInsert> = { stage: input.stage, updatedAt: new Date() };
       if (input.stage === "closed_won" || input.stage === "closed_lost") { updates.closedAt = new Date(); } else { updates.wonApprovedAt = null; updates.wonApprovedBy = null; updates.wonApprovalTier = null; updates.closedAt = null; }
+      updates.lostReason = input.stage === "closed_lost" ? input.lostReason! : null;
       const [deal] = await db.update(crmDeals).set(updates).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
       return deal;
     }),
@@ -399,10 +406,13 @@ export const crmRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [activity] = await db.insert(crmActivities).values({ 
-        orgId: org!.id, 
-        ...input, 
-        ownerId: user!.id, 
+      // Same rule as the canonical path — an activity attached to nothing is
+      // unreachable from every screen that lists activities by association.
+      assertActivityHasAssociation(input);
+      const [activity] = await db.insert(crmActivities).values({
+        orgId: org!.id,
+        ...input,
+        ownerId: user!.id,
         type: input.type || "call",
         subject: input.subject || "Logged Activity",
       }).returning();

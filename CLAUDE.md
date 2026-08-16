@@ -220,6 +220,41 @@ These are conventions, not per-commit state. They were established by code audit
   (`state-list-slab-parity.test.ts`) fails if they drift. `normalizePtStateKey` treats `&` and `and` as
   equivalent. `GSTIN_STATE_CODES` in payroll-math deliberately does NOT match — it is the IRP's
   vocabulary and employee state never feeds the GST path.
+  **Corollary for anything on the GST path (customer/vendor state, place of supply):** source the
+  option list from `GSTIN_STATE_CODES` and store the **two-digit code**, never a PT-vocabulary name.
+  The two lists disagree on three union territories ("Jammu & Kashmir" vs "Jammu and Kashmir"), and
+  `normaliseStateToCode` does a lowercased EXACT match with no `&`/`and` handling, so a PT name
+  resolves to `null` → unknown buyer state → a silently wrong intra-state split.
+- **Normalise BOTH party states to a code before any intra-vs-inter-state compare.** `computeGST`
+  decides by a raw case-insensitive string compare, and the two sides arrive in different forms: the
+  org side is a code (`"29"`) from `gstin_registry`, while counterparty state columns
+  (`crm_accounts.state_code`, vendor/customer state) are free text that may hold a NAME. `"29" ≠
+  "karnataka"`, so a local sale bills as inter-state IGST — right total, wrong split, on a document
+  that looks correct. Always go through `normaliseGstStateOrWarn` (`lib/india/gst-engine.ts`), which
+  also LOGS `GST_STATE_UNRESOLVED` for a present-but-unrecognised state. **An ABSENT state logs
+  nothing** — it is a legitimate unknown that defaults to intra-state, so any surface where it matters
+  must say so in the UI; no warning will appear anywhere else. (Fixed on the quote path in Round 11;
+  `financial.ts`, `procurement.ts` and `ingest.ts` already did this.)
+
+- **Call the CANONICAL tRPC procedure, never the `@deprecated` flat twin.** `crm/index.ts` keeps
+  legacy flat procedures (`crm.createLead`, `crm.updateAccount`, `crm.listAccounts`, …) beside the
+  canonical sub-routers (`crm.leads.create`, `crm.accounts.update`, `crm.accounts.list`, …). The
+  deprecated inputs were frozen when they were written, so **zod silently strips every field added
+  since** — the mutation succeeds, the toast says success, and the data is gone. This has bitten three
+  times (lead update, lead create, account create). It is invisible to router tests, which call the
+  canonical procedure directly, so the guard is `crm-deprecated-mutation-sweep.test.ts`, which asserts
+  what the deprecated inputs drop. The same trap exists on **queries**: a deprecated `list*` may be a
+  plain select while the canonical one computes an aggregate, so a column silently renders blank
+  (`accounts.list` openOpps/totalRevenue, `leads.list` lastActivityAt). **Do not delete the deprecated
+  procedures** — other callers may exist. Before adding a field to any form, check which procedure the
+  caller targets.
+- **`trpc-procedure-rbac.generated.ts` does not cover nested sub-routers imported from other files.**
+  Its generator walks router files and does not follow `crm/index.ts`'s imported sub-routers, so **no
+  `crm.<sub>.<proc>` path is in the map at all**. A `mergeTrpcQueryOpts` key with no rule falls back to
+  "any authenticated user", which is looser than the `permissionProcedure` gate the screen had. Pass
+  the flat path as the lookup key to preserve the intended gate (the key is an RBAC lookup, not the
+  procedure being called), and do not regenerate the map as a side effect of unrelated work — it has
+  accumulated drift and will silently change gating elsewhere (e.g. `hr.leave.create`).
 - **Do not invent a displayed identifier by splitting or truncating a real field.** The Admin Console's
   USERNAME column was `email.split("@")[0]`, so two distinct accounts rendered identically. Several
   screens still do this with `id.slice(…)` fallbacks (invoice, GRC, vendor, CRM, security) — a missing

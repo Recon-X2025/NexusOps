@@ -63,22 +63,78 @@ export type DealStageKey = (typeof DEAL_STAGE_KEYS)[number];
 
 const dealStageSchema = z.enum(DEAL_STAGE_KEYS);
 
-/** Factory defaults used to seed `crm_pipeline_stages` for a new org. */
+/**
+ * Factory defaults used to seed `crm_pipeline_stages` for a new org.
+ *
+ * `probability` is the stage's DEFAULT close probability, and the numbers are
+ * deliberately keyed to what the BUYER has confirmed, not to rep optimism:
+ *
+ *   prospect      10  — a name and a hypothesis. Matches crm_deals.probability's
+ *                       own column default, so an unconfigured path is consistent.
+ *   qualification 25  — budget, authority, need and timing have been confirmed to
+ *                       exist. Most deals die here, so it stays well under half.
+ *   proposal      50  — we have quoted and they are evaluating. A genuine coin
+ *                       flip: the customer now has everything needed to say no.
+ *   negotiation   70  — they are arguing terms, which is something buyers only
+ *                       spend time on when they intend to buy.
+ *   verbal_commit 90  — they have said yes; only paper is outstanding. Not 100,
+ *                       because signature slips and budgets get frozen.
+ *   closed_won   100  — by definition.
+ *   closed_lost    0  — by definition.
+ *
+ * Monotonic across rank by construction. These MUST stay in step with the
+ * backfill in migration `0089_furry_tattoo.sql`; a test pins the two together.
+ */
 export const DEFAULT_PIPELINE_STAGES: Array<{
   key: DealStageKey;
   label: string;
   color: string;
   rank: number;
   active: boolean;
+  probability: number;
 }> = [
-  { key: "prospect",      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true },
-  { key: "qualification", label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true },
-  { key: "proposal",      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true },
-  { key: "negotiation",   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true },
-  { key: "verbal_commit", label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true },
-  { key: "closed_won",    label: "Closed Won",    color: "text-green-700 bg-green-100",     rank: 5, active: false },
-  { key: "closed_lost",   label: "Closed Lost",   color: "text-red-700 bg-red-100",         rank: 6, active: false },
+  { key: "prospect",      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true,  probability: 10 },
+  { key: "qualification", label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true,  probability: 25 },
+  { key: "proposal",      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true,  probability: 50 },
+  { key: "negotiation",   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true,  probability: 70 },
+  { key: "verbal_commit", label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true,  probability: 90 },
+  { key: "closed_won",    label: "Closed Won",    color: "text-green-700 bg-green-100",     rank: 5, active: false, probability: 100 },
+  { key: "closed_lost",   label: "Closed Lost",   color: "text-red-700 bg-red-100",         rank: 6, active: false, probability: 0 },
 ];
+
+/**
+ * Preconditions for moving a deal INTO a terminal stage. Shared by the canonical
+ * `deals.movePipeline` and the deprecated flat `crm.movePipeline` so the two
+ * cannot drift — this file's own history is a catalogue of paths that did.
+ *
+ * Validates the TRANSITION, never the stored row: a deal already sitting in
+ * closed_won without a value is untouched and nothing is rewritten.
+ */
+export function assertDealCloseTransition(
+  existing: { value: string | null; expectedClose: Date | null },
+  stage: DealStageKey,
+  lostReason: string | undefined,
+): void {
+  if (stage === "closed_won") {
+    const missing: string[] = [];
+    if (existing.value === null || existing.value === undefined || Number(existing.value) <= 0) {
+      missing.push("a deal value");
+    }
+    if (!existing.expectedClose) missing.push("an expected close date");
+    if (missing.length > 0) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `A deal cannot be marked Closed Won without ${missing.join(" and ")}. Edit the deal to add ${missing.length > 1 ? "them" : "it"} first.`,
+      });
+    }
+  }
+  if (stage === "closed_lost" && !lostReason) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "A reason is required when marking a deal Closed Lost.",
+    });
+  }
+}
 
 /**
  * Loads an org's pipeline-stage config, seeding factory defaults on first read.
@@ -196,11 +252,21 @@ export const crmDealsRouter = router({
     }),
 
   movePipeline: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), stage: dealStageSchema }))
+    .input(z.object({
+      id: z.string().uuid(),
+      stage: dealStageSchema,
+      /** Required when moving to closed_lost. Written to `crm_deals.lostReason`. */
+      lostReason: z.string().trim().min(1).max(500).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [existing] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+
+      // Closed-won needs a value and an expected close; closed-lost needs a
+      // reason. ONE guard on TWO transitions, deliberately not a transition map:
+      // prospect → verbal_commit is still allowed if that is what happened.
+      assertDealCloseTransition(existing, input.stage, input.lostReason);
 
       const [freshOrg] = await db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, org!.id));
       const settings = freshOrg?.settings ?? org!.settings;
@@ -222,6 +288,11 @@ export const crmDealsRouter = router({
         }
       }
 
+      // A move NEVER rewrites `probability`. The stage default only ever seeds a
+      // NEW deal on the create form; once a rep has a number on a deal it is
+      // theirs, and silently replacing it on a stage change would rewrite the
+      // forecast underneath them. `weightedValue` therefore stays correct too —
+      // neither of its inputs changed.
       const updates: Partial<typeof crmDeals.$inferInsert> = { stage: input.stage, updatedAt: new Date() };
       if (input.stage === "closed_won" || input.stage === "closed_lost") {
         updates.closedAt = new Date();
@@ -230,6 +301,14 @@ export const crmDealsRouter = router({
         updates.wonApprovedBy = null;
         updates.wonApprovalTier = null;
         updates.closedAt = null;
+      }
+      if (input.stage === "closed_lost") {
+        updates.lostReason = input.lostReason!;
+      } else {
+        // Moving back out of closed_lost clears the reason: it described a
+        // conclusion that no longer holds, and leaving it would attach a lost
+        // reason to a live deal.
+        updates.lostReason = null;
       }
 
       const [deal] = await db.update(crmDeals).set(updates).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
@@ -295,10 +374,11 @@ export const crmDealsRouter = router({
         color: r.color,
         rank: r.rank,
         active: r.active,
+        probability: r.probability,
       }));
     }),
 
-    /** Update label/color/rank/active for one or more stages. Keys must be valid enum stages. */
+    /** Update label/color/rank/active/probability for one or more stages. Keys must be valid enum stages. */
     update: adminProcedure
       .input(
         z.object({
@@ -310,6 +390,8 @@ export const crmDealsRouter = router({
                 color: z.string().min(1).max(120),
                 rank: z.coerce.number().int().min(0).max(99),
                 active: z.boolean(),
+                /** Default close probability for deals at this stage, 0–100. */
+                probability: z.coerce.number().int().min(0).max(100).optional(),
               }),
             )
             .min(1)
@@ -326,7 +408,14 @@ export const crmDealsRouter = router({
           for (const s of input.stages) {
             await tx
               .update(crmPipelineStages)
-              .set({ label: s.label, color: s.color, rank: s.rank, active: s.active, updatedAt: new Date() })
+              // `probability` is optional on the input so an older caller that
+              // sends only label/colour/rank/active leaves it untouched rather
+              // than resetting a configured value to a default.
+              .set({
+                label: s.label, color: s.color, rank: s.rank, active: s.active,
+                ...(s.probability === undefined ? {} : { probability: s.probability }),
+                updatedAt: new Date(),
+              })
               .where(and(eq(crmPipelineStages.orgId, org!.id), eq(crmPipelineStages.key, s.key)));
           }
           const rows = await loadPipelineStages(tx, org!.id);
@@ -336,6 +425,7 @@ export const crmDealsRouter = router({
             color: r.color,
             rank: r.rank,
             active: r.active,
+            probability: r.probability,
           }));
         });
       }),
@@ -351,6 +441,7 @@ export const crmDealsRouter = router({
         color: r.color,
         rank: r.rank,
         active: r.active,
+        probability: r.probability,
       }));
     }),
   }),

@@ -117,6 +117,108 @@ anything** — same class as `.turbo` making "cold lint" warm.
 
 ---
 
+## CRM ROUND 11 — quote line-item editor + the deprecated-mutation sweep — `393e5d7` (2026-08-16; NO migration)
+
+_Driven by `docs/audits/form-list-schema-parity_2026-08-16.md`. CRM only. Gate before push: build 11/11;
+**211 files / 1858 tests**; `lint:cold` **9/9 forced**; playwright **115 passed / 2 failed** (the known
+`rbac.spec.ts:105` + `:115` hydration failures — and **no login-timeout flake landed this run**, a change
+from the usual pattern). **SHIPPED & DEPLOYED**: CI run `31921763485`, all five jobs `success` on **attempt
+1** including the terminal `Deploy to Vultr`, verified via `/api/health` → `393e5d78e9988770…`. **No
+migration** — head stays `0088`._
+
+### The headline: the CPQ engine was reachable; the UI never reached it
+
+`crm.deals.quotes.create` already accepted a full `items[]` and already called `buildQuoteTaxColumns` →
+`computeGST`. The New Quote dialog sent **one hardcoded line at quantity 1 / unit price 0**
+(`crm/page.tsx:1870` pre-change), so **every quote the product could produce totalled ₹0 and carried ₹0
+of GST while looking like a finished document**. Replaced with a real line-item editor. No second GST
+implementation was written and none existed.
+
+- **`crm.deals.quotes.previewTax`** (`routers/crm/deals.ts:381`) — live totals from the SERVER, returning
+  the money **and** the resolved buyer state in one call. Browser math was rejected deliberately: the
+  intra-vs-inter split needs two DB reads (org GSTIN state, buyer account state), and a client-side copy
+  of the rules would drift from the one that writes the quote.
+- **Zero-value quotes refused at the API** (`assertQuoteHasValue`, `lib/crm/quote-tax.ts:136`) — called
+  from the canonical create, the canonical update (only when `items` are sent, so a status-only edit still
+  works) **and the deprecated `createQuote`**, so the hole did not just move.
+- **Per-line discount is now stored.** `serializeQuote` hardcoded `discount: 0`, so the quote detail's
+  "Discount %" column could only ever render 0. Rides the existing `crm_quotes.items` jsonb — **no
+  migration**.
+- **Place of supply surfaced, and its silent case made loud.** An account with no `stateCode` produces
+  **no warning anywhere** — `normaliseGstStateOrWarn` treats an absent state as a legitimate unknown and
+  logs nothing. The editor now names the resolved state and the intra/inter outcome before the document is
+  sent, and warns prominently when the account has none.
+
+### CORRECTION OF RECORD — the quote path did NOT normalise state (wrong tax split, live)
+
+A premise carried into this round was that `buildQuoteTaxColumns` resolved both sides through
+`normaliseGstStateOrWarn`. **It did not.** It passed the raw strings to `computeGST`, which compares
+case-insensitively. Org side = a code (`"29"`, from `gstin_registry`); buyer side = `crm_accounts
+.state_code`, free text that may hold a NAME. `"29" ≠ "karnataka"` → **a Bengaluru-to-Bengaluru sale was
+billed inter-state IGST**: right total, wrong split, on a document that looks correct. Now normalised on
+both sides. `financial.ts` / `procurement.ts` / `ingest.ts` already did this — the quote path was the
+outlier. **Totals are unaffected and no stored row is rewritten**; only re-computation on create/edit
+changes. Convention recorded in `CLAUDE.md`.
+
+### The deprecated-mutation sweep (the trap that has bitten three times)
+
+**18 of 22 `trpc.crm.*` mutation call-sites** targeted a deprecated procedure. **No field was being
+stripped in the shipped product — the trap was armed, not firing.** Adding the nine qualification fields
+to the lead form without repointing first would have lost all nine on save, for the third time.
+
+Two canonical procedures were **worse** than their deprecated twins and had to be fixed *before* the
+repoint, or archiving would have silently broken: `contacts.list` had no `showArchived` (no archived
+filter at all) and `contacts.update` had no `archived`. Deprecated procedures left in place — other
+callers may exist.
+
+**What WAS being lost, by a different mechanism:** `stage` is a **required** field on the New Deal form
+that the mutate payload never included, so every deal created through the UI landed on the `prospect`
+default whatever the rep picked. Fixed. `source` is also required on that form and **`crm_deals` has no
+source column at all** — recorded, NOT fixed; the Pipeline screen is outside this round.
+
+**Two aggregates were unreachable for the same reason** (the query twin of the trap): the Accounts list
+queried the deprecated `crm.listAccounts` (a plain select), so Part 1's Open Opps / Total Revenue would
+have rendered `undefined` in production; the Leads list queried `crm.listLeads`, so `Last Activity` was
+always "—" despite the canonical procedure computing it.
+
+### Columns deleted (a column nothing fills is a lie)
+
+- **Accounts** — Type, Country, Employees, Owner, Last Contact (none is a column on `crm_accounts`).
+  Open Opps + Total Revenue KEPT and made real aggregates over `crm_deals`. Website + State added.
+- **Contacts** — Department, Open Deals, Owner, Last Activity (not columns; nothing computed them) and
+  **Seniority**, which IS a real column but whose only writer is `seed-smb-analytics.ts` — no product
+  path sets it, so it is always "—" in a real tenant. Account kept and resolved through the real
+  `accountId` FK. **No fields added** — a contact is usable without any of them.
+- **Leads** — Owner (`ownerId` exists; nothing resolves a name). The nine qualification fields moved onto
+  the create form, **collapsed and every one optional**: on first contact a rep rarely knows budget or
+  timeline, and a capture form that demands them gets abandoned.
+
+### Recorded, NOT fixed (deliberate)
+
+- **`Lead #` is a truncated UUID.** `crm_leads` has **no `number` column**, so `LD-${id.substring(0,6)}`
+  is not a fallback — it is the only path. Sweep 1 of the parity audit; its own round.
+- **`crm_deals.source`** — collected, required, unstorable (no column). Pipeline screen, out of scope.
+- **RBAC map NOT regenerated.** Its generator does not follow sub-routers imported from other files, so
+  **no nested `crm.*` path is in the map at all**. Running it produced unrelated drift that would have
+  changed `hr.leave.create` gating. Reverted; the repointed queries keep their prior `accounts:read` gate
+  via the flat rule key, with the reason at the call site. See `CLAUDE.md`.
+- The parity audit's other three sweeps (money formatter, TS-union-vs-DB-enum, truncated identifiers) and
+  the **43 UNVERIFIED screens** are untouched.
+
+### Tests written
+
+`crm-account-parity.test.ts` (state persists; the three divergent UTs resolve to a code both ways; the PT
+spelling "Jammu and Kashmir" resolves to **null**, which is why the form must not use that list; aggregates
+match the deals with a second account proving no leakage) · `crm-quote-editor.test.ts` (preview ≡ create;
+the zero-value guard on all three write paths; name-vs-code normalisation both directions) ·
+`crm-deprecated-mutation-sweep.test.ts` (**pins what the deprecated inputs drop**, so the gap is a
+documented fact rather than something a customer rediscovers) · `e2e/crm-quote-lineitems.spec.ts`
+(two lines at different GST rates by clicking → subtotal 25,000, tax 3,850, total 28,850; a zero-line
+quote refused). The eight pre-existing `crm-quote-gst.test.ts` tests pass **unchanged** — no existing test
+was edited.
+
+---
+
 ## AUTHZ sweep + QA-harness repair — 2026-08-14 (uncommitted; one deploy, no migration)
 
 **AUTHZ — `STATUTORY-IDENTITY-UNGATED` + the sweep.** The QA inventory (894 procedures) turned a hunt

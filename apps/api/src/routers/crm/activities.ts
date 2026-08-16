@@ -5,10 +5,38 @@
  * Accessed via `trpc.crm.activities.*` on the frontend.
  */
 import { router, permissionProcedure } from "../../lib/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { crmActivities, eq, and, desc } from "@coheronconnect/db";
 
 const activityTypeSchema = z.enum(["call", "email", "meeting", "demo", "follow_up", "note"]);
+
+/**
+ * An activity must hang off SOMETHING.
+ *
+ * Every association was optional, so the API happily created rows attached to
+ * nothing — and the Dashboard's "+ New" quick-log did exactly that, minting
+ * "Logged Activity" rows that appear on no lead, deal, account or contact and
+ * can only ever be found by listing the whole activity table.
+ *
+ * The rule is "at least ONE", deliberately not "an account and a contact": a
+ * LEAD has no account until it converts, so demanding one makes logging a call
+ * against a lead impossible — which is why `crm_activities.leadId` had a column,
+ * an FK, an index and an aggregate feeding the Leads list, and no way to write it.
+ */
+export function assertActivityHasAssociation(input: {
+  dealId?: string | null;
+  leadId?: string | null;
+  accountId?: string | null;
+  contactId?: string | null;
+}): void {
+  if (!input.dealId && !input.leadId && !input.accountId && !input.contactId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "An activity must be linked to at least one of: lead, deal, account or contact.",
+    });
+  }
+}
 
 export const crmActivitiesRouter = router({
   list: permissionProcedure("accounts", "read")
@@ -37,8 +65,9 @@ export const crmActivitiesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [activity] = await db.insert(crmActivities).values({ 
-        orgId: org!.id, 
+      assertActivityHasAssociation(input);
+      const [activity] = await db.insert(crmActivities).values({
+        orgId: org!.id,
         ...input, 
         ownerId: user!.id, 
         type: input.type || "call",

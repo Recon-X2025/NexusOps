@@ -91,7 +91,7 @@ percentages are in **[`docs/audits/module-completion-reachability_2026-08-15.md`
 | Finance — Accounting / GST | PARTIAL | Invoices (AP/AR) post a balanced GL journal atomically; GST + GSTR-1 rate grouping are real (no 18% hardcode). **Gaps:** the sidebar Journal creates drafts with **no Post control** (entries never reach balances); GL debit/credit columns are blank; **balance sheet has no screen**; bank reconciliation has no tie-out. |
 | Procurement | PARTIAL | PR→PO with a creation-time value gate, server GST, and a balanced accrual journal. **Gaps:** goods-receipt is a status stamp (no GRN UI); the **3-way match engine is real but unreachable** through the product. |
 | IT Asset (ITAM / SAM) | PARTIAL | Hardware/software registers + license seat management real. **Gaps:** **asset depreciation engine is orphaned** (no UI/nav/scheduler); SAM installed-vs-entitled reconciliation is built but unreachable. |
-| CRM | PARTIAL | Accounts/contacts/deals/leads with **deterministic lead scoring (now computed + persisted)** and **lossless lead→deal conversion**. CPQ GST engine is real but the UI can only create zero-value quotes. |
+| CRM | PARTIAL | Accounts/contacts/deals/leads with **deterministic lead scoring (now computed + persisted)** and **lossless lead→deal conversion**. Leads capture BANT qualification at creation. **CPQ quotes are now reachable end-to-end**: a real line-item editor (qty/price/per-line discount/HSN/GST rate) with totals and the CGST-SGST-vs-IGST split computed **on the server**, the resolved place of supply shown before sending, and zero-value quotes refused at the API. **Gaps:** an account's state is free text, so a customer row that predates the state picker still needs correcting before its quotes split correctly (the editor warns when one is missing); quotes have no PDF (CSV export only) and no customer-facing send. |
 | GRC / Compliance / DPDP | PARTIAL | Security incidents + CVSS→SLA escalation loop real; DPDP **DSR / consent / breach / RoPA** registers with a firing sweep. **Scope limits:** DSR erasure ships dry-run (`DPDP_ERASURE_ENABLED` off); breach notices go to the tenant's own DPO only — **never the regulator or data principals**; GRC scoring is likelihood×impact only. |
 | Legal / Secretarial | PARTIAL | Matters/requests/investigations, board & directors (resolutions with vote records, DIN+KYC), share capital (PAN encrypted). **Gaps:** related-party/RoPA/real MCA21 filing are backend-only; MCA/ROC tab is a manual tracker; ESOP is a grants register with no vesting computation; "Statutory Registers" is an empty shell. |
 | Self-Service Portal (consumer) | PARTIAL | Genuine self-scoped receive-only surfaces (payslips, Form 16, own leave/reviews). **Gap:** no role grants *exactly* the consumer experience — the base `requester` role over-grants HR/facilities/procurement write. |
@@ -130,7 +130,8 @@ of professional-tax states, LTA/bonus) are handled outside the system by design.
 The platform's dominant gap class is a correct engine behind a missing screen. The mid-term push
 makes them reachable: **balance sheet + P&L screens**, an **asset-depreciation UI + month-end
 scheduler**, a **three-way-match / goods-receipt flow**, **SAM installed-vs-entitled reconciliation**,
-**bank-reconciliation tie-out**, a **CPQ line-item editor**, and **on-call chain authoring**. In
+**bank-reconciliation tie-out**, and **on-call chain authoring**. (The **CPQ line-item editor** was on
+this list and has shipped — the GST engine is now reachable from the product.) In
 parallel: DPDP automation depth (erasure beyond dry-run, once counsel-gated), **object storage for
 document attachments**, and the remaining webhook event emitters.
 

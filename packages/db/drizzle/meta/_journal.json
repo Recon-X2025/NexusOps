@@ -624,6 +624,13 @@
       "when": 1786814709793,
       "tag": "0088_concerned_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1786853723473,
+      "tag": "0089_furry_tattoo",
+      "breakpoints": true
     }
   ]
 }

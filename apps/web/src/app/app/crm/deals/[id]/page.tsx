@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { ResourceView } from "@/components/ui/resource-view";
 import { PageHeader } from "@/components/ui/page-header";
 import { Timeline, type TimelineItem } from "@/components/ui/timeline";
+import { LOST_REASONS, LOST_REASON_OTHER } from "@/lib/crm-lost-reasons";
 
 const STAGE_CFG: Record<string, { label: string; color: string }> = {
     prospect: { label: "Prospect", color: "text-muted-foreground bg-muted" },
@@ -35,6 +36,11 @@ export default function DealDetailPage() {
     const router = useRouter();
     const id = params.id as string;
     const { isAdmin } = useRBAC();
+
+    // Closed Lost captures a reason before the move is sent.
+    const [showLostReason, setShowLostReason] = useState(false);
+    const [lostReasonPick, setLostReasonPick] = useState("");
+    const [lostReasonText, setLostReasonText] = useState("");
 
     const qDeal = trpc.crm.deals.get.useQuery({ id });
     const qActivities = trpc.crm.activities.list.useQuery({ dealId: id });
@@ -224,6 +230,17 @@ export default function DealDetailPage() {
                                                 {deal.expectedClose ? new Date(deal.expectedClose).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"}
                                             </p>
                                         </div>
+                                        {/* Only ever populated on closed_lost, and cleared if the deal
+                                            is moved back out. A reason captured and never shown is the
+                                            same defect as the column being empty. */}
+                                        {deal.stage === "closed_lost" && deal.lostReason && (
+                                            <div>
+                                                <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide">Lost Reason</p>
+                                                <p data-testid="deal-lost-reason" className="text-body-sm font-medium text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1 mt-1">
+                                                    {deal.lostReason}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -235,17 +252,26 @@ export default function DealDetailPage() {
                                             const isClosedWon = deal.stage === "closed_won";
                                             const isActiveStage = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"].includes(s);
                                             const isRestricted = isClosedWon && isActiveStage;
+                                            // Closed Won now requires a value and an expected close, server-side.
+                                            const wonIncomplete = s === "closed_won"
+                                                && (!(Number(deal.value ?? 0) > 0) || !deal.expectedClose);
                                             return (
                                                 <button
                                                     key={s}
-                                                    onClick={() => movePipeline.mutate({ id, stage: s })}
-                                                    disabled={movePipeline.isPending || deal.stage === s || isRestricted}
+                                                    data-testid={`deal-stage-${s}`}
+                                                    // Closed Lost collects a reason first; the move is sent from that dialog.
+                                                    onClick={() => { if (s === "closed_lost") { setShowLostReason(true); return; } movePipeline.mutate({ id, stage: s }); }}
+                                                    disabled={movePipeline.isPending || deal.stage === s || isRestricted || wonIncomplete}
                                                     className={cn(
                                                         "w-full flex items-center justify-between px-3 py-2 rounded-lg text-body-sm transition-colors",
                                                         deal.stage === s ? cn("font-bold", STAGE_CFG[s]?.color) : "hover:bg-muted text-muted-foreground",
-                                                        isRestricted && "opacity-50 cursor-not-allowed"
+                                                        (isRestricted || wonIncomplete) && "opacity-50 cursor-not-allowed"
                                                     )}
-                                                    title={isRestricted ? "Cannot move a Closed Won deal back to an active stage" : undefined}
+                                                    title={
+                                                        isRestricted ? "Cannot move a Closed Won deal back to an active stage"
+                                                        : wonIncomplete ? "Closed Won needs a deal value and an expected close date"
+                                                        : undefined
+                                                    }
                                                 >
                                                     {STAGE_CFG[s]?.label}
                                                     {deal.stage === s && <CheckCircle2 className="w-4 h-4" />}
@@ -253,6 +279,47 @@ export default function DealDetailPage() {
                                             );
                                         })}
                                     </div>
+                                    {/* Lost-reason capture, sharing one reason list with the Pipeline
+                                        board rather than keeping a second copy per screen. */}
+                                    {showLostReason && (() => {
+                                        const chosen = lostReasonPick === LOST_REASON_OTHER ? lostReasonText.trim() : lostReasonPick;
+                                        return (
+                                            <div data-testid="deal-lost-reason-capture" className="mt-3 border border-border rounded-lg p-3 space-y-2">
+                                                <p className="text-caption font-semibold text-foreground">Why was this deal lost?</p>
+                                                <select
+                                                    data-testid="deal-lost-reason-select"
+                                                    value={lostReasonPick}
+                                                    onChange={(e) => { setLostReasonPick(e.target.value); setLostReasonText(""); }}
+                                                    className="w-full border border-border rounded px-2 py-1.5 text-body-sm bg-background"
+                                                >
+                                                    <option value="">— Select a reason —</option>
+                                                    {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                                                    <option value={LOST_REASON_OTHER}>{LOST_REASON_OTHER}…</option>
+                                                </select>
+                                                {lostReasonPick === LOST_REASON_OTHER && (
+                                                    <input
+                                                        data-testid="deal-lost-reason-other"
+                                                        value={lostReasonText}
+                                                        onChange={(e) => setLostReasonText(e.target.value)}
+                                                        placeholder="What actually happened?"
+                                                        className="w-full border border-border rounded px-2 py-1.5 text-body-sm bg-background"
+                                                    />
+                                                )}
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => { setShowLostReason(false); setLostReasonPick(""); setLostReasonText(""); }}
+                                                        className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent"
+                                                    >Cancel</button>
+                                                    <button
+                                                        data-testid="deal-lost-reason-confirm"
+                                                        disabled={!chosen || movePipeline.isPending}
+                                                        onClick={() => movePipeline.mutate({ id, stage: "closed_lost", lostReason: chosen })}
+                                                        className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                                                    >Mark Closed Lost</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     {(() => {
                                         const mv = Number(deal.value ?? 0);
                                         const low = dealThresholdsQ.data?.dealCloseNoApprovalBelow ?? 500000;

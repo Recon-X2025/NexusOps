@@ -43,6 +43,16 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   Migration head at that deploy: **`0085`**.
 - **LIVE = `c8b3af7`** (Round 9a; migration head `0088`) — CI run `31901980792`, all six jobs `success`,
   `/api/health` → `c8b3af72e16e7176…`.
+- **`d436969`** (Round 9b/9c CRM: lead dialog de-duplication, row progression, converted bypass closed) —
+  CI run `31906880564`, conclusion `success`. No migration.
+- **LIVE = `393e5d7`** (CRM Round 11: quote line-item editor + the deprecated-mutation sweep) — CI run
+  `31921763485`, all five jobs `success` on **attempt 1** including the terminal `Deploy to Vultr`,
+  `/api/health` → `393e5d78e9988770…`, 2026-08-16. **No migration** — head stays `0088`.
+  _First deploy carrying a GST **split** change: quotes created or line-edited from now on resolve the
+  intra-vs-inter decision from normalised state codes. Totals are unchanged and stored rows are not
+  rewritten, but a customer whose account state was stored as a NAME previously produced IGST on a local
+  sale and will now correctly produce CGST+SGST — the difference is visible if anyone compares a
+  pre-deploy quote with a post-deploy one for the same customer._
 - Prior: **`90f7b70`** — CI run `31887995023`, all six jobs `success` including the terminal
   `Deploy to Vultr`; `/api/health` returned `version: 90f7b702a79d3f9b…`. It carried Rounds 6, 7 and
   8-part-1 and **two migrations, `0086` and `0087`** (head `0085` → `0087`). Migration `0086` did NOT halt
@@ -81,6 +91,43 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `docker-compose.vultr.images.yml`, **not** `docker-compose.prod.yml`'s `migrator` service.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0082`).
+
+## 2026-08-16 — CRM Round 11: the quote engine made reachable + the deprecated-mutation sweep (`393e5d7`)
+
+_Per-item detail in `reports/fix-plan.md` → CRM ROUND 11. Driven by
+`docs/audits/form-list-schema-parity_2026-08-16.md`. CRM only; **no migration**._
+
+- **The CPQ engine was always reachable — the UI never reached it.** `crm.deals.quotes.create` already
+  accepted a full `items[]` and already called `buildQuoteTaxColumns` → `computeGST`. The New Quote dialog
+  sent **one hardcoded line at quantity 1 / unit price 0**, so **every quote the product could produce
+  totalled ₹0 with ₹0 of GST while looking finished.** Now a real line-item editor, with a new
+  `crm.deals.quotes.previewTax` computing live totals **on the server** (the intra/inter split needs two DB
+  reads; a browser copy of the rules would drift from the one that writes the quote). Zero-value quotes are
+  refused at the API on all three write paths. This closes the README's "CPQ GST engine is real but the UI
+  can only create zero-value quotes."
+- **WRONG TAX SPLIT, fixed — and a premise corrected.** The quote path did **not** normalise state
+  (`financial.ts`/`procurement.ts`/`ingest.ts` do). `computeGST` compares raw strings; the org side is a
+  code (`"29"`) and `crm_accounts.state_code` is free text that may hold a name → **a local sale billed as
+  inter-state IGST.** Right total, wrong split. Totals unaffected, stored rows not rewritten; only
+  re-computation on create/edit changes. Convention now in `CLAUDE.md`.
+- **The deprecated-procedure trap, swept.** **18 of 22** `trpc.crm.*` mutation call-sites targeted a
+  deprecated procedure whose zod input silently drops newer fields. **Nothing was being stripped in the
+  shipped product — the trap was armed, not firing** — but Part D would have lost nine fields on save, for
+  the third time. Two canonical procedures were *worse* than their deprecated twins (`contacts.list` had no
+  `showArchived`, `contacts.update` no `archived`) and were fixed first, or archiving would have broken
+  silently. **Same trap on queries:** Accounts and Leads were calling deprecated `list*` procedures that
+  skip the aggregates, so Open Opps / Total Revenue / Last Activity could never render.
+- **Live data loss found by a different mechanism:** `stage` is a **required** field on the New Deal form
+  that the payload never sent — every UI-created deal landed on `prospect`. Fixed. `source` is also
+  required there and `crm_deals` **has no source column** — recorded, not fixed (Pipeline is out of scope).
+- **Columns nothing fills, deleted** across Accounts (5), Contacts (5) and Leads (1). Contacts' `seniority`
+  went with them: a real column whose only writer is `seed-smb-analytics.ts`, so it is always "—" in a real
+  tenant. No fields were added to Contacts — the rule is add only where the record is unusable without it.
+- **Untouched, deliberately:** the parity audit's other three sweeps (money formatter, TS-union-vs-DB-enum,
+  truncated identifiers — including `Lead #`, which is a truncated UUID because `crm_leads` has no `number`
+  column) and its **43 UNVERIFIED screens**. The RBAC map was **not** regenerated: its generator misses
+  cross-file sub-routers and regenerating pulled unrelated drift that would have changed `hr.leave.create`
+  gating.
 
 ## 2026-08-13 → 08-14 — the two-day run (F9 · EXIT-DATE · FULL-AND-FINAL · procurement · PO-GATE)
 
@@ -761,7 +808,15 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31901980792` — commit `c8b3af7` (Round 9a CRM: BANT, lead activities, conversion carry; migration `0088`) — all six jobs `success`, verified via `/api/health` → `c8b3af72e16e7176…`. Superseded: CI `31887995023` / `90f7b70` (Rounds 6/7/8-part-1; migrations `0086`+`0087`) — all six jobs `success`, terminal `Deploy to Vultr` `success` — 2026-08-15 — migration head `0087`.** Verified via `/api/health` returning `version: 90f7b702a79d3f9b…`. Superseded exit point: CI `31877482131` / `e11e5f5` / head `0085`.
+**CI run `31921763485` — commit `393e5d7` (CRM Round 11: quote line-item editor + the deprecated-mutation
+sweep; **no migration**, head stays `0088`) — all five jobs `success` on **attempt 1**, including the terminal
+`Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: 393e5d78e9988770…`. Run 02:22Z → 03:01Z
+(~38 min).** Detail: `reports/fix-plan.md` → CRM ROUND 11.
+
+_Also now recorded: **`d436969`** (Round 9b/9c CRM lead-dialog work) — CI `31906880564`, conclusion
+`success`. It deployed between `c8b3af7` and `393e5d7` and this section had skipped it._
+
+**Superseded exit point — CI run `31901980792` — commit `c8b3af7` (Round 9a CRM: BANT, lead activities, conversion carry; migration `0088`) — all six jobs `success`, verified via `/api/health` → `c8b3af72e16e7176…`. Superseded: CI `31887995023` / `90f7b70` (Rounds 6/7/8-part-1; migrations `0086`+`0087`) — all six jobs `success`, terminal `Deploy to Vultr` `success` — 2026-08-15 — migration head `0087`.** Verified via `/api/health` returning `version: 90f7b702a79d3f9b…`. Superseded exit point: CI `31877482131` / `e11e5f5` / head `0085`.
 
 **Superseded exit points (decision-history):** CI `31818337559` / `f659127` / head `0085` (leave-model batch,
 2026-08-14); CI `31761880777` / `831f21b` / head `0082` (security+payroll); CI `31701625521` / `f487ee8` /

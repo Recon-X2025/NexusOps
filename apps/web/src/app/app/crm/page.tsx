@@ -15,6 +15,7 @@ import { downloadCSV, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
 import { GSTIN_STATE_CODES } from "@coheronconnect/payroll-math";
+import { LOST_REASONS, LOST_REASON_OTHER } from "@/lib/crm-lost-reasons";
 
 const LEAD_IMPORT_FIELDS: ImportField[] = [
   { key: "firstName", label: "First Name", required: true },
@@ -351,6 +352,17 @@ const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-
 
 const PIPELINE_STAGES: DealStage[] = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"];
 
+/**
+ * Mirrors DEFAULT_PIPELINE_STAGES in apps/api/src/routers/crm/deals.ts and the
+ * backfill in migration 0089. Used only until `crm.deals.stages.list` resolves;
+ * the tenant's own configured values win as soon as they arrive.
+ */
+const FALLBACK_STAGE_PROBABILITY: Record<string, number> = {
+  prospect: 10, qualification: 25, proposal: 50, negotiation: 70,
+  verbal_commit: 90, closed_won: 100, closed_lost: 0,
+};
+
+
 function dealCloseTierClient(
   value: number,
   low: number,
@@ -374,12 +386,23 @@ export default function CRMPage() {
     timeline: "unknown" as string, estimatedValue: "", expectedClose: "", nextAction: "", nextActionDate: "" });
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [dealForm, setDealForm] = useState({
-    title: "", value: "", probability: "30", expectedClose: "",
-    accountId: "", contactId: "", source: "", stage: "prospect" as string,
+    title: "", value: "", probability: "", expectedClose: "",
+    accountId: "", contactId: "", stage: "prospect" as string,
   });
+  /**
+   * True once the rep types their own probability. The stage default then stops
+   * following the stage dropdown — a deliberate entry must never be silently
+   * overwritten, which is the whole difference between a default and a lock.
+   */
+  const [probabilityTouched, setProbabilityTouched] = useState(false);
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
+  /** Deal id awaiting a lost reason before its closed_lost move is sent. */
+  const [lostReasonFor, setLostReasonFor] = useState<string | null>(null);
+  const [lostReasonPick, setLostReasonPick] = useState("");
+  const [lostReasonText, setLostReasonText] = useState("");
+  const lostReasonOther = lostReasonPick === LOST_REASON_OTHER;
   const [showStageConfig, setShowStageConfig] = useState(false);
-  const [stageDraft, setStageDraft] = useState<Array<{ key: string; label: string; color: string; rank: number; active: boolean }>>([]);
+  const [stageDraft, setStageDraft] = useState<Array<{ key: string; label: string; color: string; rank: number; active: boolean; probability: number }>>([]);
   const [showNewAccount, setShowNewAccount] = useState(false);
   const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", stateCode: "", gstin: "" });
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
@@ -425,7 +448,7 @@ export default function CRMPage() {
   const [quoteLines, setQuoteLines] = useState<QuoteLineDraft[]>([blankQuoteLine()]);
   const [showNewActivity, setShowNewActivity] = useState(false);
   const [activityForm, setActivityForm] = useState({
-    type: "call", subject: "", description: "", dealId: "", accountId: "", contactId: "",
+    type: "call", subject: "", description: "", leadId: "", dealId: "", accountId: "", contactId: "",
     outcome: "", scheduledAt: "", completedAt: "",
   });
   const [showArchivedActivities, setShowArchivedActivities] = useState(false);
@@ -516,7 +539,7 @@ export default function CRMPage() {
       toast.success("Activity logged");
       refetchActivities();
       setShowNewActivity(false);
-      setActivityForm({ type: "call", subject: "", description: "", dealId: "", accountId: "", contactId: "", outcome: "", scheduledAt: "", completedAt: "" });
+      setActivityForm({ type: "call", subject: "", description: "", leadId: "", dealId: "", accountId: "", contactId: "", outcome: "", scheduledAt: "", completedAt: "" });
     },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
@@ -531,7 +554,14 @@ export default function CRMPage() {
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const movePipeline = trpc.crm.deals.movePipeline.useMutation({
-    onSuccess: () => { toast.success("Deal stage updated"); refetchDeals(); setMovingDeal(null); },
+    onSuccess: () => {
+      toast.success("Deal stage updated");
+      refetchDeals();
+      setMovingDeal(null);
+      setLostReasonFor(null);
+      setLostReasonPick("");
+      setLostReasonText("");
+    },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
@@ -566,6 +596,19 @@ export default function CRMPage() {
     if (!rows || rows.length === 0) return ["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"];
     return [...rows].sort((a, b) => a.rank - b.rank).map((r) => r.key as DealStage);
   })();
+  /**
+   * Per-stage default close probability, configured per tenant on
+   * `crm_pipeline_stages`. Falls back to the same factory numbers the API seeds,
+   * so the form still pre-fills sensibly on the first render before the query
+   * resolves — a blank box that fills in a moment later is worse than a default.
+   */
+  const stageProbability: Record<string, number> = (() => {
+    const out: Record<string, number> = { ...FALLBACK_STAGE_PROBABILITY };
+    for (const r of stagesQ.data ?? []) {
+      if (typeof r.probability === "number") out[r.key] = r.probability;
+    }
+    return out;
+  })();
   const updateStages = trpc.crm.deals.stages.update.useMutation({
     onSuccess: () => { toast.success("Pipeline stages updated"); stagesQ.refetch(); setShowStageConfig(false); },
     onError: (e: { message?: string }) => toast.error(e.message ?? "Failed to update stages"),
@@ -577,8 +620,8 @@ export default function CRMPage() {
   function openStageConfig() {
     const rows = stagesQ.data;
     const base = rows && rows.length > 0
-      ? [...rows].sort((a, b) => a.rank - b.rank).map((r) => ({ key: r.key, label: r.label, color: r.color, rank: r.rank, active: r.active }))
-      : allStagesOrdered.map((k, i) => ({ key: k, label: stageCfg[k]?.label ?? k, color: stageCfg[k]?.color ?? "text-muted-foreground bg-muted", rank: i, active: pipelineStages.includes(k) }));
+      ? [...rows].sort((a, b) => a.rank - b.rank).map((r) => ({ key: r.key, label: r.label, color: r.color, rank: r.rank, active: r.active, probability: r.probability ?? FALLBACK_STAGE_PROBABILITY[r.key] ?? 10 }))
+      : allStagesOrdered.map((k, i) => ({ key: k, label: stageCfg[k]?.label ?? k, color: stageCfg[k]?.color ?? "text-muted-foreground bg-muted", rank: i, active: pipelineStages.includes(k), probability: FALLBACK_STAGE_PROBABILITY[k] ?? 10 }));
     setStageDraft(base);
     setShowStageConfig(true);
   }
@@ -597,7 +640,8 @@ export default function CRMPage() {
       toast.success("Deal created");
       refetchDeals();
       setShowNewDeal(false);
-      setDealForm({ title: "", value: "", probability: "30", expectedClose: "", accountId: "", contactId: "", source: "", stage: "prospect" });
+      setDealForm({ title: "", value: "", probability: "", expectedClose: "", accountId: "", contactId: "", stage: "prospect" });
+      setProbabilityTouched(false);
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create deal"),
   });
@@ -817,8 +861,11 @@ export default function CRMPage() {
 
       {/* Add Deal Modal */}
       {showNewDeal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          {/* Capped height + scroll: this dialog lost a field this round rather than
+              gaining one, but the guard stays so the next addition cannot push Create
+              below the fold the way a prior round did. */}
+          <div data-testid="new-deal-dialog" className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[13px] font-semibold">New Deal</h3>
               <button onClick={() => setShowNewDeal(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -867,11 +914,33 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Probability (%) *</label>
-                <input type="number" min="0" max="100" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
+                {/* Pre-filled from the stage default, and editable. A rep opening a
+                    deal had to invent this number out of nothing, so across seven
+                    tenants it would be blank or 50 for everything and the weighted
+                    pipeline tile would be computed from noise. */}
+                <input
+                  data-testid="deal-probability"
+                  type="number" min="0" max="100"
+                  className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={dealForm.probability === "" ? String(stageProbability[dealForm.stage] ?? 10) : dealForm.probability}
+                  onChange={(e) => { setProbabilityTouched(true); setDealForm(f => ({ ...f, probability: e.target.value })); }}
+                />
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  {probabilityTouched
+                    ? "Your value — the stage default no longer applies."
+                    : `Default for ${stageCfg[dealForm.stage]?.label ?? dealForm.stage.replace(/_/g, " ")}. You can override it.`}
+                </p>
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage *</label>
-                <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
+                <select data-testid="deal-stage" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage}
+                  onChange={(e) => {
+                    // Changing the stage re-defaults the probability ONLY while the
+                    // rep has not typed their own. A deliberate entry is never
+                    // silently rewritten underneath them.
+                    const next = e.target.value;
+                    setDealForm(f => ({ ...f, stage: next, probability: probabilityTouched ? f.probability : "" }));
+                  }}>
                   {pipelineStages.map(s => (
                     <option key={s} value={s}>{stageCfg[s]?.label ?? s.replace(/_/g, " ")}</option>
                   ))}
@@ -881,31 +950,35 @@ export default function CRMPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close Date *</label>
                 <input type="date" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
               </div>
-              <div className="col-span-2">
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source *</label>
-                <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.source} onChange={(e) => setDealForm(f => ({ ...f, source: e.target.value }))}>
-                  <option value="">— Select source —</option>
-                  {["Inbound / Website", "Inbound / Trial", "Direct / Outbound", "Partner Referral", "LinkedIn Outbound", "Upsell / Existing Customer", "Event / Conference", "SDR / Cold Outreach", "Webinar Attendee", "Other"].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
+              {/* "Lead Source *" removed. It was a REQUIRED field with nowhere to go:
+                  `crm_deals` has no source column, so ten minutes of every rep's day
+                  went into a dropdown whose value was discarded on submit. Deal source
+                  is not re-added as a column because it is already recorded upstream —
+                  a converted lead carries `crm_leads.source` and is linked by
+                  `crm_leads.convertedDealId`, so a second copy on the deal would be a
+                  second source of truth that can disagree with the first. The rule is
+                  add a field only where the record is unusable without it; a deal is
+                  usable without one. */}
             </div>
             <div className="flex gap-2 mt-4">
               <button
-                disabled={!dealForm.title || !dealForm.accountId || !dealForm.contactId || !dealForm.value || !dealForm.probability || !dealForm.stage || !dealForm.expectedClose || !dealForm.source || createDeal.isPending}
+                data-testid="new-deal-save"
+                // `probability` is no longer part of the disabled check: it is always
+                // populated, either by the stage default or by the rep's override.
+                disabled={!dealForm.title || !dealForm.accountId || !dealForm.contactId || !dealForm.value || !dealForm.stage || !dealForm.expectedClose || createDeal.isPending}
                 onClick={() => createDeal.mutate({
                   title: dealForm.title,
                   value: dealForm.value || undefined,
-                  probability: Number(dealForm.probability) || 30,
+                  // Whatever is on screen: the rep's override if they typed one,
+                  // otherwise the selected stage's configured default.
+                  probability: Number(dealForm.probability || stageProbability[dealForm.stage] || 10),
                   expectedClose: dealForm.expectedClose || undefined,
                   accountId: dealForm.accountId || undefined,
                   contactId: dealForm.contactId || undefined,
-                  // Stage is a REQUIRED field on this form and was never sent —
-                  // every deal landed on the `prospect` column default regardless
-                  // of what the rep picked. `source` is still collected and still
-                  // goes nowhere: crm_deals has no source column (recorded, not
-                  // fixed here — the Pipeline screen is outside this round).
+                  // Stage is a REQUIRED field on this form that was never sent — every
+                  // deal landed on the `prospect` column default regardless of what the
+                  // rep picked. Fixed in Round 11; pinned by a router test and by
+                  // e2e/crm-pipeline.spec.ts.
                   stage: (dealForm.stage || undefined) as any,
                 })}
                 className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
@@ -931,7 +1004,7 @@ export default function CRMPage() {
             <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-xs p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[13px] font-semibold">Move to Stage</h3>
-                <button onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+                <button data-testid="move-close" onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
               </div>
               {pendingApproval && (
                 <div className="mb-3 rounded border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 px-2 py-2 text-[10px] text-amber-900 dark:text-amber-100">
@@ -969,27 +1042,107 @@ export default function CRMPage() {
                   )}
                 </div>
               )}
+              {/* Closed Won needs a value and an expected close. Both are server-
+                  enforced; naming them here saves a round trip and an error toast. */}
+              {(() => {
+                const missing: string[] = [];
+                if (!(Number(moving?.value ?? 0) > 0)) missing.push("a value");
+                if (!moving?.expectedClose) missing.push("an expected close date");
+                if (missing.length === 0) return null;
+                return (
+                  <div data-testid="move-won-blocked" className="mb-3 rounded border border-border bg-muted/40 px-2 py-2 text-[10px] text-muted-foreground">
+                    <span className="font-semibold text-foreground">Closed Won needs {missing.join(" and ")}.</span>{" "}
+                    Edit the deal to add {missing.length > 1 ? "them" : "it"} before closing it won.
+                  </div>
+                );
+              })()}
               <div className="flex flex-col gap-1.5">
                 {allStagesOrdered.map(s => {
                   const isClosedWon = moving?.stage === "closed_won";
                   const isActiveStage = pipelineStages.includes(s);
                   const isRestricted = isClosedWon && isActiveStage;
+                  const wonIncomplete = s === "closed_won"
+                    && (!(Number(moving?.value ?? 0) > 0) || !moving?.expectedClose);
                   return (
                     <button
                       key={s}
-                      onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
-                      disabled={movePipeline.isPending || isRestricted}
+                      data-testid={`move-to-${s}`}
+                      onClick={() => {
+                        // Closed Lost collects a reason first — the move is only
+                        // sent once one is chosen.
+                        if (s === "closed_lost") { setLostReasonFor(movingDeal); return; }
+                        movePipeline.mutate({ id: movingDeal, stage: s });
+                      }}
+                      disabled={movePipeline.isPending || isRestricted || wonIncomplete}
                       className={cn(
                         "px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50",
                         stageCfg[s]?.color ?? "",
                         isRestricted && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit"
                       )}
-                      title={isRestricted ? "Cannot move a Closed Won deal back to an active stage" : undefined}
+                      title={
+                        isRestricted ? "Cannot move a Closed Won deal back to an active stage"
+                        : wonIncomplete ? "Add a value and an expected close date first"
+                        : undefined
+                      }
                     >
                       {stageCfg[s]?.label ?? s.replace(/_/g, " ")}
                     </button>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Closed Lost — capture the reason. Required: a lost deal with no reason
+          teaches nothing, and the flow is not hostile because this dialog is
+          already open and one click away from the outcome. */}
+      {lostReasonFor && (() => {
+        const chosen = lostReasonOther ? lostReasonText.trim() : lostReasonPick;
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+            <div data-testid="lost-reason-dialog" className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[13px] font-semibold">Why was this deal lost?</h3>
+                <button onClick={() => { setLostReasonFor(null); setLostReasonPick(""); setLostReasonText(""); }}>
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+              <select
+                data-testid="lost-reason-select"
+                value={lostReasonPick}
+                onChange={(e) => { setLostReasonPick(e.target.value); setLostReasonText(""); }}
+                className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+              >
+                <option value="">— Select a reason —</option>
+                {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                <option value={LOST_REASON_OTHER}>{LOST_REASON_OTHER}…</option>
+              </select>
+              {lostReasonOther && (
+                <input
+                  data-testid="lost-reason-other"
+                  autoFocus
+                  value={lostReasonText}
+                  onChange={(e) => setLostReasonText(e.target.value)}
+                  placeholder="What actually happened?"
+                  className="mt-2 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                />
+              )}
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Recorded on the deal. Required — this is what makes lost deals reportable.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => { setLostReasonFor(null); setLostReasonPick(""); setLostReasonText(""); }}
+                  className="flex-1 px-3 py-1.5 text-[11px] border border-border rounded hover:bg-accent"
+                >Cancel</button>
+                <button
+                  data-testid="lost-reason-confirm"
+                  disabled={!chosen || movePipeline.isPending}
+                  onClick={() => movePipeline.mutate({ id: lostReasonFor, stage: "closed_lost", lostReason: chosen })}
+                  className="flex-1 px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                >{movePipeline.isPending ? "Saving…" : "Mark Closed Lost"}</button>
               </div>
             </div>
           </div>
@@ -1004,7 +1157,11 @@ export default function CRMPage() {
               <button onClick={() => setShowStageConfig(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-4 space-y-2">
-              <p className="text-[11px] text-muted-foreground">Rename stages, adjust order, and choose which appear as active pipeline columns. Stage keys are fixed; only presentation changes.</p>
+              <p className="text-[11px] text-muted-foreground">Rename stages, adjust order, set each stage&apos;s default close probability, and choose which appear as active pipeline columns. Stage keys are fixed.</p>
+              <p className="text-[10px] text-muted-foreground/70">
+                <strong>Prob %</strong> pre-fills the probability on a new deal at that stage. A rep can override it, and
+                moving a deal between stages never rewrites a probability already set.
+              </p>
               {stageDraft.sort((a, b) => a.rank - b.rank).map((s, i) => (
                 <div key={s.key} className="flex items-center gap-2 border border-border rounded px-2 py-1.5">
                   <span className="font-mono text-[10px] text-muted-foreground/70 w-24 flex-shrink-0">{s.key}</span>
@@ -1042,6 +1199,16 @@ export default function CRMPage() {
                       title="Move down"
                     >↓</button>
                   </div>
+                  <label className="flex items-center gap-1 text-[10px] text-muted-foreground flex-shrink-0" title="Default close probability for deals at this stage">
+                    <input
+                      data-testid={`stage-probability-${s.key}`}
+                      type="number" min="0" max="100"
+                      className="w-12 text-caption border border-border rounded px-1 py-1 bg-background text-right font-mono"
+                      value={s.probability}
+                      onChange={(e) => setStageDraft((d) => d.map((x) => x.key === s.key ? { ...x, probability: Number(e.target.value) } : x))}
+                    />
+                    %
+                  </label>
                   <label className="flex items-center gap-1 text-[10px] text-muted-foreground w-16 flex-shrink-0">
                     <input
                       type="checkbox"
@@ -1175,8 +1342,12 @@ export default function CRMPage() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         {/* data-value carries the raw amount so a test can assert the
-                            number without depending on the abbreviated ₹250K rendering. */}
-                        <div data-testid="pipeline-deal-value" data-value={String(deal.value ?? 0)}
+                            number without depending on the abbreviated ₹250K rendering.
+                            The test id is DASHBOARD-scoped: this widget and the Pipeline
+                            kanban card both used `pipeline-deal-value`, which is why a
+                            test id "added to the Pipeline card" appeared to have no
+                            effect — the selector was ambiguous across two tabs. */}
+                        <div data-testid="dashboard-deal-value" data-value={String(deal.value ?? 0)}
                           className="font-mono font-bold text-[12px] text-foreground">₹{(deal.value / 1000).toFixed(0)}K</div>
                         <div className="text-[10px] text-muted-foreground/70">{deal.probability}% · {daysToClose}d</div>
                       </div>
@@ -1190,7 +1361,11 @@ export default function CRMPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
                 Today&apos;s Activities
-                <button onClick={() => createActivity.mutate({ type: "call", subject: "Quick activity log", description: "" })} disabled={createActivity.isPending} className="text-primary hover:underline text-[11px] disabled:opacity-50">+ New</button>
+                {/* Was a direct mutate with NO association — it minted "Quick activity
+                    log" rows attached to nothing, which appear under no lead, deal,
+                    account or contact and are now refused by the API. Opens the dialog
+                    instead, where an association is chosen. */}
+                <button onClick={() => setShowNewActivity(true)} className="text-primary hover:underline text-[11px]">+ New</button>
               </div>
               <div className="divide-y divide-border">
                 {ACTIVITIES_LIVE.filter((a: any) => !a.completed).slice(0, 4).map((a: any) => {
@@ -1255,34 +1430,52 @@ export default function CRMPage() {
                 const stageVal = stageDeals.reduce((s, d) => s + d.value, 0);
                 const cfg = stageCfg[stage] ?? { label: stage.replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
                 return (
-                  <div key={stage} className="flex-shrink-0 w-56 flex flex-col gap-2">
+                  <div key={stage} data-testid="pipeline-stage-column" data-stage={stage} className="flex-shrink-0 w-56 flex flex-col gap-2">
                     <div className="flex items-center justify-between mb-1">
                       <span className={`status-badge ${cfg.color}`}>{cfg.label}</span>
                       <span className="text-[11px] text-muted-foreground/70">₹{(stageVal / 1000).toFixed(0)}K</span>
                     </div>
                     {stageDeals.map((deal) => (
-                      <Link key={deal.id} href={`/app/crm/deals/${deal.id}`} className="block border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border">
+                      /* Four phantom fields removed from this card. `deal.number`,
+                         `deal.owner`, `deal.closeDate` and `deal.lastActivity` are NOT
+                         columns on crm_deals and nothing computes them — DEALS_LIVE is
+                         the raw API rows with no mapping. `number` and the owner avatar
+                         rendered permanently blank; the other two were already falling
+                         back to the real columns, which are now read directly.
+                         Account and contact names stay: they resolve through the real
+                         accountId/contactId FKs from data this page already loads. */
+                      <Link key={deal.id} href={`/app/crm/deals/${deal.id}`} data-testid="pipeline-deal-card" data-stage={deal.stage} className="block border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-mono text-[10px] text-primary">{deal.number ?? "—"}</span>
+                          <span className="text-[12px] font-semibold text-foreground">{getDealAccountName(deal)}</span>
                           <span className="text-[11px] text-muted-foreground/70">{deal.probability}%</span>
                         </div>
-                        <p className="text-[12px] font-semibold text-foreground mb-0.5">{getDealAccountName(deal)}</p>
-                        <p className="text-[11px] text-muted-foreground mb-0.5">{deal.title}</p>
+                        <p className="text-[11px] text-muted-foreground mb-0.5" data-testid="pipeline-deal-title">{deal.title}</p>
                         {getDealContactName(deal) && (
                           <p className="text-[10px] text-muted-foreground/60 mb-1">{getDealContactName(deal)}</p>
                         )}
                         <div className="flex items-center justify-between">
                           <span data-testid="pipeline-deal-value" data-value={String(deal.value ?? 0)}
                             className="font-mono font-bold text-[12px] text-primary">₹{(deal.value / 1000).toFixed(0)}K</span>
-                          <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate?.slice(5) ?? deal.expectedClose?.toString()?.slice(5) ?? "—"}</span>
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-1">
-                          <span className="w-4 h-4 rounded-full bg-primary text-white text-[8px] flex items-center justify-center font-bold">
-                            {(deal.owner ?? "").split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                          <span className="text-[10px] text-muted-foreground/70">
+                            Close: {deal.expectedClose ? new Date(deal.expectedClose).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/70 flex-1">{deal.lastActivity ?? deal.updatedAt ?? ""}</span>
+                        </div>
+                        {/* The lost reason belongs on the card as well as the deal
+                            record: the Closed Lost column is where a manager scans
+                            for the pattern, and a reason only visible one click deeper
+                            is a reason nobody reads. Only ever set on closed_lost. */}
+                        {deal.stage === "closed_lost" && deal.lostReason && (
+                          <p data-testid="pipeline-deal-lost-reason" className="mt-1 text-[10px] text-red-700 bg-red-50 border border-red-100 rounded px-1.5 py-0.5">
+                            {deal.lostReason}
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground/70 flex-1">
+                            {deal.updatedAt ? `Updated ${new Date(deal.updatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
+                          </span>
                           <PermissionGate module="accounts" action="write">
                             <button
+                              data-testid="pipeline-deal-move"
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMovingDeal(deal.id); }}
                               className="text-[9px] px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:bg-muted/50 flex-shrink-0"
                             >Move</button>
@@ -2651,11 +2844,14 @@ export default function CRMPage() {
       {/* New Activity Modal */}
       {showNewActivity && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
-            <div className="flex items-center justify-between mb-4">
+          {/* A Lead selector was added below, so the body scrolls and the footer is
+              pinned outside it — the same guard the lead and quote dialogs carry. */}
+          <div data-testid="new-activity-dialog" className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
               <h2 className="text-body-sm font-bold">Log Activity</h2>
               <button onClick={() => setShowNewActivity(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
+            <div className="p-5 overflow-y-auto">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
@@ -2667,25 +2863,45 @@ export default function CRMPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Subject</label>
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.subject} onChange={(e) => setActivityForm(f => ({ ...f, subject: e.target.value }))} />
               </div>
+              {/* ── Associations ────────────────────────────────────────────────
+                  Account and Contact were both marked required and the Save button
+                  was disabled without BOTH. The procedure requires neither — it
+                  requires (now) at least ONE of lead/deal/account/contact. The old
+                  rule made an activity against a LEAD impossible, because a lead has
+                  no account until it converts: that is why `crm_activities.leadId`
+                  shipped with an FK, an index and an aggregate feeding the Leads
+                  list's "Last Activity" column, and no way to write it. */}
+              <div className="col-span-2 text-[10px] text-muted-foreground border-t border-border pt-2">
+                Link this activity to at least one of the following.
+              </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account *</label>
-                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.accountId} onChange={(e) => setActivityForm(f => ({ ...f, accountId: e.target.value }))}>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead</label>
+                <select data-testid="activity-lead" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.leadId} onChange={(e) => setActivityForm(f => ({ ...f, leadId: e.target.value }))}>
+                  <option value="">— Select Lead —</option>
+                  {LEADS_LIVE.map((l: any) => (
+                    <option key={l.id} value={l.id}>{l.firstName} {l.lastName}{l.company ? ` · ${l.company}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal</label>
+                <select data-testid="activity-deal" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.dealId} onChange={(e) => setActivityForm(f => ({ ...f, dealId: e.target.value }))}>
+                  <option value="">— Select Deal —</option>
+                  {DEALS_LIVE.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account</label>
+                <select data-testid="activity-account" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.accountId} onChange={(e) => setActivityForm(f => ({ ...f, accountId: e.target.value }))}>
                   <option value="">— Select Account —</option>
                   {ACCOUNTS_LIVE.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Contact *</label>
-                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.contactId} onChange={(e) => setActivityForm(f => ({ ...f, contactId: e.target.value }))}>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Contact</label>
+                <select data-testid="activity-contact" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.contactId} onChange={(e) => setActivityForm(f => ({ ...f, contactId: e.target.value }))}>
                   <option value="">— Select Contact —</option>
                   {CONTACTS_LIVE.map((c: any) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal</label>
-                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.dealId} onChange={(e) => setActivityForm(f => ({ ...f, dealId: e.target.value }))}>
-                  <option value="">— Select Deal —</option>
-                  {DEALS_LIVE.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
                 </select>
               </div>
               <div>
@@ -2705,17 +2921,26 @@ export default function CRMPage() {
                 <textarea rows={3} className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.description} onChange={(e) => setActivityForm(f => ({ ...f, description: e.target.value }))} />
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+            </div>
+            <div className="flex gap-2 px-5 py-3 border-t border-border bg-muted/20 shrink-0">
               <button onClick={() => setShowNewActivity(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                disabled={!activityForm.accountId || !activityForm.contactId || createActivity.isPending}
+                data-testid="activity-save"
+                // Mirrors the server rule exactly: at least ONE association.
+                disabled={
+                  !(activityForm.leadId || activityForm.dealId || activityForm.accountId || activityForm.contactId)
+                  || createActivity.isPending
+                }
                 onClick={() => createActivity.mutate({
                   type: (activityForm.type || undefined) as "email" | "note" | "call" | "meeting" | "demo" | "follow_up" | undefined,
                   subject: activityForm.subject.trim() || undefined,
                   description: activityForm.description.trim() || undefined,
+                  // Every association is optional and sent only when chosen. leadId is
+                  // the one this dialog could not reach at all before.
+                  leadId: activityForm.leadId || undefined,
                   dealId: activityForm.dealId || undefined,
-                  accountId: activityForm.accountId,
-                  contactId: activityForm.contactId,
+                  accountId: activityForm.accountId || undefined,
+                  contactId: activityForm.contactId || undefined,
                   outcome: activityForm.outcome.trim() || undefined,
                   scheduledAt: activityForm.scheduledAt ? new Date(activityForm.scheduledAt) : undefined,
                   completedAt: activityForm.completedAt ? new Date(activityForm.completedAt) : undefined,
