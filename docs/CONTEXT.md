@@ -38,6 +38,23 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 
 ## What is LIVE (verify, don't trust prose)
 
+- **PUSHED 2026-08-16, NOT YET VERIFIED LIVE — the two "engine exists, no UI" rounds.**
+  Balance sheet + P&L given screens, and SAM installed-vs-entitled reconciliation given a screen.
+  **No migration** — head stays `0091`. Read the outcome from the terminal `Deploy to Vultr` job of that
+  run and `/api/health`; **do not treat this bullet as confirmation.** Local gate before push: build
+  11/11, `lint:cold` 9/9 forced (0 cached), 215 files / 1916 tests, playwright 122 passed (the 2 known
+  `rbac.spec.ts` hydration failures + the known `hr-cases` fixme), test DB reset before both the suite
+  and the final E2E run.
+  _**Behaviour change to watch:** `accounting.balanceSheet` now honours `asOfDate`, which it previously
+  declared and discarded. Passing a date switches it to a **derived basis** — `openingBalance + posted
+  movements ≤ date` — instead of the `currentBalance` snapshot. The two agree on any org whose rows were
+  written through the product; they diverge where something wrote a posted entry directly without moving
+  the snapshot (`seed-modules.ts` does exactly that), and the derived basis is the trustworthy one there
+  because the ledger is the record. Calls with no date are unchanged._
+  _**The SAM screen makes a standing limitation visible for the first time:** there is no discovery
+  source, so installed counts are hand-recorded and licences without one now read "not reconciled".
+  Expect that to look like a regression to anyone who assumed the blank columns meant compliance — it is
+  the opposite, and the screen says so._
 - **LIVE on `connect.coheron.tech` = `e11e5f5`** (Round 7's push) — verified 2026-08-15 via
   `/api/health` returning `version: e11e5f54fddf7f63…` and CI run `31877482131`, all six jobs `success`.
   Migration head at that deploy: **`0085`**.
@@ -51,7 +68,17 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `probability` (flat 10 on every fresh database — new, from this round), and `convertLead` never
   refetched deals so a converted lead's deal did not appear on the Pipeline (**pre-existing**, verified
   byte-identical at `393e5d7`). Detail: `reports/fix-plan.md` → CI CAUGHT TWO DEFECTS.
-- **LIVE = `fbf367b`** (ECR-WAGE — the EPFO ECR reports the wage the contribution was computed on; the
+- **LIVE = `09e6668`** (facilities removed end to end · HR cases given a real number/subject · the 16 RBAC
+  map gaps closed) — CI run `31956277400`, all five jobs `success` on **attempt 1** including the terminal
+  `Deploy to Vultr`, `/api/health` → `09e666841b18d3f5…`, 2026-08-16. **Migration head `0089` → `0091`.**
+  _Both migrations applied on production: the api container runs `migrate && index`, so the server only
+  started because `0090` (drops 6 facilities tables + 6 enums) and `0091` (hr_cases `number` NOT NULL +
+  unique index) both succeeded. **`0091`'s detect-and-RAISE guard did not fire** — no duplicate case
+  numbers existed._
+  _Access NARROWED by this deploy: `hr_manager`/`hr_analyst` can no longer change the org's EPF code or PF
+  contribution rate (admin/owner only), and the ESI/PT challan lists moved `hr:read` → `payroll:read`.
+  Someone in those roles reporting a lost screen is the intended change, not a regression._
+- Prior: **LIVE = `fbf367b`** (ECR-WAGE — the EPFO ECR reports the wage the contribution was computed on; the
   raw-basic wage on `hr.payroll.generateECR` is gone and both ECR callers now share one line builder) —
   CI run `31942562984`, all five jobs `success` on **attempt 1**, `/api/health` → `fbf367bbdeb7adfd…`,
   2026-08-16. **No migration** — head stays `0089`. Statutory money path: see `reports/fix-plan.md`
@@ -919,7 +946,12 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31942562984` — commit `fbf367b` (ECR-WAGE: the EPFO ECR now reports the wage the contribution
+**CI run `31956277400` — commit `09e6668` (facilities removal + HR cases + permission gaps; migrations
+`0090` and `0091`, head `0089` → `0091`) — all five jobs `success` on **attempt 1**, including the
+terminal `Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: 09e666841b18d3f5…`.**
+Detail: `reports/fix-plan.md` → FACILITIES-REMOVAL, HR-CASES, PERMISSION-GAPS.
+
+**Superseded exit point — CI run `31942562984` — commit `fbf367b` (ECR-WAGE: the EPFO ECR now reports the wage the contribution
 was computed on; **no migration**, head stays `0089`) — all five jobs `success` on **attempt 1**, including
 the terminal `Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: fbf367bbdeb7adfd…`.**
 Detail: `reports/fix-plan.md` → ECR-WAGE.

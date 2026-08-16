@@ -117,7 +117,195 @@ anything** — same class as `.turbo` making "cold lint" warm.
 
 ---
 
+## FIN-STATEMENTS — balance sheet + P&L given screens (2026-08-16; no migration)
+
+_**SHIPPED, NOT YET VERIFIED LIVE.** Gate before push: build 11/11, `lint:cold` 9/9 forced (0 cached),
+215 files / 1916 tests, playwright 122 passed (2 known `rbac.spec.ts` hydration failures, 1 known
+`hr-cases` fixme). Test DB reset before both the suite and the final E2E run._
+
+**The engines were correct and unreachable** — no route, no nav entry, no caller anywhere in `apps/web`.
+The 15 Aug audit put them at 10%. They self-balanced in tests, which is not the same claim as balancing
+on entries someone actually posted.
+
+**The finding that changed the round's premise — found by RUNNING, not reading.** Two procedures declared
+date inputs and silently discarded them, because the handlers destructured `{ ctx }` only:
+- `balanceSheet.asOfDate` — `balanceSheet({asOfDate: 2020-01-01})` returned the full ₹21,75,000.
+- `incomeStatement`'s `financialYear`/`startDate`/`endDate` — returned ₹10,50,000 for an August window
+  where the period-accurate `profitAndLoss` returned ₹8,50,000. **The orphaned `/app/accounting` page
+  calls this one**, presenting inception-to-date under a period label. Left alone (out of scope) and
+  recorded as G24; the new P&L screen calls `profitAndLoss` deliberately.
+
+Reading either zod schema shows a correct-looking parameter. Only execution shows the discard.
+
+**Verified output on five entries posted through `journal.create` + `journal.post`:**
+
+```
+ASSETS  1120 Bank 11,25,000.00 · 1130 AR 8,50,000.00 · 1110 Cash 2,00,000.00   TOTAL 21,75,000.00
+LIABS   2110 AP 2,40,000.00                                                     TOTAL  2,40,000.00
+EQUITY  3100 Share Capital 15,00,000.00 · Current Period Earnings 4,35,000.00   TOTAL 19,35,000.00
+ASSETS 21,75,000.00 = L+E 21,75,000.00 · DIFFERENCE 0.00 · isBalanced true
+P&L inception-to-date netProfit 4,35,000.00 ≡ BS currentPeriodEarnings 4,35,000.00
+```
+
+**What shipped.** `asOfDate` made real (derived basis `openingBalance + Σ(debit−credit)` over posted
+lines ≤ date — the same arithmetic `ledger` uses, so a statement figure and the ledger's closing running
+balance agree by construction; snapshot basis retained when no date is passed, so existing callers are
+unchanged; returns `asOfDate`/`basis`; `-0` normalised). Two screens in Finance nav on one shared
+`YYYY-MM` period component (the `financial.periodClose` vocabulary, UTC, month-end inclusive to the
+millisecond because `journal_entries.date` is a timestamptz and the filters are `lte`). Balance check
+stated first, with the difference, `role="alert"` and "do not rely on this statement" when it fails.
+Every line is one account, linking to its General Ledger at the same date. Two empty states, because 21
+accounts at ₹0.00 with `isBalanced: true` is technically correct and completely misleading.
+
+**Money format — full figures, `en-IN`, always 2dp (`₹21,75,000.00`), in a new shared
+`lib/format-money.ts`.** The abbreviating idiom the audit recorded (`₹250K`) is simply wrong on a
+statement: it cannot be tied back to a ledger, and rounding is not a display choice on a document that
+must balance to the paisa. The other 12 files were left alone — out of scope; this is the seed.
+
+**Defect caught by the acceptance spec, fixed at source:** post an entry, click to the P&L, and it showed
+the **pre-posting** figures — the app-wide `staleTime: 10s` plus the Next router cache. Right for a ticket
+list, wrong for a statement. Now `staleTime: 0` + `refetchOnMount: "always"` on the statement queries.
+Router tests could not have caught it.
+
+**Adjunct fix:** the ledger's "To Date" was `new Date("2026-08-31")` = UTC midnight, which drops anything
+stamped later that day — a month-end ledger would have disagreed with a month-end balance sheet. Now
+inclusive to end-of-day.
+
+**Left open, reported not built:** `journal.post` ignores `closedPeriods` (G23) — the guard exists only on
+`financial.markPaid`, while the journal page's own comment claims otherwise.
+
+---
+
+## SAM-RECON — reconciliation given a screen, and the discovery question answered (2026-08-16; no migration)
+
+_**SHIPPED, NOT YET VERIFIED LIVE.** Same gate as FIN-STATEMENTS above (both rounds ride one push)._
+
+**The round's real question was whether to build at all.** The brief's stop condition: if there is no
+source of installed data, do not build a reconciliation screen over an engine with nothing to reconcile.
+
+**Answer: there is exactly one source, and it had no UI.** `assets.licenses.ingestInstalled` is the
+**only writer of `software_licenses.installed_count` in the entire repo** — no seed, no integration, no
+workflow, no importer. `assets.cmdb.runDiscovery` is confirmed a stub (`discoveredCount:
+Math.floor(Math.random() * 50) + 1`, writing `discovery_runs` only, creating zero records). There is no
+`installed_software` table: "installed" is one nullable integer per licence, not a set of records. But
+`ingestInstalled` is real — permission-gated, tenant-scoped, five passing tests. So installed data **can**
+be entered; only the surface was missing. That is the build branch, with an obligation the screen honours:
+never dress a typed number up as discovery.
+
+**Engine verified by execution** (over/under/parity/no-installation/no-entitlement, audit-risk-first
+ordering, revoked assignments excluded, fresh tenant → `[]`):
+
+```
+ 1 Microsoft 365 E3      entitled 50  installed 63  assigned 2  delta +13  over_deployed  shortfall 13
+ 2 Figma Professional    entitled 25  installed  9  assigned 0  delta -16  under_utilized shortfall  0
+ 3 Zoom Pro              entitled 30  installed 30  assigned 0  delta   0  at_parity      shortfall  0
+ 4 Jira Software         entitled 40  installed  —  assigned 1  delta   —  unknown        shortfall  0
+ 5 Open VPN (unlimited)  entitled  —  installed 12  assigned 0  delta   —  unknown        shortfall  0
+```
+
+**`assets.licenses.list` row keys, printed live** — proving the audit's "bound to fields the API never
+returns": `purchased`/`deployed`/`available`/`overage`/`unused`/`renewalDate`/`compliance`/`software`
+are **all `undefined`** (five rendered `0`, three rendered `—`), while `installedCount=63`, `usedSeats=2`
+and `utilizationPct=4` were returned and displayed nowhere. "Compliance Position" was not a broken view
+but a **duplicate of License Dashboard** (`tab === "dashboard" || tab === "compliance"`).
+
+**What shipped.** Compliance Position renders the engine + a "Record installed count" dialog.
+**Optimization tab deleted** — a hardcoded empty panel with no query, whose only real content would have
+been the under-utilized subset of the reconciliation; per the delete-by-default rule, that does not earn a
+tab. Eight dead table bindings, three KPI tiles and the CSV export rebound to engine figures. `null`
+installed renders `—`, never `0`; a licence with no count reads **"not reconciled"**, never "compliant".
+**No cost/savings column** — the engine returns no cost, so a rupee figure would be the screen's invention
+(the old "Potential Savings" tile was exactly that: a wrong column name × a hardcoded 50% of idle seats).
+
+**Defect caught by the acceptance spec:** create a licence, open Compliance Position → "No licences on
+record". `create` refetched only the licence list, not the reconciliation. Both mutations now refetch
+both — the standing "refetch every list the procedure writes" rule, judged by what the procedure touches
+rather than by what the screen is called.
+
+**NOT-FOUND:** "Sync Discovery is a fake control, disable it" — **already disabled with a tooltip by an
+earlier round.** Left as-is, pinned by a test. Also NOT-FOUND: the discarded-input symptom does not repeat
+here (both SAM procedures destructure correctly).
+
+**Left open, reported not built:** no automated installed-count source (G22 — CSV import ≈2–3 days,
+Microsoft Graph ≈1.5–2 weeks, agent 6+ weeks, installation-records re-model ≈1 week); dead
+`assets.sam.licenses` twin router with zero callers (G25).
+
+---
+
+## FACILITIES-REMOVAL — the module deleted end to end (2026-08-16; migration `0090`)
+
+_**SHIPPED & DEPLOYED `09e6668`** — CI `31956277400`, all five jobs `success` on attempt 1, `/api/health` → `09e666841b18d3f5…`. Migration `0090` applied on production._
+
+
+_Product-owner decision: a forty-person company books rooms in Outlook. No customers; two internal test
+tenants held rows. **17 artefacts, 6 tables, 6 enums.**_
+
+**Four of its five tables worked correctly** — spaces, bookings, move requests and facility requests all
+joined properly (Class B). Only `buildings` was broken: 5 of 9 columns rendered from fields that do not
+exist, and the form wrote "Total Desks" into `capacity` while the list read `totalDesks`, so a captured,
+stored number displayed as "—". **That four-of-five split is the argument FOR removal, not against it:
+a working module nobody needs is one you maintain, support and audit forever.**
+
+**NOT removed, deliberately — "facilities" names two unrelated things.** Besides the module it is an
+**ITSM request category** used by `services/ai.ts`, the catalog, the ticket form and the portal. Deleting
+"all references" naively would have broken ticket categorisation. Also left: `peopleWorkplace
+.facilitiesLive`, an HR settings flag claiming to drive a hub tile — **nothing reads it and the hub makes
+no facilities call**, so it was already dead config; HR-owned, reported not removed.
+
+**Migration `0090`** drops 6 tables + 6 enums. `CASCADE` verified safe: **no table outside the facilities
+schema holds an FK into any of the six** (checked by grepping every `references(() => …)`). It also drops
+the `tenant_isolation` RLS policies `0052` put on them. Data loss intentional and accepted.
+
+**RBAC:** `facilities` removed from the `Module` union and from five role grants. The 14 dangling
+`facilities.*` keys were removed from the generated map. Tests removed: the layer8 building smoke test,
+the layer1 module-list entry, three `requester-least-privilege` assertions, and the `/app/facilities`
+route from `module-routes.spec.ts`.
+
+---
+
+## HR-CASES — a case number, a subject, and a named assignee (2026-08-16; migration `0091`)
+
+_**SHIPPED & DEPLOYED `09e6668`** — CI `31956277400`. **Migration `0091` applied on production and its detect-and-RAISE guard did NOT fire** — no duplicate case numbers existed. The api container runs `migrate && index`, so the server starting is proof the migration succeeded._
+
+
+**`hr_cases` had no `number`, no `subject` and no `sla`, yet the list rendered all three:** Case # was
+`id.slice(-8).toUpperCase()` (**the only path, not a fallback**); Subject was the NOTES BODY with
+`[RESOLVED:…]`/`[ARCHIVED:…]` stripped by regex; Assignee was a raw UUID; SLA was a hardcoded em-dash —
+the same defect fixed on the Admin screen in Round 7, repeating.
+
+**SLA DELETED — nothing backs it.** `sla_definitions` is consumed only by `admin.slaDefinitions.*` CRUD;
+**no record table anywhere holds an FK to it**, and tickets implement SLA with their own dedicated
+columns. There was no concept for an HR case to attach to in either direction.
+
+**`number`** comes from `org_counters` via `getNextNumber` (the tickets/CSM path), unique per org, with
+the `0086` detect-and-RAISE contract. **`subject`** is a real column collected on the form.
+**Assignee** joins `users`.
+
+**Backfill:** `number` = `HRC-0001` upward per org, oldest first; `org_counters` advanced so the next
+allocation continues rather than colliding. `subject` = exactly what the UI regex extracted. **Where the
+regex yields nothing the subject is left NULL, deliberately** — an empty subject is honest; inventing one
+would fabricate a summary nobody wrote, which is the thing this change exists to stop.
+
+**`number` being NOT NULL surfaced FOUR more insert sites** grep had missed — two onboarding, one
+offboarding, and the analytics seed. **Three caught by `tsc`; the seed one ONLY by `lint:cold`**, which
+`build` does not cover. Concrete case for running both gates.
+
+**NOT-FOUND: `[RESOLVED:` is written by nothing.** Only `[ARCHIVED:` is produced, by `hr.archive`, which
+also sets `status` correctly. Resolution STATE was never in the blob — a real `status` enum has always
+held it; the blob carried the resolution TEXT, which has no column.
+
+**⚠️ `e2e/hr-cases.spec.ts` is marked `test.fixme` and HAS NEVER RUN.** The e2e org `coheron-demo` has
+**0 employees and 0 salary structures**; the case form needs an employee and the employee form needs a
+salary structure. **Do not read a green suite as covering HR Cases.** Unblocking needs one salary
+structure + one employee seeded into `coheron-demo` — a shared-fixture change affecting every spec, so
+it is a product-owner decision.
+
+---
+
 ## PERMISSION-GAPS — the 16 unmapped procedures (2026-08-16; NO migration)
+
+_**SHIPPED & DEPLOYED `09e6668`** — CI `31956277400`. No migration._
+
 
 _Gate: build 11/11 · **215 files / 1910 tests** · `lint:cold` 9/9 forced · playwright **118 passed /
 2 failed / 1 skipped** (known `rbac:105`/`:115`; the skip is `hr-cases.spec.ts` fixme). Verified on a
