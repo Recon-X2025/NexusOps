@@ -1,15 +1,26 @@
 # Form / list / schema parity audit — 2026-08-16
 
-**47 list screens with a create control were enumerated. 3 were audited in full; 1 further screen was
-audited to confirm a prior fix. 2 carry Class E findings. The worst offender is CRM → Accounts, which
-renders SEVEN columns from fields that exist nowhere in the schema and are computed by nothing.**
+**47 list screens with a create control were enumerated; `facilities` has since been removed from the
+product, leaving 46. EIGHT screens have now been audited in full** (CRM Accounts, CRM Leads,
+Administration → User Management, Finance → Chart of Accounts, then batch 1: facilities, GRC, CSM, HR).
+**SIX carry Class A or E findings** — only Chart of Accounts and CRM Leads (post-fix) are clean.
 
-> **Coverage warning — read this first.** This document does NOT cover all 47 screens. It covers the
-> full enumeration (auditable), a complete mechanical sweep of the four cross-cutting patterns, and a
-> deep audit of 4 screens. The remaining 43 are listed as **UNVERIFIED** with the exact method to
-> finish them. Nothing here is guessed: where a thing was not established, it says so.
+**Worst offender by proportion: `facilities` → Buildings — five of nine columns render from fields
+that do not exist, AND the form writes "Total Desks" into the `capacity` column while the list reads
+`totalDesks`, so a captured, stored number displays as "—".** CRM → Accounts remains the worst by
+absolute count (seven dead columns). Facilities has since been deleted end to end, so the standing
+worst offender is **CRM → Accounts (fixed in Round 11)** followed by **GRC → Policies**, which renders
+four columns of hardcoded zeroes as a compliance posture.
 
-Verified against `d436969` (deployed), migration head `0088`.
+> **Coverage warning — read this first.** This document does NOT cover every screen. It covers the
+> full enumeration (auditable), a mechanical sweep of the cross-cutting patterns, and a deep audit of
+> **8 screens of 46**. The remainder are listed as **UNVERIFIED** with the exact method to finish
+> them, and within an audited screen any sub-surface not opened is named. Nothing here is guessed:
+> where a thing was not established, it says so.
+
+Screens 1-4 verified against `d436969`, migration head `0088`. Batch 1 (screens 5-8) verified against
+`fbf367b`, migration head `0089`; `facilities` was removed immediately afterwards by migration
+`0090_lively_vector`.
 
 ---
 
@@ -85,17 +96,242 @@ mismatch in either direction.** This is what a clean screen looks like.
 
 ---
 
-## UNVERIFIED — 43 screens not yet audited
+# BATCH 1 (2026-08-16) — facilities · grc · csm
+
+_Three screens audited in full depth. The batch was scoped at ten; seven were left unopened rather
+than guessed (see the batch-1 coverage note below). **Correction to the priority order above: `hr`
+has 79 `<th>` headers — more than `facilities` (50). The original ordering, which ranked by header
+count among the screens then inspected, understated HR. HR is the highest-header surface in the
+product and the module the pilot is being bought for.**_
+
+## 5. Facilities — `/app/facilities` — **WORST OFFENDER OF THE BATCH**
+
+Five sub-tables on one screen. **Four are correct; one is badly broken.** This split is the point:
+a fast pass would have flagged all five and been wrong about four.
+
+### 5a. Buildings — the broken one
+
+- Headers: [facilities/page.tsx:227-235](../../apps/web/src/app/app/facilities/page.tsx#L227)
+- Row cells: [facilities/page.tsx:241-270](../../apps/web/src/app/app/facilities/page.tsx#L241)
+- Form state: [facilities/page.tsx:64](../../apps/web/src/app/app/facilities/page.tsx#L64)
+- Mutation payload: [facilities/page.tsx:841-847](../../apps/web/src/app/app/facilities/page.tsx#L841)
+- Procedure: [facilities.ts:69-77 (list, plain select)](../../apps/api/src/routers/facilities.ts#L69),
+  [:89-104 (create)](../../apps/api/src/routers/facilities.ts#L89)
+- Schema `buildings`: [facilities.ts:31-45](../../packages/db/src/schema/facilities.ts#L31) —
+  `id, orgId, name, address, floors, capacity, status, amenities, createdAt`
+
+| Column displayed | Cell reads | In schema? | Class |
+|---|---|---|---|
+| Site ID | `b.id` | ✅ (raw UUID shown as a "Site ID") | — |
+| Name | `b.name` | ✅ | — |
+| Address | `b.address` | ✅ | — |
+| Floors | `b.floors` | ✅ | — |
+| **Total Desks** | `b.totalDesks` | ❌ | **E** |
+| **Occupied** | `b.occupiedDesks` | ❌ | **E** |
+| **Meeting Rooms** | `b.rooms` | ❌ | **E** |
+| **Data Center** | `b.datacenterFloors` | ❌ | **E** |
+| **Type** | `b.badge` | ❌ | **E** |
+
+**Five of nine columns cannot show anything.** `buildings.list` is a plain select with no join and no
+aggregate — traced specifically, because CRM Accounts' Open Opps looked identical and turned out to be
+buildable.
+
+Form collects **name, address, floors, totalDesks, meetingRooms, type, isDataCenter**; the mutation
+sends **name, address, floors, capacity, amenities**.
+- **Class C ×3:** `meetingRooms`, `type`, `isDataCenter` are collected and never sent. The procedure
+  would not accept them either.
+- **The worst single defect on this screen:** the form writes **Total Desks into `capacity`**
+  ([:845](../../apps/web/src/app/app/facilities/page.tsx#L845)) while the list reads `b.totalDesks`.
+  The number is captured, stored, and then displayed from the wrong name — it renders "—" while
+  sitting in the database. That is worse than a dead column, because the data exists.
+- **Class D:** `status` and `amenities` are stored and never displayed.
+
+### 5b–5e. Spaces, Bookings, Move Requests, Facility Requests — **all correct (Class B)**
+
+Recorded to prove they were traced, not assumed.
+
+| Sub-table | Fields that look foreign | Verdict |
+|---|---|---|
+| Spaces ([:299-308](../../apps/web/src/app/app/facilities/page.tsx#L299)) | — | Every column is a real `facility_spaces` column ([facilities.ts:48-65](../../packages/db/src/schema/facilities.ts#L48)). **Clean.** |
+| Bookings ([:370-376](../../apps/web/src/app/app/facilities/page.tsx#L370)) | `spaceName`, `spaceBuilding` | **Class B** — `leftJoin(facilitySpaces)` at [facilities.ts:162-166](../../apps/api/src/routers/facilities.ts#L162). |
+| Move Requests ([:431-437](../../apps/web/src/app/app/facilities/page.tsx#L431)) | `requesterName` | **Class B** — `leftJoin(users)` at [facilities.ts:229-232](../../apps/api/src/routers/facilities.ts#L229). |
+| Facility Requests ([:497-504](../../apps/web/src/app/app/facilities/page.tsx#L497)) | `building`, `floor`, `submittedBy` | **Class B** — `leftJoin(facilitySpaces)` + `leftJoin(users)` at [facilities.ts:279-285](../../apps/api/src/routers/facilities.ts#L279). |
+
+> **DECISION (2026-08-16): facilities is being REMOVED from the product**, not fixed. Four of five
+> tables working correctly is the argument *for* removal, not against it: a working module nobody
+> needs is one you maintain, support and audit forever. A forty-person company books rooms in
+> Outlook. This audit entry is retained as the record of what was found and the justification.
+
+## 6. GRC — `/app/grc`
+
+### 6a. Policies — **Class A ×4, and the code says so**
+
+- Headers: [grc/page.tsx:424-434](../../apps/web/src/app/app/grc/page.tsx#L424)
+- Row cells: [grc/page.tsx:438-465](../../apps/web/src/app/app/grc/page.tsx#L438)
+- Schema `policies`: [grc.ts:139-162](../../packages/db/src/schema/grc.ts#L139) —
+  `id, orgId, title, content, category, version, status, ownerId, reviewCycleMonths, lastReviewed, nextReview, publishedAt, createdAt, updatedAt`
+
+| Column displayed | Cell reads | Class |
+|---|---|---|
+| Policy ID | `p.id.slice(-8).toUpperCase()` | **Sweep 1** — invented identifier |
+| Policy Name | `p.title` | — |
+| **Owner** | `` `ID:${p.ownerId.slice(-6)}` `` | **Sweep 1** — a UUID fragment where a name belongs; no join to `users` |
+| Last Review | `p.lastReviewed` | — |
+| Next Review | `p.nextReview` | — |
+| **Compliant** | `const compliant = 0` | **A** — hardcoded |
+| **Non-Compliant** | `const nonCompliant = 0` | **A** — hardcoded |
+| **Exceptions** | literal `<td>0</td>` | **A** — hardcoded |
+| **Compliance %** | derived from the two hardcoded zeroes | **A** — always 0 |
+
+The source carries the admission in a comment at
+[grc/page.tsx:439](../../apps/web/src/app/app/grc/page.tsx#L439): *"DB has no compliance counters;
+derive presence from status"*. Four columns present a compliance posture that is three literal zeroes.
+
+### 6b. Risks — clean except the Owner column
+
+Headers [grc/page.tsx:341-351](../../apps/web/src/app/app/grc/page.tsx#L341); schema `risks`
+[grc.ts:103-137](../../packages/db/src/schema/grc.ts#L103). `number`, `title`, `category`,
+`likelihood`, `impact`, `treatment`, `status` are all real columns. **Owner renders `r.ownerId`** — a
+raw UUID, same class as the policy Owner column.
+
+**UNVERIFIED on GRC:** the Audits and Vendor Risk tables (headers at
+[:565-574](../../apps/web/src/app/app/grc/page.tsx#L565) and
+[:643-652](../../apps/web/src/app/app/grc/page.tsx#L643)) were not traced to their schemas.
+
+## 7. CSM — `/app/csm`
+
+Two findings, both observed live on `connect.coheron.tech` first and then confirmed in source.
+
+- **DEAD CONTROL — the Contacts "View" button has no handler at all.**
+  [csm/page.tsx:405-407](../../apps/web/src/app/app/csm/page.tsx#L405) is
+  `<button className="…">View</button>` with **no `onClick` attribute**. The Cases View
+  ([:260](../../apps/web/src/app/app/csm/page.tsx#L260)) and Accounts View
+  ([:341](../../apps/web/src/app/app/csm/page.tsx#L341)) buttons on the same page both `router.push`
+  correctly — so this is one button, not a screen-wide gap.
+- **REPEAT OF A FIXED DEFECT — the Seniority column.** Header
+  [csm/page.tsx:389](../../apps/web/src/app/app/csm/page.tsx#L389), cell
+  [:403](../../apps/web/src/app/app/csm/page.tsx#L403). `crm_contacts.seniority` is a real column, but
+  the **only writer in the repo is `seed-smb-analytics.ts`** — no product path sets it. CRM Contacts
+  had this exact column deleted in Round 11; **CSM has its own contacts surface and still renders it.**
+  **This is the pattern worth generalising: fixing a dead column on one screen does not fix its twin
+  elsewhere. Every previously-found defect needs a repo-wide repeat check, not a single-screen fix.**
+
+**UNVERIFIED on CSM:** the Cases and Accounts tables were not traced to their schemas; only the
+Contacts table and the three View buttons were established.
+
+## 8. HR — `/app/hr` — **THE PRIORITY SCREEN**
+
+79 `<th>` headers, the highest in the product, across **ten tab surfaces in one 3,879-line file**:
+`directory`, `leave`, `cases`, `onboarding`, `offboarding`, `lifecycle`, `payroll_compliance`,
+`leave_accruals`, `gratuity`, `documents` ([hr/page.tsx:2073-3145](../../apps/web/src/app/app/hr/page.tsx#L2073)).
+
+**Opened in this pass: directory, leave, cases.** **NOT opened: onboarding, offboarding, lifecycle,
+payroll_compliance, leave_accruals, gratuity, documents** — named so the remaining work is auditable.
+
+### 8a. Directory (employees) — **CLEAN, and it nearly wasn't recorded that way**
+
+- Headers: [hr/page.tsx:2115-2123](../../apps/web/src/app/app/hr/page.tsx#L2115) — Employee, Department,
+  Title / Role, Location, Manager, Status, Joined, Actions
+- Row cells: [hr/page.tsx:2132-2160](../../apps/web/src/app/app/hr/page.tsx#L2132)
+- Procedure: [hr.ts:273-314](../../apps/api/src/routers/hr.ts#L273)
+- Schema `employees` (**52 columns**): [hr.ts:193](../../packages/db/src/schema/hr.ts#L193)
+
+Four fields looked like Class E on a first read — `emp.name`, `emp.employeeNumber`, `emp.jobTitle`,
+`emp.email` are **not** columns on `employees`. **All four are Class B.** The procedure
+`innerJoin`s `users` and explicitly aliases them at
+[hr.ts:300-312](../../apps/api/src/routers/hr.ts#L300):
+
+```ts
+return { ...emp, pan: null, name: userName, email: userEmail,
+         employeeNumber: emp.employeeId, jobTitle: emp.title };
+```
+
+**This is the second time in one batch that tracing overturned a Class E call** (the first was
+facilities' four correctly-joined tables). A fast pass would have filed four false findings here.
+
+**Manager** resolves properly too — `mgr.name ?? mgr.email`, falling back to a UUID tail only when the
+manager is outside the loaded page ([:2130](../../apps/web/src/app/app/hr/page.tsx#L2130)).
+**Class D:** of 52 employee columns, the directory displays 7. The rest (banking, PAN/Aadhaar masks,
+Para 26(6) fields, tax regime, ESI, shift) are edited in the dialog but never listed — appropriate for
+a directory, recorded for completeness.
+
+### 8b. Leave — **CLEAN**
+
+Headers [hr/page.tsx:2290-2297](../../apps/web/src/app/app/hr/page.tsx#L2290) — Employee, Type, From,
+To, Days, Reason, Status, Actions. Every one maps to a real `leave_requests` column
+(`employeeId, type, startDate, endDate, days, reason, status`). No phantom fields.
+
+### 8c. Cases — **the HR finding: Class E ×2, plus a raw-UUID Assignee**
+
+- Headers: [hr/page.tsx:2440-2451](../../apps/web/src/app/app/hr/page.tsx#L2440)
+- Row cells: [hr/page.tsx:2466-2477](../../apps/web/src/app/app/hr/page.tsx#L2466)
+- Procedure: [hr.ts:686-703](../../apps/api/src/routers/hr.ts#L686) — returns a joined shape
+  `{ hrCase, employee, … }` with `innerJoin(employees)` + `leftJoin(onboardingDetails/offboardingDetails)`
+- Schema `hr_cases`: `id, orgId, caseType, employeeId, statusId, status, assigneeId, priority, notes,
+  createdAt, updatedAt` — **no `number`, no `subject`, no `sla`**
+
+| Column | Cell reads | Class |
+|---|---|---|
+| **Case #** | `c.hrCase?.id?.slice(-8)?.toUpperCase()` | **Sweep 1** — `hr_cases` has **no number column**, so the truncated UUID is the only path, not a fallback. Same shape as CRM's `Lead #`. |
+| Type | `c.hrCase?.caseType` | ✅ |
+| **Subject** | `c.hrCase?.notes` with `[RESOLVED:…]` markers stripped by regex | **E-adjacent** — there is no `subject` column; the header promises a subject and renders the **notes body** with status markers stripped inline. |
+| Employee | `c.employee?.employeeId` | ✅ **Class B** (joined) — though it shows the employee CODE, not a name, while the directory resolves names properly |
+| Dept | `c.employee?.department` | ✅ **Class B** (joined) |
+| State / Priority | `displayStatus`, `casePriority` | ✅ |
+| **Assignee** | `c.hrCase?.assigneeId` | **raw UUID** — `users` is joined for neither assignee nor employee name. Same defect as GRC's Owner column. |
+| Opened | `createdAt` | ✅ |
+| **SLA** | literal `<td …>—</td>` | **A** — hardcoded em-dash, exactly the Administration → DEPARTMENT defect fixed in Round 7 |
+
+**The SLA column is a hardcoded em-dash** — a repeat of a defect already fixed once on another screen,
+which is the same pattern CSM's Seniority column shows.
+
+### HR cross-cutting results
+
+- **2a / 3d — deprecated procedures: NONE.** All **29** `trpc.*` call-sites on the HR surface target
+  canonical nested procedures (`hr.employees.*`, `hr.cases.*`, `hr.leave.*`, `hr.onboarding.*`,
+  `hr.offboarding.*`, `hr.lifecycle.*`, plus `ingest.importEmployees`, `payroll.salaryStructures.list`,
+  `settlement.*`). **`grep "@deprecated" apps/api/src/routers/hr.ts` returns zero.** The CRM
+  deprecated-twin pattern **does not repeat in HR** — recorded as a NOT-FOUND.
+- **2b / 3c — truncated identifiers: SEVEN, not six.** Six are **last-resort fallbacks in dropdown
+  option labels** ([:1224](../../apps/web/src/app/app/hr/page.tsx#L1224),
+  [:1670](../../apps/web/src/app/app/hr/page.tsx#L1670),
+  [:3157](../../apps/web/src/app/app/hr/page.tsx#L3157),
+  [:3297](../../apps/web/src/app/app/hr/page.tsx#L3297),
+  [:3538](../../apps/web/src/app/app/hr/page.tsx#L3538),
+  [:3699](../../apps/web/src/app/app/hr/page.tsx#L3699)) of the form
+  `e.employeeNumber ?? e.employeeId ?? e.id.slice(0,8)` — materially **less severe than GRC's**, where
+  the truncation is the only thing rendered. **A seventh was missed by the standard pattern**:
+  [:2130](../../apps/web/src/app/app/hr/page.tsx#L2130) uses `String(emp.managerId).slice(-8)`, which
+  matches neither `.id.slice(` nor `Id.slice(`. **The sweep regex needs widening** — the count of 21
+  across the batch is a floor, not a total.
+- **2d / 3e — dead controls: NONE.** A JSX-aware pass over every `<button>` in the file (checking for a
+  missing `onClick` *and* no `type="submit"`) returns **zero**. The CSM defect does not repeat in HR.
+- **2c, 2e — UNVERIFIED** for HR (type-vs-enum drift, duplicate renderings).
+
+## Batch 1 coverage — 3 of 10 opened, plus HR
+
+Scoped at ten (`facilities`, `grc`, `procurement`, `legal`, `financial`, `csm`, `security`,
+`tickets`, `hr`, `ham`). **Completed: facilities, grc, csm.** **Not opened: `procurement`, `legal`,
+`financial`, `security`, `tickets`, `hr`, `ham`** — deliberately, rather than producing seven shallow
+tables. Facilities alone took ~12 traced steps, and that depth is what distinguished its one broken
+table from its four correct ones.
+
+---
+
+## UNVERIFIED — 40 screens not yet audited
 
 Enumerated but not opened. Listed so coverage is auditable and the work is resumable.
 
 `accounting` · `admin/custom-fields` · `apm` · `attendance` · `changes` · `cmdb` · `compliance` ·
-`contracts` · `csm` · `devops` · `dpdp` · `escalations` · `events` · `facilities` ·
+`contracts` · `devops` · `dpdp` · `escalations` · `events` ·
 `finance/accounting/journal` · `finance/accounting/ledger` · `finance/accounting/reconciliation` ·
-`finance/expenses` · `financial` · `flows` · `grc` · `ham` · `hr/expenses` · `hr` · `legal` ·
+`finance/expenses` · `financial` · `flows` · `ham` · `hr/expenses` · `hr` · `legal` ·
 `on-call` · `payroll` · `people-analytics` · `performance` · `problems` · `procurement` · `profile` ·
 `projects` · `recruitment` · `sam` · `secretarial` · `security` · `settings/api-keys` · `surveys` ·
 `tickets` · `vendors` · `virtual-agent` · `work-orders` · `work-orders/parts`
+
+_`facilities` removed from this list — the module was deleted end to end on 2026-08-16. `csm` and
+`grc` removed — audited in batch 1 above._
 
 **Method to finish one screen (~10 minutes each):**
 1. `grep -n "<th>" <page>` → the displayed columns.
@@ -107,8 +343,16 @@ Enumerated but not opened. Listed so coverage is auditable and the work is resum
 6. Read the create form's state object and its mutation payload → what is collected and sent.
 
 **Priority order for the remainder**, by likely Class E density (headers far exceeding the backing
-table's column count): `facilities` (50 headers), `grc` (47), `procurement` (44), `legal` (38),
-`financial` (37), `csm` (29), `security` (28), `events` (27), `vendors` (22), `cmdb` (21).
+table's column count): **`hr` (79 headers)**, `procurement` (44), `legal` (38), `financial` (37),
+`security` (28), `events` (27), `vendors` (22), `cmdb` (21).
+
+> **CORRECTION (2026-08-16) — this ordering understated HR.** The original list ranked `facilities`
+> (50) first and did not include `hr` at all. `hr/page.tsx` carries **79 `<th>` headers**, the highest
+> in the product, across several sub-surfaces in a single 3,879-line file. It is also the module the
+> pilot is being bought for. **HR is the priority screen**, not facilities — which has since been
+> deleted anyway. Counts re-derived 2026-08-16: hr 79, facilities 50, grc 47, procurement 44, legal 38,
+> financial 37, csm 29, security 28, ham 16, tickets 12. (`assets` does not exist as a route — the IT
+> asset surface is `ham`.)
 
 ---
 
@@ -134,6 +378,23 @@ legitimate array/date slicing — `tags.slice(0,3)`, `toISOString().slice(0,16)`
 
 `devops.commit: sha.slice(0,7)` ([:132](../../apps/web/src/app/app/devops/page.tsx#L132)) is **legitimate** — a
 7-char short SHA is the git convention, not an invented identifier.
+
+### Batch-1 re-count across the ten priority screens (2026-08-16)
+
+Counted mechanically as `.id.slice(` / `.id.substring(` / `Id.slice(` / `email.split(` per file. **21
+sites across five screens:**
+
+| Screen | Sites |
+|---|---|
+| `grc` | **6** — incl. Policy ID `p.id.slice(-8)` and Owner `` `ID:${p.ownerId.slice(-6)}` `` |
+| `hr` | **6** — not yet individually traced |
+| `financial` | **4** |
+| `procurement` | **3** |
+| `security` | **2** |
+| `facilities`, `legal`, `csm`, `tickets`, `ham` | **0** |
+
+The `grc` Owner cases are the most misleading of the set: the column is headed **Owner** and renders a
+six-character UUID fragment, not a person. `users` is never joined.
 
 Since Round 7 guaranteed the real identifiers are unique, most `?? id.slice(…)` fallbacks are now dead
 code hiding a data problem: if the number is missing, that is a data defect, not a display one.
@@ -175,6 +436,30 @@ page*. A shared formatter is the fix; this audit only records it.
 | [crm/page.tsx:1007](../../apps/web/src/app/app/crm/page.tsx#L1007) and [:1102](../../apps/web/src/app/app/crm/page.tsx#L1102) | Pipeline deal cards render through **two code paths**; only one is shown by default. Found in Round 9c when a test id added to the first had no effect. |
 | `crm/page.tsx` (Edit Lead ×2) | **Fixed in Round 9b.** Both gated on the same state, so both rendered and stacked; they saved different field sets. |
 | `apps/web/src/app/app/accounting/page.tsx` vs `finance/accounting/*` | **UNVERIFIED** — two accounting surfaces exist (one orphaned per Round 4). Whether they duplicate a list is not established. |
+
+---
+
+## Sweep 5 — dead controls, and why the obvious grep misses them
+
+**A button with NO `onClick` attribute at all is invisible to the usual search.** The patterns a
+sweep reaches for — `onClick={() => {}}`, `onClick={() => null}`, `onClick={undefined}`, `href="#"` —
+return **zero hits across all ten batch-1 screens**. The CSM Contacts "View" button
+([csm/page.tsx:405](../../apps/web/src/app/app/csm/page.tsx#L405)) is dead and matches none of them,
+because it simply has no handler:
+
+```tsx
+<button className="text-[11px] text-primary hover:underline px-2">
+  View
+</button>
+```
+
+**A future dead-control sweep needs BOTH patterns:** no-op handlers *and* interactive elements with no
+handler attribute. The second is the harder search — it needs a JSX-aware pass (a `<button>` with no
+`onClick`, `type="submit"`, or parent `<form>`), not a regex. Until that exists, this class is found
+only by clicking the product, which is how the CSM one surfaced.
+
+**Batch-1 status:** no-op patterns — 0 across all ten. No-handler buttons — **1 confirmed (CSM
+Contacts View)**; the remaining screens are **UNVERIFIED** for this pattern.
 
 ---
 

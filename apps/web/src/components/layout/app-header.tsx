@@ -83,7 +83,6 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "employee-center": "Employee Service Center",
   recruitment: "Recruitment",
   "people-analytics": "People Analytics",
-  facilities: "Facilities",
   attendance: "Attendance Management",
   holidays: "Holiday Calendar",
   okr: "OKRs & Goals",

@@ -763,7 +763,7 @@ export const leaveAccrualRouter = router({
      * Requires a compensatory_off policy (an org that does not offer comp-off earns none). One
      * worked non-working day = 1 comp-off day.
      */
-    reconcile: permissionProcedure("hr", "approve")
+    reconcile: permissionProcedure("hr", "write")
       .input(z.object({
         employeeId: z.string().uuid(),
         from: z.coerce.date(),
@@ -841,7 +841,7 @@ export const leaveAccrualRouter = router({
      * eventDate is the guard, so a credit is lapsed at most once — the same shape as close.run's
      * carry-forward guard. Only applies when the policy's expiry_mode is window_weeks.
      */
-    expire: permissionProcedure("hr", "approve")
+    expire: permissionProcedure("hr", "write")
       .input(z.object({ employeeId: z.string().uuid(), asOf: z.coerce.date().optional() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;

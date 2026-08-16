@@ -2550,16 +2550,6 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(dash.total).toBeDefined();
     });
 
-    it("facilities: building create → list", async () => {
-      const caller = await authedCaller(adminToken);
-      const b = (await caller.facilities.buildings.create({
-        name: `Smoke Tower ${Date.now()}`,
-        floors: 3,
-      })) as { id: string };
-      const rows = await caller.facilities.buildings.list({ limit: 20 });
-      expect(rows.some((r: { id: string }) => r.id === b.id)).toBe(true);
-    });
-
     it("ai.summarizeTicket returns null or string (no key ok)", async () => {
       const caller = await authedCaller(adminToken);
       const t = (await caller.tickets.create({

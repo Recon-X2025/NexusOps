@@ -37,8 +37,21 @@ describe("AUTHZ sweep — ungated protectedProcedure mutations", () => {
     await cleanupOrg(orgCtx.orgId);
   });
 
-  // ── Step 1: onboarding.updateStatutoryIdentity — PF rate is money ──────────
-  describe("onboarding.updateStatutoryIdentity (payroll.write)", () => {
+  // ── Step 1: onboarding.updateStatutoryIdentity — ADMIN/OWNER ONLY ─────────
+  //
+  // NARROWED 2026-08-16 by product-owner decision, from payroll:write to
+  // admin/owner. These are the ORG's EPF code, ESI establishment number and PF
+  // contribution rate — statutory identity, not HR operational data.
+  //
+  // Both assertions below were updated, and the second is a real policy change:
+  //   • "plain member is DENIED" still passes on behaviour; only the MESSAGE moved
+  //     ("Admin access required" from adminProcedure, rather than the in-body
+  //     FORBIDDEN). The denial it guards is unchanged.
+  //   • "hr_manager is ALLOWED" asserted the PREVIOUS, WIDER policy. hr_manager is
+  //     now denied by design. The old assertion was not wrong when written — it is
+  //     encoding a rule the owner has since replaced, so it is inverted rather than
+  //     deleted, which keeps the boundary explicitly tested in both directions.
+  describe("onboarding.updateStatutoryIdentity (admin/owner only)", () => {
     it("a plain member is DENIED (cannot change the PF rate)", async () => {
       const caller = await authedCaller(requesterToken);
       await expect(
@@ -46,10 +59,16 @@ describe("AUTHZ sweep — ungated protectedProcedure mutations", () => {
           pfContributionRate: 10,
           pfReducedRateReason: "under_20_employees",
         }),
-      ).rejects.toThrow(/FORBIDDEN|permission/i);
+      ).rejects.toThrow(/FORBIDDEN|permission|admin access required/i);
     });
-    it("hr_manager is ALLOWED (regression guard)", async () => {
+    it("hr_manager is now DENIED — narrowed to admin/owner", async () => {
       const caller = await authedCaller(hrToken);
+      await expect(
+        caller.onboarding.updateStatutoryIdentity({ epfCode: "MHBAN0012345000" }),
+      ).rejects.toThrow(/admin access required|FORBIDDEN|permission/i);
+    });
+    it("an admin IS allowed — the narrowing did not lock everyone out", async () => {
+      const caller = await authedCaller(adminToken);
       const r = await caller.onboarding.updateStatutoryIdentity({ epfCode: "MHBAN0012345000" });
       expect(r).toEqual({ success: true });
     });

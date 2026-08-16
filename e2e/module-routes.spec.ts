@@ -42,7 +42,6 @@ const ADMIN_MODULE_ROUTES = [
   "/app/recruitment",
   "/app/people-analytics",
   "/app/performance",
-  "/app/facilities",
   "/app/csm",
   "/app/crm",
   "/app/catalog",

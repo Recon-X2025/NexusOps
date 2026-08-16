@@ -94,7 +94,6 @@ export type Module =
   | "roles"
   | "system_properties"
   | "audit_log"
-  | "facilities"
   | "recruitment"            // Phase 3: job requisitions, candidates, pipeline
   | "workforce_analytics"   // NEW Phase 3C: People & Workforce Analytics
   | "settings";             // Org-level settings: integrations, webhooks, API keys
@@ -139,7 +138,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     reports:      ["read", "write", "admin"],
     analytics:    ["read", "write"],
     virtual_agent:["read", "admin"],
-    facilities:   ["read"],
     users:        ["read", "write", "delete", "admin"],
     command_center: ["read"],
     workbench:    ["read", "admin"],
@@ -164,7 +162,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     cmdb:        ["read"],
     sam:         ["read"],
     ham:         ["read"],
-    facilities:  ["read"],
     surveys:     ["read", "write"],
     reports:     ["read"],
   },
@@ -185,7 +182,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     ham:         ["read", "write"],
     reports:     ["read", "write", "admin"],
     analytics:   ["read", "write"],
-    facilities:  ["read"],
     users:       ["read"],
     command_center: ["read"],
     workbench:   ["read"],
@@ -235,7 +231,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     ham:         ["read", "write"],
     cmdb:        ["read"],
     knowledge:   ["read"],
-    facilities:  ["read"],
     workbench:   ["read"],
   },
 
@@ -475,7 +470,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     incidents:   ["read", "write"],   // raise a ticket
     requests:    ["read", "write"],
     approvals:   ["read"],            // see, never decide
-    facilities:  ["read"],
     hr:          ["read"],
     // KEPT as write, deliberately, and still an over-grant: raising a purchase
     // request is an explicit user story ("requester can create purchase request",
@@ -577,7 +571,7 @@ export function getVisibleModules(roles: SystemRole[]): Set<Module> {
       "flows", "virtual_agent",
       "command_center", "workbench",
       "admin", "users", "roles", "system_properties", "audit_log",
-      "facilities", "settings", "surveys",
+      "settings", "surveys",
     ]);
   }
   const visible = new Set<Module>();

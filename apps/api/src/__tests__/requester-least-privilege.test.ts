@@ -37,10 +37,6 @@ describe("requester (plain employee) — least privilege", () => {
       expect(checkDbUserPermission(EMPLOYEE.role, "hr", "approve", EMPLOYEE.matrixRole)).toBe(false);
     });
 
-    it("cannot write to facilities — the gate on creating holidays' buildings/rooms", () => {
-      expect(checkDbUserPermission(EMPLOYEE.role, "facilities", "write", EMPLOYEE.matrixRole)).toBe(false);
-    });
-
     /**
      * KNOWN, DELIBERATE EXCEPTION — procurement:write is retained.
      *
@@ -94,7 +90,6 @@ describe("requester (plain employee) — least privilege", () => {
       // that puts them back behind hr:write fails loudly.
       const requester = ROLE_PERMISSIONS["requester"];
       expect(requester.hr).toEqual(["read"]);
-      expect(requester.facilities).toEqual(["read"]);
     });
   });
 
@@ -102,7 +97,6 @@ describe("requester (plain employee) — least privilege", () => {
     it.each([
       ["hr", "write"],
       ["hr", "approve"],
-      ["facilities", "write"],
       ["procurement", "write"],
       ["approvals", "approve"],
       ["payroll", "read"],

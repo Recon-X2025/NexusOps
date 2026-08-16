@@ -168,7 +168,6 @@ describe("Layer 1: Infrastructure Integrity", () => {
         "apm",
         "oncall",
         "events",
-        "facilities",
         "vendors",
         "approvals",
         "reports",

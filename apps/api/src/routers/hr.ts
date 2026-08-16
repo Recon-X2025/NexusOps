@@ -1,12 +1,13 @@
 import { router, permissionProcedure, protectedProcedure, adminProcedure, paginationInput, type Context } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { checkDbUserPermission } from "../lib/rbac-db";
+import { assertSelfOrPermitted, type SelfServiceCtx as SharedSelfServiceCtx } from "../lib/self-or-permitted";
 import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
 import { evaluateExpenseClaim } from "../lib/expense-policy";
 import { extractReceipt } from "../services/ai-receipt-ocr";
 import { decryptPan, panColumnsTolerant, employeePanField } from "../lib/pan";
-import { getNextEmployeeNumber } from "../lib/auto-number";
+import { getNextEmployeeNumber, getNextNumber } from "../lib/auto-number";
 import {
   employees,
   organizations,
@@ -162,42 +163,18 @@ async function resolveSelfEmployeeWithShift(
  * owner) may act on any employee, and everyone else may act only on the employee
  * record that belongs to them.
  */
-type SelfServiceCtx = {
-  db: Context["db"];
-  org: Context["org"];
-  user: Context["user"];
-};
+type SelfServiceCtx = SharedSelfServiceCtx;
 
+/**
+ * Round 4's helper, now expressed in terms of the shared one. The behaviour is
+ * unchanged — hr:write, or your own record — but there is a single ownership
+ * implementation in the codebase rather than one per module.
+ */
 async function assertSelfOrHrWriter(
   ctx: SelfServiceCtx,
   employeeId: string,
 ): Promise<void> {
-  const user = ctx.user;
-  if (!user || !ctx.org) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
-  }
-
-  const hasHrWrite = checkDbUserPermission(
-    String(user.role ?? ""),
-    "hr",
-    "write",
-    (user.matrixRole as string | null | undefined) ?? null,
-    user.customPermissions,
-  );
-  if (hasHrWrite) return;
-
-  const [own] = await ctx.db
-    .select({ id: employees.id })
-    .from(employees)
-    .where(and(eq(employees.userId, user.id), eq(employees.orgId, ctx.org.id)))
-    .limit(1);
-
-  if (!own || own.id !== employeeId) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You may only do this for your own employee record.",
-    });
-  }
+  return assertSelfOrPermitted(ctx, employeeId, [["hr", "write"]]);
 }
 
 export const hrRouter = router({
@@ -687,20 +664,30 @@ export const hrRouter = router({
       .input(z.object({ caseType: z.string().optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        // Join through employees to filter by org
-        return db
+        // Join through employees to filter by org.
+        // `assigneeName` is joined here because the list rendered the raw
+        // `assigneeId` UUID under an "Assignee" heading — the same defect the CRM
+        // account/contact columns had. An alias on the users table costs one join
+        // and turns a UUID into a person.
+        // `users` is not otherwise part of this query, so it joins directly on the
+        // assignee with no alias needed.
+        const rows = await db
           .select({
             hrCase: hrCases,
             employee: employees,
             onboardingDetails: onboardingDetails,
             offboardingDetails: offboardingDetails,
+            assigneeName: users.name,
+            assigneeEmail: users.email,
           })
           .from(hrCases)
           .innerJoin(employees, eq(hrCases.employeeId, employees.id))
           .leftJoin(onboardingDetails, eq(employees.id, onboardingDetails.employeeId))
           .leftJoin(offboardingDetails, eq(employees.id, offboardingDetails.employeeId))
+          .leftJoin(users, eq(hrCases.assigneeId, users.id))
           .where(eq(employees.orgId, org!.id))
           .orderBy(desc(hrCases.createdAt));
+        return rows;
       }),
 
     get: permissionProcedure("hr", "read")
@@ -782,6 +769,8 @@ export const hrRouter = router({
           employeeId: z.string().uuid(),
           caseType: z.enum(["onboarding", "offboarding", "leave", "policy", "benefits", "workplace", "equipment"]),
           status: z.enum(["open", "in_progress", "closed"]).optional(),
+          /** One-line summary. `notes` stays the running commentary. */
+          subject: z.string().trim().min(1).max(200).optional(),
           notes: z.string().optional(),
           assigneeId: z.string().uuid().optional(),
         }),
@@ -804,9 +793,14 @@ export const hrRouter = router({
           }
         }
 
+        // Case number from org_counters — the same atomic allocator tickets,
+        // changes, problems and CSM cases use. Never count(*)+1, never random:
+        // both shipped once and both produced duplicates (see 0086).
+        const number = await getNextNumber(db, ctx.org!.id, "HRC");
+
         const [hrCase] = await db
           .insert(hrCases)
-          .values({ orgId: ctx.org!.id, ...input, assigneeId: resolvedAssigneeId })
+          .values({ orgId: ctx.org!.id, number, ...input, assigneeId: resolvedAssigneeId })
           .returning();
         return hrCase;
       }),
@@ -874,6 +868,7 @@ export const hrRouter = router({
           .insert(hrCases)
           .values({
             orgId: org!.id,
+            number: await getNextNumber(db, org!.id, "HRC"),
             caseType: "onboarding",
             employeeId: input.employeeId,
             priority: "high",
@@ -1362,6 +1357,7 @@ export const hrRouter = router({
           .insert(hrCases)
           .values({
             orgId: org!.id,
+            number: await getNextNumber(db, org!.id, "HRC"),
             employeeId: employee.id,
             caseType: "onboarding",
             status: "open",
@@ -1500,6 +1496,7 @@ export const hrRouter = router({
           .insert(hrCases)
           .values({
             orgId: org!.id,
+            number: await getNextNumber(db, org!.id, "HRC"),
             employeeId: input.employeeId,
             caseType: "offboarding",
             status: "open",

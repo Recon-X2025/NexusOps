@@ -76,7 +76,6 @@ const COMMAND_ITEMS: CommandItem[] = [
   { id: "recruitment", label: "Recruitment & ATS",        group: "People & Workplace",  href: "/app/recruitment",        icon: Users,          keywords: ["hiring", "ats", "candidates", "jobs"] },
   { id: "performance", label: "Performance Management",   group: "People & Workplace",  href: "/app/performance",        icon: Target,         keywords: ["performance", "goals", "okr", "review", "360"] },
   { id: "people-analytics", label: "People Analytics",   group: "People & Workplace",  href: "/app/people-analytics",   icon: BarChart3,      keywords: ["workforce", "analytics", "headcount"] },
-  { id: "facilities",  label: "Facilities & Real Estate", group: "People & Workplace",  href: "/app/facilities",         icon: Building2,      keywords: ["facilities", "rooms", "bookings"] },
 
   // Customer & Sales
   { id: "csm",         label: "Customer Service",         group: "Customer & Sales",    href: "/app/csm",                icon: Headphones,     keywords: ["customer", "support", "csm"] },

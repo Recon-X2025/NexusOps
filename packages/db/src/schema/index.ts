@@ -23,7 +23,6 @@ export * from "./projects";
 export * from "./crm";
 export * from "./csm";
 export * from "./legal";
-export * from "./facilities";
 export * from "./devops";
 export * from "./surveys";
 export * from "./knowledge";

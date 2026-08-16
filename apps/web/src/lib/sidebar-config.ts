@@ -232,12 +232,6 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Team Overview", href: "/app/performance?tab=team" },
         ],
       },
-      {
-        label: "Facilities & Real Estate",
-        href: "/app/facilities",
-        icon: "Building2",
-        module: "work_orders",
-      },
     ],
   },
   {

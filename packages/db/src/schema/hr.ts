@@ -369,7 +369,24 @@ export const hrCases = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    /**
+     * User-facing case number, `HRC-0001`, allocated from `org_counters` via
+     * `getNextNumber` — the same path tickets, changes, problems and CSM cases
+     * use. Before this existed the list rendered `id.slice(-8).toUpperCase()`:
+     * not a fallback but the ONLY path, because there was no number to show.
+     * Unique per org (see the index below).
+     */
+    number: text("number").notNull(),
     caseType: hrCaseTypeEnum("case_type").notNull(),
+    /**
+     * What the case is about, in the case-owner's words.
+     *
+     * Previously the list "Subject" column rendered the NOTES BODY with
+     * `[RESOLVED:…]` / `[ARCHIVED:…]` markers stripped by a regex — a subject
+     * reconstructed from a free-text blob. `notes` remains the running commentary;
+     * this is the one-line summary the list actually needs.
+     */
+    subject: text("subject"),
     employeeId: uuid("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
@@ -384,6 +401,11 @@ export const hrCases = pgTable(
   (t) => ({
     orgIdx: index("hr_cases_org_idx").on(t.orgId),
     employeeIdx: index("hr_cases_employee_idx").on(t.employeeId),
+    // Per-org uniqueness, matching the nine indexes migration 0086 added for the
+    // other user-facing identifiers. A racing generator behind a unique index is a
+    // user-facing 500, so the generator (`getNextNumber` → org_counters) and this
+    // index land together.
+    orgNumberIdx: uniqueIndex("hr_cases_org_number_idx").on(t.orgId, t.number),
   }),
 );
 

@@ -73,7 +73,6 @@ const ROUTE_MODULE_RULES: ReadonlyArray<{ prefix: string; module: Module }> = [
   { prefix: "/app/payroll", module: "payroll" },
   { prefix: "/app/recruitment", module: "recruitment" },
   { prefix: "/app/performance", module: "hr" },
-  { prefix: "/app/facilities", module: "work_orders" },
   { prefix: "/app/attendance", module: "hr" },
   { prefix: "/app/holidays", module: "hr" },
   { prefix: "/app/okr", module: "hr" },

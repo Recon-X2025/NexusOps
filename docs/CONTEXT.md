@@ -51,7 +51,12 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `probability` (flat 10 on every fresh database — new, from this round), and `convertLead` never
   refetched deals so a converted lead's deal did not appear on the Pipeline (**pre-existing**, verified
   byte-identical at `393e5d7`). Detail: `reports/fix-plan.md` → CI CAUGHT TWO DEFECTS.
-- **LIVE = `dc55d82`** (fixes both defects above; carries `340de34`'s Pipeline work and **migration `0089`**
+- **LIVE = `fbf367b`** (ECR-WAGE — the EPFO ECR reports the wage the contribution was computed on; the
+  raw-basic wage on `hr.payroll.generateECR` is gone and both ECR callers now share one line builder) —
+  CI run `31942562984`, all five jobs `success` on **attempt 1**, `/api/health` → `fbf367bbdeb7adfd…`,
+  2026-08-16. **No migration** — head stays `0089`. Statutory money path: see `reports/fix-plan.md`
+  → ECR-WAGE, including one item **recorded and NOT fixed** (employer EPF above the PF ceiling).
+- Prior: **`dc55d82`** (fixes both defects CI caught; carries `340de34`'s Pipeline work and **migration `0089`**
   forward) — CI run `31931874031`, all five jobs `success` on **attempt 1** including the terminal
   `Deploy to Vultr`, verified 2026-08-16 via `/api/health` → `dc55d82d4d429d85906c…`. Migration head
   `0088` → **`0089`**; `0089` applied on the deployed stack without halting the api container.
@@ -101,6 +106,61 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `docker-compose.vultr.images.yml`, **not** `docker-compose.prod.yml`'s `migrator` service.
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0082`).
+
+## 2026-08-16 — Three rounds in one push: facilities removed · HR cases · permission gaps
+
+_Migrations **`0090`** (drops facilities) and **`0091`** (hr_cases number + subject). Per-item detail in
+`reports/fix-plan.md` → FACILITIES-REMOVAL, HR-CASES, PERMISSION-GAPS._
+
+- **Facilities REMOVED end to end** (product-owner decision — a forty-person company books rooms in
+  Outlook). 17 artefacts, 6 tables, 6 enums. **Four of its five tables worked correctly**, which is the
+  argument FOR removal: a working module nobody needs is maintained, supported and audited forever.
+  **NOT removed:** "facilities" also names an **ITSM request category** (ticket/catalog/portal/ai) — an
+  unrelated concept that stays.
+- **HR cases got a real case number and subject** (`0091`). Case # was a truncated UUID (the only path,
+  not a fallback); Subject was the NOTES BODY with `[RESOLVED:…]` markers stripped by regex; Assignee was
+  a raw UUID; SLA was a hardcoded em-dash and **nothing backs an SLA concept for HR cases**, so it was
+  deleted. `number` NOT NULL surfaced **four more insert sites** grep had missed — three caught by `tsc`,
+  **the seed one only by `lint:cold`**.
+- **PERMISSION GAPS — the premise was wrong, and so was my earlier advice.** All 16 "unmapped" procedures
+  were **already enforced server-side**; the gap was the CLIENT query-gate only. And **the RBAC generator
+  is correct** — the checked-in map was stale and STRICTER than the runtime, defeating Round 4's
+  self-service in the UI. Two prior rounds hand-edited around the generator on my wrong advice.
+  **Regenerate it; do not hand-edit it.**
+- **⚠️ The catch:** implementing "self, or HR" as `hr:read` **would have exposed every employee's final
+  settlement to the whole company** — `requester` holds `hr: ["read"]`. It is `hr:write`. A test caught it.
+
+## 2026-08-16 — ECR-WAGE: the EPFO ECR reported a wage the contribution did not match (`fbf367b`)
+
+_Per-item detail in `reports/fix-plan.md` → ECR-WAGE. **No migration**, no stored row rewritten.
+Statutory money path — read the fix-plan entry before touching the ECR again._
+
+- **The defect.** `hr.payroll.generateECR` built its member lines inline from the RAW BASIC
+  (`min(Number(slip.basic), 15000)`) while the contribution beside it had been computed on the RESOLVED
+  wage base (the Labour-Codes 50% clamp). Basic ₹8,000 with ₹12,000 of exclusions resolves a ₹10,000 base
+  and ₹1,200 of EPF — the line claimed **₹8,000 against ₹1,200, i.e. 15%**. Reallocating pay between basic
+  and allowances moved the reported WAGE while the contribution stayed put, so the two could disagree by
+  any amount. **EPFO's revamped ECR validates this and rejects the upload**, and the seven pilots file in
+  early September with no spare establishment code to test against.
+- **Only ONE of the two paths was broken.** `india-compliance.filing.submit` (the portal push) was
+  **already correct** — it calls `buildEcrLine`, which reads `pfWageBase`. The broken one was
+  `hr.payroll.generateECR`, which is the route the HR screen *names to the user*
+  (`hr/page.tsx:2991`). Two routes, two answers, and the one a human reaches for was the wrong one.
+- **The fix:** `hr.ts` repointed at `buildEcrLine` — ONE builder, two callers, cannot drift. That also
+  fixed a second bug on the same lines (employer EPS recomputed from the wrong wage instead of the
+  persisted `pfEmployerEps`).
+- **Ceiling placement:** on the wage base UPSTREAM (`computePF`) and on EPS/EDLI only. The reported EPF
+  wage is never re-capped — a Para 26(6) member files the full uncapped wage.
+- **Guard:** employer share ≤ 12% of `epfWages` + ₹1. **Upper bound only.** A 10–12% band was written
+  first and was WRONG — above the ceiling the EPS cap drags a legitimate Para 26(6) line to 9.92%, so the
+  floor would have rejected exactly the filings it was meant to protect. The tests caught it before it
+  shipped; blocking correct filings would have been worse than the defect.
+- **⚠️ RECORDED, NOT FIXED — employer EPF above the PF ceiling.** `computePF` computes employer EPF as
+  3.67% of the UNCAPPED base, so a ₹20,000 Para 26(6) base totals ₹1,984 employer. Under the EPF scheme
+  the employer pays 12% of the uncapped base (₹2,400) with EPS capped at ₹1,250 and the REMAINDER
+  (₹1,150) to EPF. The PF computation was scoped out of that round, so nothing was changed. **This is
+  employer money on every Para 26(6) member and is a CA question, not a code question — settle it before
+  the first live filing.**
 
 ## 2026-08-16 — CRM Pipeline: audit + stage rules (`340de34`, migration `0089`)
 
@@ -859,7 +919,12 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31931874031` — commit `dc55d82` (CRM Pipeline audit + stage rules, plus the two fixes CI caught;
+**CI run `31942562984` — commit `fbf367b` (ECR-WAGE: the EPFO ECR now reports the wage the contribution
+was computed on; **no migration**, head stays `0089`) — all five jobs `success` on **attempt 1**, including
+the terminal `Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: fbf367bbdeb7adfd…`.**
+Detail: `reports/fix-plan.md` → ECR-WAGE.
+
+**Superseded exit point — CI run `31931874031` — commit `dc55d82` (CRM Pipeline audit + stage rules, plus the two fixes CI caught;
 **migration `0089`**, head `0088` → `0089`) — all five jobs `success` on **attempt 1**, including the
 terminal `Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: dc55d82d4d429d85906c…`.**
 Detail: `reports/fix-plan.md` → CRM PIPELINE.

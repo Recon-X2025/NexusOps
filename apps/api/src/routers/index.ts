@@ -26,7 +26,6 @@ import { csmRouter } from "./csm";
 import { apmRouter } from "./apm";
 import { oncallRouter } from "./oncall";
 import { eventsRouter } from "./events";
-import { facilitiesRouter } from "./facilities";
 import { vendorsRouter } from "./vendors";
 import { approvalsRouter } from "./approvals";
 import { reportsRouter } from "./reports";
@@ -89,7 +88,6 @@ export const appRouter = router({
   apm: apmRouter,
   oncall: oncallRouter,
   events: eventsRouter,
-  facilities: facilitiesRouter,
   vendors: vendorsRouter,
   approvals: approvalsRouter,
   reports: reportsRouter,

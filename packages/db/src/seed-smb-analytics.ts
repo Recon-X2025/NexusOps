@@ -1196,7 +1196,12 @@ async function seedSmbAnalytics() {
       if (!e) break;
       hc.push({
         orgId: org.id,
+        // Sequential, matching what getNextNumber would have allocated. The seed
+        // must set this: `number` is NOT NULL with a unique (org, number) index,
+        // and a seed that omits it is the path every fresh database takes.
+        number: `HRC-${String(i + 1).padStart(4, "0")}`,
         caseType: types[i % types.length]!,
+        subject: `HR case ${String(i + 1)} — ${types[i % types.length]!} workflow sample`,
         employeeId: e.id,
         assigneeId: admin.id,
         priority: (["low", "medium", "high"] as const)[i % 3],

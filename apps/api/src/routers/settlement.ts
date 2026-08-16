@@ -37,7 +37,8 @@ import {
   computeLeaveEncashment,
   composeSettlement,
 } from "@coheronconnect/payroll-math";
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
+import { assertSelfOrPermitted } from "../lib/self-or-permitted";
 import { buildEmployeePayrollInput, calendarToFyMonth } from "../services/payroll-run-aggregates";
 import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
 
@@ -217,11 +218,25 @@ async function resolveComponents(
   return { emp, endYear, lastSalary, gratuity, leaveEncashment, drawdowns };
 }
 
+/**
+ * Who may VIEW anyone's settlement: HR staff or finance. Self is added by the helper.
+ *
+ * `hr:WRITE`, deliberately NOT `hr:read`. The `requester` role — every plain
+ * employee — holds `hr: ["read"]` (rbac-matrix.ts:473), so gating on hr:read would
+ * let the whole company read everyone's final settlement, which is the exposure
+ * this round exists to close. hr:write is the real "is this person HR" test, and is
+ * exactly why Round 4's assertSelfOrHrWriter uses it. A test pins this.
+ */
+const SETTLEMENT_VIEWERS = [["hr", "write"], ["financial", "read"], ["offboarding", "read"]] as const;
+
 export const settlementRouter = router({
   // Compute the composed settlement without persisting — for the offboarding screen.
-  preview: permissionProcedure("offboarding", "read")
+  // SELF, or HR, or finance. A departing employee may see their own settlement
+  // figures — it is their money — without holding offboarding:read.
+  preview: protectedProcedure
     .input(z.object({ employeeId: z.string().uuid(), reason: z.string().optional() }).merge(recoveriesInput))
     .query(async ({ ctx, input }) => {
+      await assertSelfOrPermitted(ctx, input.employeeId, SETTLEMENT_VIEWERS);
       const { db, org } = ctx;
       const c = await resolveComponents(db, org!.id, input.employeeId, input.reason);
       return composeSettlement({
@@ -235,9 +250,11 @@ export const settlementRouter = router({
     }),
 
   // Get the settlement for an employee (if any).
-  get: permissionProcedure("offboarding", "read")
+  // SELF, or HR, or finance — same viewers as `preview`.
+  get: protectedProcedure
     .input(z.object({ employeeId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await assertSelfOrPermitted(ctx, input.employeeId, SETTLEMENT_VIEWERS);
       const { db, org } = ctx;
       const [row] = await db
         .select()
@@ -248,6 +265,13 @@ export const settlementRouter = router({
     }),
 
   // Compose and PERSIST the settlement — one per employee, idempotent, stops the clock.
+  //
+  // ASYMMETRY, DELIBERATE: `get` and `preview` are self-or-role; `settle` is
+  // ROLE-ONLY. Settling is the act of paying someone out, so the person being paid
+  // must not reach it even though they may view the figures. It therefore does NOT
+  // call assertSelfOrPermitted — the absence is the gate, and
+  // settlement-authz.test.ts pins it so a later "consistency" refactor cannot
+  // quietly add self here.
   settle: permissionProcedure("offboarding", "write")
     .input(
       z

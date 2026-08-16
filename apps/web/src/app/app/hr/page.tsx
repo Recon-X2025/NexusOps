@@ -583,7 +583,7 @@ export default function HRPage() {
       toast.success("HR Case created successfully");
       utils.hr.cases.list.invalidate();
       setShowCaseForm(false);
-      setCaseForm({ employeeId: "", caseType: "policy", notes: "", status: "open" });
+      setCaseForm({ employeeId: "", caseType: "policy", subject: "", notes: "", status: "open" });
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
@@ -610,7 +610,7 @@ export default function HRPage() {
     onError: (err: any) => toast.error(err?.message ?? "Failed to delete case"),
   });
 
-  const [caseForm, setCaseForm] = useState({ employeeId: "", caseType: "policy" as const, notes: "", status: "open" as "open" | "in_progress" | "closed" });
+  const [caseForm, setCaseForm] = useState({ employeeId: "", caseType: "policy" as const, subject: "", notes: "", status: "open" as "open" | "in_progress" | "closed" });
   const [editingCase, setEditingCase] = useState<{id: string, notes: string, status: "open" | "in_progress" | "closed"} | null>(null);
   const [archivingCase, setArchivingCase] = useState<string | null>(null);
   const [archiveNote, setArchiveNote] = useState("");
@@ -2459,7 +2459,6 @@ export default function HRPage() {
                   <th>Priority</th>
                   <th>Assignee</th>
                   <th>Opened</th>
-                  <th>SLA</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -2473,18 +2472,17 @@ export default function HRPage() {
                   return (
                     <tr key={c.hrCase?.id ?? ""} className={isArchived ? "opacity-60" : ""}>
                       <td className="p-0"><div className={`priority-bar ${casePriority === "high" ? "bg-orange-500" : casePriority === "medium" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
-                      <td className="font-mono text-[11px] text-primary">{c.hrCase?.id?.slice(-8)?.toUpperCase() ?? "—"}</td>
+                      <td className="font-mono text-[11px] text-primary" data-testid="hr-case-number">{c.hrCase?.number ?? "—"}</td>
                       <td><span className="status-badge text-muted-foreground bg-muted">{c.hrCase?.caseType ?? "—"}</span></td>
-                      <td className="max-w-xs"><span className="block text-foreground">{c.hrCase?.notes?.replace(/\[(RESOLVED|ARCHIVED):.*?\]\s*/g, "") || "—"}</span></td>
+                      <td className="max-w-xs"><span className="block text-foreground" data-testid="hr-case-subject">{c.hrCase?.subject || "—"}</span></td>
                       <td className="text-muted-foreground">{c.employee?.employeeId ?? "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{c.employee?.department ?? "—"}</td>
                       <td><span className={`status-badge capitalize ${CASE_STATE_COLOR[displayStatus] ?? "text-muted-foreground bg-muted"}`}>{displayStatus.replace(/_/g, " ")}</span></td>
                       <td><span className={`status-badge capitalize ${casePriority === "high" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{casePriority}</span></td>
-                      <td className="text-muted-foreground">{c.hrCase?.assigneeId ?? "—"}</td>
+                      <td className="text-muted-foreground" data-testid="hr-case-assignee">{c.assigneeName ?? c.assigneeEmail ?? "—"}</td>
                       <td className="text-muted-foreground text-[11px]">
                         {c.hrCase?.createdAt ? new Date(c.hrCase.createdAt).toISOString().split("T")[0] : "—"}
                       </td>
-                      <td className="text-muted-foreground text-[11px]">—</td>
                       <td>
                         <div className="flex items-center gap-2">
                           {!isArchived && c.hrCase?.id && (
@@ -3287,6 +3285,7 @@ export default function HRPage() {
               <div>
                 <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Employee ID *</label>
                 <select
+                  data-testid="hr-case-employee-select"
                   value={caseForm.employeeId}
                   onChange={(e) => setCaseForm((f) => ({ ...f, employeeId: e.target.value }))}
                   className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
@@ -3312,6 +3311,21 @@ export default function HRPage() {
                 </select>
               </div>
               <div>
+                {/* A real subject. The list column used to render the NOTES BODY with
+                    [RESOLVED:…]/[ARCHIVED:…] markers stripped by a regex — a subject
+                    reconstructed from a free-text blob. Notes stays the running
+                    commentary; this is the one-line summary the list shows. */}
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Subject *</label>
+                <input
+                  data-testid="hr-case-subject-input"
+                  value={caseForm.subject}
+                  onChange={(e) => setCaseForm((f) => ({ ...f, subject: e.target.value }))}
+                  placeholder="e.g. Relocation allowance query"
+                  maxLength={200}
+                  className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground outline-none"
+                />
+              </div>
+              <div>
                 <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Description / Notes</label>
                 <textarea
                   rows={4}
@@ -3330,8 +3344,8 @@ export default function HRPage() {
                 Cancel
               </button>
               <button
-                disabled={createHRCase.isPending || !caseForm.employeeId}
-                onClick={() => createHRCase.mutate({ employeeId: caseForm.employeeId, caseType: caseForm.caseType, notes: caseForm.notes || undefined, status: caseForm.status })}
+                disabled={createHRCase.isPending || !caseForm.employeeId || !caseForm.subject.trim()}
+                onClick={() => createHRCase.mutate({ employeeId: caseForm.employeeId, caseType: caseForm.caseType, subject: caseForm.subject.trim(), notes: caseForm.notes || undefined, status: caseForm.status })}
                 className="px-4 py-1.5 text-[12px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1"
               >
                 {createHRCase.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}

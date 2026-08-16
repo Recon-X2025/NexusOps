@@ -835,7 +835,7 @@ export const ingestRouter = router({
      * not the other. Basic is DERIVED (50 − DA) — the template never asks for it. Structures must
      * be imported BEFORE employees, because the employee importer links to a structure by name.
      */
-    importStructures: permissionProcedure("payroll", "write")
+    importStructures: permissionProcedure("hr", "write")
         .input(z.object({
             dryRun: z.boolean().default(true),
             columns: z.array(z.string()),
@@ -962,7 +962,7 @@ export const ingestRouter = router({
 
     /** Downloadable structure-import template — GENERATED from STRUCTURE_TEMPLATE_COLUMNS, so it
      *  cannot drift from what importStructures accepts. */
-    structureImportTemplate: permissionProcedure("payroll", "read").query(() => ({
+    structureImportTemplate: permissionProcedure("hr", "write").query(() => ({
         columns: STRUCTURE_TEMPLATE_COLUMNS.map((c) => ({ key: c.key, required: c.required, note: c.note })),
         headerRow: STRUCTURE_TEMPLATE_COLUMNS.map((c) => c.key),
         note: "Import structures BEFORE employees — the employee importer links to a structure by its exact name. Basic is derived as 50 − DA and is not a column.",

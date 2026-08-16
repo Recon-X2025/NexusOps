@@ -1,4 +1,4 @@
-import { router, protectedProcedure } from "../lib/trpc";
+import { router, protectedProcedure, adminProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { panColumns, decryptPan } from "../lib/pan";
@@ -390,7 +390,13 @@ export const onboardingRouter = router({
    * the full India schema). All columns already exist (schema/auth.ts) — no migration. The
    * reduced-rate rule mirrors `writeWizardData`: below 12% requires an enumerated EPFO ground.
    */
-  updateStatutoryIdentity: protectedProcedure
+  // ADMIN or OWNER. These are the ORG's EPF code, ESI establishment number and PF
+  // contribution rate — statutory identity, not HR operational data. It was
+  // protectedProcedure with an in-body payroll:write check (which hr_manager and
+  // hr_analyst also pass); the product owner narrowed it to admin/owner. The
+  // in-body check stays as defence in depth — adminProcedure gates first, and
+  // anyone who clears it also holds payroll:write.
+  updateStatutoryIdentity: adminProcedure
     .input(
       z.object({
         epfCode: z.string().trim().max(64).optional(),

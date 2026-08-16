@@ -71,8 +71,6 @@ These detail tables have no `org_id`; they inherit tenant scope through the list
 | `project_milestones` | via projectId → projects |
 | `project_tasks` | via projectId → projects |
 | `purchase_request_items` | via prId → purchase_requests |
-| `room_bookings` | via roomId → rooms → buildings |
-| `rooms` | via buildingId → buildings |
 | `signature_audit` | via requestId → signature_requests |
 | `signature_signers` | via requestId → signature_requests |
 | `survey_responses` | via surveyId → surveys |
@@ -104,7 +102,6 @@ flowchart LR
   accounting["accounting"] -->|11| auth["auth"]
   secretarial["secretarial"] -->|11| auth["auth"]
   changes["changes"] -->|10| auth["auth"]
-  facilities["facilities"] -->|8| auth["auth"]
   india_compliance["india-compliance"] -->|8| auth["auth"]
   assets["assets"] -->|7| auth["auth"]
   performance["performance"] -->|7| auth["auth"]
@@ -323,15 +320,8 @@ Each table's tenancy class and its outgoing foreign keys with deletion rules.
 | `expense_items` | direct (`org_id`) | `orgId`→`organizations` (cascade)<br>`reportId`→`expense_reports` (cascade) |
 | `expense_reports` | direct (`org_id`) | `orgId`→`organizations` (cascade)<br>`submittedById`→`users` (restrict)<br>`approverId`→`users` (set null) |
 
-### `facilities`
-
-| Table | Tenancy | Foreign keys (→ target, onDelete) |
-|---|---|---|
-| `buildings` | direct (`org_id`) | `orgId`→`organizations` (cascade) |
-| `facility_requests` | direct (`org_id`) | `orgId`→`organizations` (cascade)<br>`requesterId`→`users` (restrict)<br>`assigneeId`→`users` (set null) |
-| `move_requests` | direct (`org_id`) | `orgId`→`organizations` (cascade)<br>`requesterId`→`users` (restrict)<br>`approvedById`→`users` (set null) |
-| `room_bookings` | via parent | `roomId`→`rooms` (cascade)<br>`bookedById`→`users` (restrict) |
-| `rooms` | via parent | `buildingId`→`buildings` (cascade) |
+_`facilities` removed 2026-08-16 (migration `0090_lively_vector`) — six tables and six
+enums dropped with the module. See `reports/fix-plan.md` → FACILITIES-REMOVAL._
 
 ### `financial`
 

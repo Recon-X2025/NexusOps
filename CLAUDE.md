@@ -321,6 +321,23 @@ These are conventions, not per-commit state. They were established by code audit
   the flat path as the lookup key to preserve the intended gate (the key is an RBAC lookup, not the
   procedure being called), and do not regenerate the map as a side effect of unrelated work — it has
   accumulated drift and will silently change gating elsewhere (e.g. `hr.leave.create`).
+- **`hr:read` is NOT "is this person HR" — every employee holds it.** `requester`, the role every plain
+  employee carries, is granted `hr: ["read"]` (`rbac-matrix.ts`). So gating a self-or-role check on
+  `hr:read` grants the whole company, which is the opposite of the intent. **The real "is this person HR"
+  test is `hr:write`** — which is exactly why Round 4's `assertSelfOrHrWriter` uses it. A settlement gate
+  written as `hr:read` would have exposed every employee's final settlement to everyone; a test caught it.
+- **One ownership helper: `assertSelfOrPermitted(ctx, employeeId, grants[])`** (`lib/self-or-permitted.ts`).
+  "Your own record, OR someone holding one of these grants." `assertSelfOrHrWriter` is expressed in terms
+  of it. Do not write a second ownership check — divergent duplicates are this codebase's recurring defect.
+  **Where a procedure lets you SEE your own figures but not ACT on them, express that by NOT calling the
+  helper**, not by a flag: `settlement.get`/`preview` are self-or-role, `settlement.settle` is role-only,
+  because settling is the act of paying someone out.
+- **A missing rule in `trpc-procedure-rbac.generated.ts` falls back to PERMISSIVE**
+  (`rbacAllow = isAuthenticated`, `rbac-context.tsx:204`). That gate is CLIENT-SIDE ONLY — the server
+  still enforces `permissionProcedure`. A procedure absent from the map is a UI/defence-in-depth gap, not
+  data exposure. **Establish which before calling it a breach:** all 16 procedures found "unmapped" in
+  Aug 2026 were already enforced server-side. **And read handler BODIES, not signatures** — one of them
+  was `protectedProcedure` with an in-body `checkDbUserPermission` throw.
 - **Do not invent a displayed identifier by splitting or truncating a real field.** The Admin Console's
   USERNAME column was `email.split("@")[0]`, so two distinct accounts rendered identically. Several
   screens still do this with `id.slice(…)` fallbacks (invoice, GRC, vendor, CRM, security) — a missing

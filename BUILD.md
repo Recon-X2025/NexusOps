@@ -55,7 +55,7 @@ Root router `apps/api/src/routers/index.ts` composes **40+ feature routers**, sp
   `compliance` (DPDP DSR + consent), `india-compliance` (MCA/TDS/ECR), `secretarial`, `issuer-programme`.
 - **Security**: `security` (incidents, vulnerabilities, vuln-SLA summary).
 - **Platform**: `workflows`, `businessRules`, `customFields`, `notifications`, `integrations`, `knowledge`,
-  `adminSettings`, `facilities`, `projects`, `workOrders`, `assignment`, `apm`, `agent`.
+  `adminSettings`, `projects`, `workOrders`, `assignment`, `apm`, `agent`.
 
 ### 3.2 RBAC procedure stack (`apps/api/src/lib/trpc.ts`)
 - `publicProcedure` — unauthenticated.

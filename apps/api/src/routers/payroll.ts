@@ -42,6 +42,7 @@ import { putObject, buildDocumentKey, enqueueVirusScan } from "../services/stora
 import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { decryptPan } from "../lib/pan";
+import { assertSelfOrPermitted } from "../lib/self-or-permitted";
 import { router, permissionProcedure, anyPermissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, computeHRAExemption, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computePayslipTaxFigures, type PayslipEmployeeContext } from "../lib/payslip-tax";
@@ -1411,6 +1412,10 @@ const salaryStructuresRouter = router({
 // The FORM captures the declared amounts; the statutory CAPS live in computeTax (tax-engine.ts), NOT
 // here — this router only stores raw values. Every write lands as `provisional` (proof verification,
 // which flips it to proven/lapsed, is a later layer); a `lapsed` row is treated as 0 by the run.
+/** Who may read/write ANY employee's declaration. Self is added by the helper. */
+const DECLARATION_OWNERS = [["payroll", "read"]] as const;
+const DECLARATION_WRITERS = [["payroll", "write"]] as const;
+
 const taxDeclarationsRouter = router({
   // All declarations for a fiscal year (FY start year, e.g. 2026 for FY 2026-27), keyed for the form.
   listForFy: permissionProcedure("payroll", "read")
@@ -1424,9 +1429,12 @@ const taxDeclarationsRouter = router({
     }),
 
   // One employee's declaration for a fiscal year (null if none captured yet).
-  get: permissionProcedure("payroll", "read")
+  // SELF, or payroll. An employee must be able to see their OWN 80C/80D/HRA
+  // declaration without holding payroll:read — it is their investment proof.
+  get: protectedProcedure
     .input(z.object({ employeeId: z.string().uuid(), fiscalYear: z.coerce.number().int() }))
     .query(async ({ ctx, input }) => {
+      await assertSelfOrPermitted(ctx, input.employeeId, DECLARATION_OWNERS);
       const { db, org } = ctx;
       const [row] = await db
         .select()
@@ -1443,7 +1451,8 @@ const taxDeclarationsRouter = router({
 
   // Upsert by (employee, fiscalYear) — the unique key. Amounts are stored raw (caps applied by the
   // engine); provenance is always (re)set to `provisional` on capture.
-  upsert: permissionProcedure("payroll", "write")
+  // SELF, or payroll — an employee files their own declaration.
+  upsert: protectedProcedure
     .input(
       z.object({
         employeeId: z.string().uuid(),
@@ -1456,6 +1465,7 @@ const taxDeclarationsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertSelfOrPermitted(ctx, input.employeeId, DECLARATION_WRITERS);
       const { db, org } = ctx;
       // Employee must belong to this tenant (defence-in-depth alongside the RLS wall).
       const [emp] = await db

@@ -117,11 +117,63 @@ anything** — same class as `.turbo` making "cold lint" warm.
 
 ---
 
+## PERMISSION-GAPS — the 16 unmapped procedures (2026-08-16; NO migration)
+
+_Gate: build 11/11 · **215 files / 1910 tests** · `lint:cold` 9/9 forced · playwright **118 passed /
+2 failed / 1 skipped** (known `rbac:105`/`:115`; the skip is `hr-cases.spec.ts` fixme). Verified on a
+RESET database carrying migrations `0090`+`0091`._
+
+**CORRECTION OF RECORD — the premise was wrong, and so was my earlier advice about the generator.**
+
+1. **ZERO of the 16 were open at runtime.** All were already enforced server-side: 14 by
+   `permissionProcedure`, 2 by `adminProcedure`, and `onboarding.updateStatutoryIdentity` by
+   `protectedProcedure` **plus an in-body `checkDbUserPermission(payroll:write)` throw**. The fear that
+   "everyone's salary detail is readable by everyone" was **not true** — a plain requester got a 403 from
+   every one. The gap was the CLIENT query-gate only (`rbacAllow = isAuthenticated` for a missing rule,
+   `rbac-context.tsx:204`): UI controls stayed enabled and errored instead of being hidden.
+   **Lesson re-learned: read handler BODIES, not signatures.**
+2. **The RBAC generator is CORRECT and always was.** It reads the builder from source
+   (`generate-trpc-rbac-map.ts:58`). The five HR procedures it "loosens" genuinely ARE
+   `protectedProcedure`, deliberately, from Round 4's requester-narrowing. **The CHECKED-IN MAP was
+   stale and STRICTER than the runtime, defeating self-service in the UI.** Two prior rounds hand-edited
+   around the generator on my wrong advice. Regenerating changed 6 entries + added 16; **0 stale-removed,
+   0 incorrectly loosened.** Regenerate it; do not hand-edit it.
+
+**THE CATCH THAT MATTERED.** The gate "self, or HR" implemented literally as `hr:read` **would have
+created the exposure this round existed to close**: `requester` holds `hr: ["read"]`, so every employee
+would have gained read access to everyone's final settlement. `SETTLEMENT_VIEWERS` is `hr:write` +
+`financial:read` + `offboarding:read`. A test caught it. Convention recorded in `CLAUDE.md`.
+
+**Applied.** Map entry only (already-correct runtime): `admin.payrollPolicy.get/update`,
+`taxDeclarations.listForFy`, `payroll.runs.statutoryOutputs`, `settlement.settle`. Runtime changes:
+`taxDeclarations.get/upsert` + `settlement.get/preview` gained SELF access; challan lists hr:read →
+payroll:read; both `ingest` structure procedures → hr:write; `compOff.expire/reconcile` hr:approve →
+hr:write; `onboarding.updateStatutoryIdentity` narrowed to admin/owner.
+
+**ONE ownership helper.** `assertSelfOrHrWriter` was hardcoded to hr:write; generalised into
+`assertSelfOrPermitted(ctx, employeeId, grants[])` (`lib/self-or-permitted.ts`) with the original
+re-expressed in terms of it. **The `settle` asymmetry** — view your own, never settle your own — is
+expressed by NOT calling the helper there, documented at the call site and pinned by a named test.
+
+**Tests edited (`authz-sweep.test.ts`, 2).** One was a message-shape change (`adminProcedure` rejects
+earlier with "Admin access required"); denial unchanged. The other, `"hr_manager is ALLOWED"`, asserted
+the PREVIOUS wider policy the owner replaced — **inverted rather than deleted**, plus an
+`"an admin IS allowed"` case, so the boundary stays tested in both directions. `rbac-matrix.ts` owner
+short-circuit untouched; its guard passes.
+
+**Part 3 sizing (reported, NOT done).** Flipping the missing-rule default to DENY is **contained: exactly
+ONE** of 215 `mergeTrpcQueryOpts` keys is unmapped (`crm.deals.stages.list`). But it must not be flipped
+until the generator's cross-file sub-router gap is fixed, or every nested `crm.*` query goes dark at once.
+
+---
+
 ## ECR-WAGE — the reported wage and the contribution disagreed (2026-08-16; NO migration)
 
-_Gate: build 11/11 · **213 files / 1898 tests** · `lint:cold` 9/9 forced · playwright **118 passed /
-2 failed** (known `rbac:105`/`:115` only; roaming flake absent). Scope: the ECR statutory output only —
-the PF computation, ESI, PT, TDS and 24Q untouched._
+_**SHIPPED & DEPLOYED `fbf367b`** — CI `31942562984`, all five jobs `success` on **attempt 1** including
+the terminal `Deploy to Vultr`, verified via `/api/health` → `fbf367bbdeb7adfd…`. **No migration** (head
+stays `0089`), **no stored row rewritten**. Gate: build 11/11 · **213 files / 1898 tests** · `lint:cold`
+9/9 forced · playwright **118 passed / 2 failed** (known `rbac:105`/`:115` only; roaming flake absent).
+Scope: the ECR statutory output only — the PF computation, ESI, PT, TDS and 24Q untouched._
 
 **The defect.** `hr.payroll.generateECR` built its ECR member lines inline from the RAW BASIC —
 `pfWages = min(Number(slip.basic), 15000)`, emitted as epfWages/epsWages/edliWages — while the

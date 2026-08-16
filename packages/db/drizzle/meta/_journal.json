@@ -631,6 +631,20 @@
       "when": 1786853723473,
       "tag": "0089_furry_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1786880559748,
+      "tag": "0090_lively_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1786881326275,
+      "tag": "0091_shocking_nicolaos",
+      "breakpoints": true
     }
   ]
 }

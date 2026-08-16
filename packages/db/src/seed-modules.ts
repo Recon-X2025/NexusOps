@@ -12,7 +12,7 @@ import {
   crmAccounts, crmDeals, crmLeads,
   legalMatters, pipelineRuns, deployments, surveys, budgetLines,
   kbArticles, vendors, purchaseRequests, oncallSchedules, catalogItems,
-  buildings, rooms, applications,
+  applications,
   employees, okrObjectives, okrKeyResults,
   chartOfAccounts, journalEntries, journalEntryLines,
   invoices,
@@ -371,20 +371,7 @@ async function seedModules() {
     console.log("✅ Catalog items: 5");
   }
 
-  // ── Facilities ─────────────────────────────────────────────────────────────
-  const bldCnt = cntFrom(await db.select({ cnt: count() }).from(buildings).where(eq(buildings.orgId, org.id)));
-  if (bldCnt === 0) {
-    const buildingData = await db.insert(buildings).values([
-      { orgId: org.id, name: "HQ - London", address: "1 Silicon Road, London EC1A 1BB", floors: 10, capacity: 500, status: "active" },
-      { orgId: org.id, name: "NY Office", address: "123 Fifth Ave, New York NY 10011", floors: 4, capacity: 150, status: "active" },
-    ]).returning();
-    await db.insert(rooms).values([
-      { buildingId: buildingData[0]!.id, name: "Boardroom A", floor: 8, capacity: 20, bookable: true, equipment: ["projector", "whiteboard", "video_conferencing"] },
-      { buildingId: buildingData[0]!.id, name: "Meeting Room 401", floor: 4, capacity: 8, bookable: true, equipment: ["tv_screen", "whiteboard"] },
-      { buildingId: buildingData[1]!.id, name: "NY Conference 1", floor: 2, capacity: 12, bookable: true, equipment: ["projector"] },
-    ]);
-    console.log("✅ Facilities: 2 buildings, 3 rooms");
-  }
+  // Facilities seed removed 2026-08-16 with the module (buildings + rooms).
 
   // ── APM ─────────────────────────────────────────────────────────────────────
   const apmCnt = cntFrom(await db.select({ cnt: count() }).from(applications).where(eq(applications.orgId, org.id)));

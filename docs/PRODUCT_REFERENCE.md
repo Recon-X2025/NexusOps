@@ -120,9 +120,8 @@ Workbenches sit between the executive Command Center (`/app/command`) and the co
 | Recruitment | `/app/recruitment` (tabs: requisitions, pipeline, candidates, interviews, offers) |
 | Workforce analytics | `/app/people-analytics` |
 | Performance | `/app/performance` |
-| Facilities | `/app/facilities` |
 
-**Backend:** `hr`, `recruitment`, `workforce`, `payroll`, `performance`, `facilities`, etc.
+**Backend:** `hr`, `recruitment`, `workforce`, `payroll`, `performance`, etc.
 
 > **Walk-Up Experience** was retired in 2026-04 (see Architecture Design changelog 1.10). In-person visits are now captured as a `walk_in` channel value on a regular `tickets` row — the dispatcher uses the same Service Desk workbench as every other channel. The `walkup_*` tables, router, schema, and `/app/walk-up` page were dropped (migration `0028_optimal_sinister_six.sql`).
 
@@ -208,7 +207,7 @@ The **Strategy Center** is the executive surface for portfolio shape and initiat
 
 Routers are composed in `apps/api/src/routers/index.ts`. This is the authoritative list of **named API namespaces** exposed to the web (and other clients):
 
-`auth`, `admin`, `tickets`, `assets`, `workflows`, `hr`, `procurement`, `dashboard`, `workOrders`, `changes`, `security`, `grc`, `financial`, `contracts`, `projects`, `crm`, `legal`, `devops`, `surveys`, `knowledge`, `notifications`, `catalog`, `csm`, `apm`, `oncall`, `events`, `facilities`, `vendors`, `approvals`, `reports`, `search`, `ai`, `indiaCompliance`, `assignmentRules`, `inventory`, `recruitment`, `secretarial`, `workforce`, `integrations`, `mac`, `performance`, `accounting`, `customFields`, `payroll`, `expenseReports`, `esign`, `documents`, `commandCenter`, `workbench`.
+`auth`, `admin`, `tickets`, `assets`, `workflows`, `hr`, `procurement`, `dashboard`, `workOrders`, `changes`, `security`, `grc`, `financial`, `contracts`, `projects`, `crm`, `legal`, `devops`, `surveys`, `knowledge`, `notifications`, `catalog`, `csm`, `apm`, `oncall`, `events`, `vendors`, `approvals`, `reports`, `search`, `ai`, `indiaCompliance`, `assignmentRules`, `inventory`, `recruitment`, `secretarial`, `workforce`, `integrations`, `mac`, `performance`, `accounting`, `customFields`, `payroll`, `expenseReports`, `esign`, `documents`, `commandCenter`, `workbench`.
 
 > The `walkup` router was retired in 2026-04 along with the rest of the Walk-Up Experience module. Tenants migrating from earlier builds should drop any client integration against `walkup.*` and create regular `tickets.create` entries with `channel = "walk_in"`.
 

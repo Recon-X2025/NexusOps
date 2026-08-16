@@ -597,7 +597,7 @@ export const indiaComplianceRouter = router({
   // ESI / PT challan browse lists. These were missing — which is why nobody noticed the
   // tables were never populated by any runtime path. Mirrors epfoEcr.list / tdsChallans.list.
   esiChallans: router({
-    list: permissionProcedure("hr", "read")
+    list: permissionProcedure("payroll", "read")
       .input(z.object({ year: z.number().int().optional(), month: z.number().int().optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -608,7 +608,7 @@ export const indiaComplianceRouter = router({
       }),
   }),
   ptChallans: router({
-    list: permissionProcedure("hr", "read")
+    list: permissionProcedure("payroll", "read")
       .input(
         z.object({
           year: z.number().int().optional(),
