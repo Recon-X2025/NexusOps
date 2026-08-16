@@ -51,8 +51,14 @@ describe("ECR line — EPFO ECR 2.0 spec conformance", () => {
   });
 
   it("NCP equals the days in the month when declared wages are 0", () => {
-    expect(buildEcrLine(slip({ grossEarnings: 0, pfWageBase: 0, pfEmployee: 0, lopDays: 0, month: 4, year: 2026 }), ID).ncp).toBe(30); // April
-    expect(buildEcrLine(slip({ grossEarnings: 0, pfWageBase: 0, pfEmployee: 0, lopDays: 0, month: 2, year: 2026 }), ID).ncp).toBe(28); // February
+    // The employer figures are zeroed alongside the wage. The fixture previously left
+    // the ₹833/₹367 defaults in place while declaring a ₹0 wage — a payslip that cannot
+    // exist (no wage, yet employer dues remitted). Nothing checked it until the
+    // wage-vs-contribution guard was added. The assertion under test — NCP = days in
+    // the month — is unchanged.
+    const zeroWage = { grossEarnings: 0, pfWageBase: 0, pfEmployee: 0, pfEmployerEps: 0, pfEmployerEpf: 0, lopDays: 0 };
+    expect(buildEcrLine(slip({ ...zeroWage, month: 4, year: 2026 }), ID).ncp).toBe(30); // April
+    expect(buildEcrLine(slip({ ...zeroWage, month: 2, year: 2026 }), ID).ncp).toBe(28); // February
   });
 
   it("no numeric field emits a decimal (all whole numbers)", () => {

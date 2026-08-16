@@ -67,6 +67,61 @@ export function buildEcrLine(
         `exceeds gross wages (₹${grossWages}) — EPFO rejects this. Check the PF / VPF configuration.`,
     );
   }
+  const employerEps = n(slip.pfEmployerEps);
+  const employerEpf = n(slip.pfEmployerEpf);
+
+  // ── Wage-vs-contribution plausibility guard ────────────────────────────────
+  //
+  // EPFO's revamped ECR validates the reported wage against the contribution and
+  // rejects the upload when they disagree. A rejection costs a filing cycle;
+  // catching it here costs nothing. This is the check that would have caught the
+  // raw-basic wage defect: an ₹8,000 wage carrying ₹1,200 of dues reads as 15%.
+  //
+  // It keys on the EMPLOYER share, deliberately NOT the employee share. The
+  // employee figure includes any VPF and can legitimately run far above 12% — up
+  // to 100% of the wage base — so it carries no usable upper bound (the spec's
+  // only employee-side check is "not more than gross", enforced above). The
+  // employer share has no VPF component: it is the statutory rate on the wage
+  // base, split into EPS (8.33%, capped) and EPF (the remainder), and that
+  // identity holds above the ceiling too under Para 26(6). So employer total
+  // ÷ EPF wages must land on the statutory rate.
+  //
+  // The bound is an UPPER one only, and that is deliberate.
+  //
+  // The defect this catches under-reports the WAGE while the contribution stays
+  // put, which drives the ratio UP (₹1,200 on a declared ₹8,000 reads as 15%).
+  // An upper bound catches that, and cannot false-positive.
+  //
+  // A lower bound was tried and REMOVED: it is not sound here. Above the PF
+  // ceiling — Para 26(6), contribution on the uncapped base — EPS is capped at
+  // 8.33% of ₹15,000 while employer EPF is computed on the full base, so the
+  // employer total is legitimately ~9.9% of a ₹20,000 wage, not 12%. A 10% floor
+  // rejected exactly those filings. The reduced-rate establishments (10%, see
+  // `organizations.pf_reduced_rate_reason`) sit under a 12% floor too. Since the
+  // EPS cap and the reduced rate both only ever push the ratio DOWN, a floor
+  // cannot distinguish them from an over-reported wage — so it is left out rather
+  // than shipped as a source of false rejections. Over-reporting the wage is
+  // therefore not caught here; it is caught by `epfWages` coming from the stored
+  // `pf_wage_base` in the first place.
+  //
+  // Tolerance: +₹1 absolute. Every ECR field is a whole rupee (the spec allows no
+  // decimals), so employer EPS and EPF each carry up to ₹0.50 of rounding — ₹1
+  // together. A percentage tolerance was rejected: at small wages it is tighter
+  // than the rounding it has to absorb.
+  const employerTotal = employerEps + employerEpf;
+  const ROUNDING_SLACK = 1;
+  const maxEmployer = epfWages * 0.12 + ROUNDING_SLACK;
+  if (employerTotal > maxEmployer) {
+    const pct = epfWages > 0 ? ((employerTotal / epfWages) * 100).toFixed(2) : "n/a";
+    throw new Error(
+      `ECR line for "${identity.memberName}" (UAN ${identity.uan}): employer contribution ` +
+        `₹${employerTotal} is ${pct}% of the reported EPF wages (₹${epfWages}) — above the ` +
+        `statutory 12% ceiling on the employer share. The reported wage and the contribution ` +
+        `disagree, and EPFO rejects this. The reported wage must be the one the contribution ` +
+        `was computed on (payslips.pf_wage_base).`,
+    );
+  }
+
   // NCP: full days only. When the member earned no wages this month the whole month is
   // non-contributory (spec), so NCP = days in the month; otherwise the LOP days, rounded.
   const daysInMonth = new Date(slip.year, slip.month, 0).getDate();
@@ -79,8 +134,8 @@ export function buildEcrLine(
     epsWages: cappedWages,
     edliWages: cappedWages,
     employeeEpf,
-    employerEps: n(slip.pfEmployerEps),
-    employerEpf: n(slip.pfEmployerEpf),
+    employerEps,
+    employerEpf,
     ncp,
     refund: 0,
   };

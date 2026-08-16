@@ -51,9 +51,10 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
   `probability` (flat 10 on every fresh database — new, from this round), and `convertLead` never
   refetched deals so a converted lead's deal did not appear on the Pipeline (**pre-existing**, verified
   byte-identical at `393e5d7`). Detail: `reports/fix-plan.md` → CI CAUGHT TWO DEFECTS.
-- **Follow-up commit — PUSHED, NOT YET VERIFIED LIVE at the time of writing.** Fixes both, and carries
-  migration `0089` forward. Read the outcome from the terminal `Deploy to Vultr` job of the latest `main`
-  CI run and `/api/health`; do not treat this bullet as confirmation.
+- **LIVE = `dc55d82`** (fixes both defects above; carries `340de34`'s Pipeline work and **migration `0089`**
+  forward) — CI run `31931874031`, all five jobs `success` on **attempt 1** including the terminal
+  `Deploy to Vultr`, verified 2026-08-16 via `/api/health` → `dc55d82d4d429d85906c…`. Migration head
+  `0088` → **`0089`**; `0089` applied on the deployed stack without halting the api container.
 - **LIVE = `393e5d7`** (CRM Round 11: quote line-item editor + the deprecated-mutation sweep) — CI run
   `31921763485`, all five jobs `success` on **attempt 1** including the terminal `Deploy to Vultr`,
   `/api/health` → `393e5d78e9988770…`, 2026-08-16. **No migration** — head stays `0088`.
@@ -858,12 +859,16 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-> **IN FLIGHT (2026-08-16): `340de34` pushed, CI run `31929138540`.** CRM Pipeline audit + stage rules;
-> **carries migration `0089`** (head `0088` → `0089`). **This is NOT a validated deployment** — the exit
-> point below still names the last one that was. Confirm from the terminal `Deploy to Vultr` job of the
-> run's **latest attempt** (`gh run view 31929138540 --json jobs`) plus `/api/health`, then re-stamp.
+**CI run `31931874031` — commit `dc55d82` (CRM Pipeline audit + stage rules, plus the two fixes CI caught;
+**migration `0089`**, head `0088` → `0089`) — all five jobs `success` on **attempt 1**, including the
+terminal `Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: dc55d82d4d429d85906c…`.**
+Detail: `reports/fix-plan.md` → CRM PIPELINE.
 
-**CI run `31921763485` — commit `393e5d7` (CRM Round 11: quote line-item editor + the deprecated-mutation
+_**`340de34` never deployed.** Its CI run `31929138540` failed at E2E, so Build and Deploy were skipped
+and `393e5d7` kept serving. Recorded because a failed-and-superseded commit that carried a migration is
+exactly the kind of thing a later reader would otherwise assume went out._
+
+**Superseded exit point — CI run `31921763485` — commit `393e5d7` (CRM Round 11: quote line-item editor + the deprecated-mutation
 sweep; **no migration**, head stays `0088`) — all five jobs `success` on **attempt 1**, including the terminal
 `Deploy to Vultr`. Verified 2026-08-16 via `/api/health` → `version: 393e5d78e9988770…`. Run 02:22Z → 03:01Z
 (~38 min).** Detail: `reports/fix-plan.md` → CRM ROUND 11.

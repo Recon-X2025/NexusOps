@@ -117,6 +117,79 @@ anything** — same class as `.turbo` making "cold lint" warm.
 
 ---
 
+## ECR-WAGE — the reported wage and the contribution disagreed (2026-08-16; NO migration)
+
+_Gate: build 11/11 · **213 files / 1898 tests** · `lint:cold` 9/9 forced · playwright **118 passed /
+2 failed** (known `rbac:105`/`:115` only; roaming flake absent). Scope: the ECR statutory output only —
+the PF computation, ESI, PT, TDS and 24Q untouched._
+
+**The defect.** `hr.payroll.generateECR` built its ECR member lines inline from the RAW BASIC —
+`pfWages = min(Number(slip.basic), 15000)`, emitted as epfWages/epsWages/edliWages — while the
+contribution beside it (`slip.pfEmployee`) had been computed on the RESOLVED wage base (the
+Labour-Codes 50% clamp). Different numbers. Basic ₹8,000 with ₹12,000 of exclusions resolves a ₹10,000
+base and ₹1,200 of EPF; the line claimed **₹8,000 against ₹1,200 — 15%, not 12%**. Reallocating pay
+between basic and allowances moved the reported WAGE while the contribution stayed put, so the two could
+disagree by any amount. **EPFO's revamped ECR validates this and rejects the upload**; seven pilots file
+in early September with no spare establishment code to test against.
+
+**Correction to the brief's premise — it was half right.** `india-compliance.filing.submit` (the
+portal-push path) was **already correct**: it calls `buildEcrLine`, which reads `pfWageBase`. Only
+`hr.payroll.generateECR` was broken — and that is the route the HR screen *names to the user*
+(`hr/page.tsx:2991`). So the two routes gave two answers and the one a human reaches for was the wrong
+one.
+
+**Why two builders.** Not "newer and unadopted". `buildEcrLine` (`lib/india/ecr-format.ts`) landed
+**2026-08-05 in `be88a02`** when the second payroll engine was deleted, and IS adopted by the filing
+path; `generateECR` is the older inline builder that was never repointed. **NOT-FOUND:
+`payroll-cycle.ts:547`** — that file is 6 lines, a re-export shim to `@coheronconnect/payroll-math`.
+
+**The fix.** `hr.ts` repointed at `buildEcrLine`. ONE builder, two callers, cannot drift. This also
+fixed a second bug on the same lines: employer EPS was recomputed as `pfWages × 0.0833` from the wrong
+wage instead of reading the persisted `pfEmployerEps`.
+
+- **`pf_wage_base` IS persisted** (`packages/db/src/schema/hr.ts:615`, with a comment saying it exists
+  precisely so the ECR states the number the run computed on), as are `pfEmployerEps`/`pfEmployerEpf`.
+  No recompute, no new column, **no migration**. The brief's "only computed in flight" premise is
+  NOT-FOUND.
+- **NO stored ECR record carried a wrong wage and nothing was rewritten.** `epfo_ecr_submissions`
+  persists only TOTALS and an optional file URL — per-member wages are never stored; they exist only in
+  file content generated on demand.
+- **Ceiling placement:** on the wage base UPSTREAM (`computePF`) and on EPS/EDLI only. The reported EPF
+  wage is never re-capped — a Para 26(6) member files the full uncapped wage ("that wage should be
+  entered"). The old code applied the cap to the wrong number in the wrong place.
+
+**The guard, and a correction of my own first attempt.** I first wrote a **10–12% band** on the employer
+share. **It was wrong and the tests caught it before it shipped:** above the ceiling EPS caps at 8.33% of
+₹15,000 while employer EPF is computed on the full base, so a ₹20,000 Para 26(6) line runs **9.92%** —
+the floor rejected exactly the filings it was meant to protect. Shipped guard is an **UPPER BOUND ONLY**:
+`employerEps + employerEpf ≤ 0.12 × epfWages + ₹1`. Employer share, not employee (VPF gives the employee
+figure no usable ceiling). Upper-only because the defect under-reports the wage and drives the ratio UP,
+while the EPS cap and the 10% reduced rate push it DOWN and a floor cannot tell those from an
+over-reported wage. Tolerance ₹1 absolute: every ECR field is a whole rupee, so EPS and EPF each carry
+≤₹0.50 of rounding; a percentage tolerance is tighter than the rounding it must absorb at small wages.
+
+**Tests.** `ecr-wage-contribution.test.ts` (12) drives the REAL chain —
+`calculateLabourCodeWageBase` → `computePF` → `buildEcrLine` — not hand-fed `pfWageBase`, which would
+only prove the builder echoes its input. The golden pair: ₹8,000+₹12,000 and ₹16,000+₹4,000 both resolve
+₹10,000 and file identical member figures. Para 26(6), reduced-rate and VPF acceptance cases pin the
+guard's shape so the unsound floor cannot be reintroduced.
+
+**One existing test edited:** `ecr-spec.test.ts:52` zeroed the wage and employee share but left employer
+dues at the ₹833/₹367 fixture defaults — a payslip that cannot exist (no wage, yet employer dues
+remitted). It was never internally consistent; nothing checked until the guard existed. The assertion
+under test (NCP = days in the month) is unchanged.
+
+### RECORDED, NOT FIXED — employer EPF above the PF ceiling (out of scope: 3a)
+
+`computePF` gives employer EPS = 8.33% of ₹15,000 = ₹1,250 and employer EPF = **3.67% of the UNCAPPED
+base**. For a ₹20,000 Para 26(6) base that totals ₹1,984. Under the EPF scheme the employer pays 12% of
+the uncapped base (₹2,400) with EPS capped at ₹1,250 and the **remainder** (₹1,150) to EPF — which would
+make employer EPF ₹1,150, not ₹734. This is inside the PF computation, which this round was told not to
+touch, so **nothing was changed** and the guard accommodates current behaviour. **Worth resolving before
+September — it is employer money on every Para 26(6) member.**
+
+---
+
 ## CRM PIPELINE — audit round + stage rules — `340de34` (2026-08-16; **migration `0089`**)
 
 _Two rounds in one commit; they share `crm/page.tsx` and `crm/index.ts` and splitting would not compile

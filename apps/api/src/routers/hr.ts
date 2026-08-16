@@ -1876,7 +1876,7 @@ export const hrRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { payrollRuns, payslips: payslipsTable } = await import("@coheronconnect/db");
-        const { formatECRFile } = await import("../lib/india/ecr-format.js");
+        const { formatECRFile, buildEcrLine } = await import("../lib/india/ecr-format.js");
 
         const [run] = await db
           .select()
@@ -1901,20 +1901,26 @@ export const hrRouter = router({
               .select()
               .from(employees)
               .where(eq(employees.id, slip.employeeId));
-            const pfWages = Math.min(Number(slip.basic), 15000);
-            return {
+            // ONE ECR line builder, shared with `india-compliance.filing.submit`.
+            //
+            // This path used to build its lines inline from the RAW BASIC:
+            //   pfWages = min(Number(slip.basic), 15000)   → epfWages/epsWages/edliWages
+            // while the contribution beside it (`slip.pfEmployee`) had been computed on the
+            // RESOLVED wage base (the Labour-Codes 50% clamp). Those are different numbers, so
+            // the file reported a wage the contribution did not correspond to — e.g. basic
+            // ₹8,000 with ₹12,000 of exclusions resolves a ₹10,000 base and ₹1,200 of EPF, and
+            // the line claimed ₹8,000 against ₹1,200, i.e. 15%. Reallocating pay between basic
+            // and allowances moved the reported WAGE while the contribution stayed put, so the
+            // two could disagree by any amount. EPFO's revamped ECR validates exactly this and
+            // rejects the upload.
+            //
+            // `buildEcrLine` reads the PERSISTED `pfWageBase` (and the persisted employer
+            // EPS/EPF split, which this path also used to recompute from the wrong wage), so
+            // the reported wage is by construction the one the run computed on.
+            return buildEcrLine(slip, {
               uan: emp?.uan ?? "UNKNOWN",
               memberName: emp?.employeeId ?? "EMPLOYEE",
-              grossWages: Number(slip.grossEarnings),
-              epfWages: pfWages,
-              epsWages: pfWages,
-              edliWages: pfWages,
-              employeeEpf: Number(slip.pfEmployee),
-              employerEps: Math.min(Math.round(pfWages * 0.0833), 1250),
-              employerEpf: Number(slip.pfEmployer),
-              ncp: 0,
-              refund: 0,
-            };
+            });
           }),
         );
 

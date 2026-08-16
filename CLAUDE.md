@@ -132,6 +132,17 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 - **GST**: `computeGST()` in `apps/api/src/lib/india/gst-engine.ts` — intra-state = CGST+SGST (50/50), inter-state = IGST.
 - **TDS / income tax**: `computeTax()` in `apps/api/src/lib/india-tax-engine.ts`.
 - **3-way match**: `apps/api/src/lib/invoice-po-match.ts` — invoice ≈ PO ≈ GRN within tolerance.
+- **EPFO ECR**: `buildEcrLine()` in `apps/api/src/lib/india/ecr-format.ts` is the ONLY ECR member-line
+  builder — `hr.payroll.generateECR` and `india-compliance.filing.submit` both go through it. **The
+  reported wage must be the wage the contribution was computed on**: `epfWages` reads the PERSISTED
+  `payslips.pf_wage_base` (the Labour-Codes 50%-clamp result), never `slip.basic`. Raw basic and the
+  resolved base are different numbers, so reporting basic makes the file claim a wage the dues do not
+  correspond to — and EPFO's revamped ECR validates exactly that and rejects the upload. The ₹15,000
+  ceiling belongs on the wage base UPSTREAM (`computePF`) and on EPS/EDLI only; the reported EPF wage is
+  never re-capped, because a Para 26(6) member files the full uncapped wage. Guard: employer share
+  ≤ 12% of `epfWages` + ₹1. Upper bound ONLY — the employee figure includes VPF and has no usable
+  ceiling, while the EPS cap and the 10% reduced rate legitimately push the employer ratio DOWN (a
+  Para 26(6) line runs ~9.9%), so a floor produces false rejections.
 
 ## Standing decisions — India payroll
 
