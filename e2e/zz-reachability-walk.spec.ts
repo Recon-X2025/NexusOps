@@ -9,11 +9,25 @@
  * Run alone:  pnpm exec playwright test e2e/zz-reachability-walk.spec.ts
  */
 import { test, expect, type Page } from "@playwright/test";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
+/**
+ * Where the walk report is written.
+ *
+ * The default used to be an absolute path into ONE machine's agent scratchpad
+ * (`/private/tmp/claude-501/…-Project-Work-new-ERP/<session-uuid>/scratchpad/`).
+ * That directory cannot exist on a CI runner, so `writeFileSync` threw ENOENT and
+ * the spec failed all three retry attempts — blocking Build and Deploy. It passed
+ * locally only on the machine where that scratchpad happened to exist, which is
+ * exactly the kind of green that means nothing.
+ *
+ * Now repo-relative (Playwright's cwd is the repo root, next to
+ * `playwright.config.ts`), and the directory is created before writing.
+ * `WALK_REPORT` still overrides it for anyone who wants the report elsewhere.
+ */
 const REPORT_PATH =
-  process.env.WALK_REPORT ||
-  "/private/tmp/claude-501/-Users-kathikiyer-Documents-Project-Work-new-ERP/84191a5b-1af4-4053-9326-607775f8b308/scratchpad/walk-report.json";
+  process.env.WALK_REPORT || resolve(process.cwd(), "test-results", "walk-report.json");
 
 // Seeded fixture account from packages/db/src/seed.ts (org slug coheron-demo).
 const ADMIN = "admin@coheron.com";
@@ -160,6 +174,9 @@ test("reachability walk across all static routes", async ({ page }) => {
     );
   }
 
+  // Create the directory first — the report is diagnostic output, and a missing
+  // parent directory must not be able to fail the walk.
+  mkdirSync(dirname(REPORT_PATH), { recursive: true });
   writeFileSync(REPORT_PATH, JSON.stringify(results, null, 1));
   const crashes = results.filter((r) => r.verdict === "crash");
   // eslint-disable-next-line no-console
