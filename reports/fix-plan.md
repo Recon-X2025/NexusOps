@@ -6,7 +6,93 @@ No code has been changed by this document — it is the plan, not the work._
 
 ---
 
-## ⭐ STATE REFRESH — 2026-08-15 (read this first)
+## ⭐ STATE REFRESH — 2026-08-17 (read this first)
+
+**NOT DEPLOYED.** Commit `ebfc9e0` is **local only**, 1 ahead of `origin/main` (`5892f3e`). Pushing
+`main` auto-deploys, so it awaits an owner go + snapshot. Note CI #313 on `main` is red — the branch
+being pushed onto is not uniformly green. Migration head **`0094`** (journal has 95 files).
+
+One commit spanning three bodies of work that had accumulated in the tree: the quote/invoice document
+round, the earlier depreciation round, and a parallel payroll-arrears/ECR session. The parallel work is
+included as it stood and was **not independently reviewed** beyond the shared suites.
+
+### SHIPPED — QUOTE-DOC + INVOICE-DOC (the output side)
+The input side of CRM/finance was fixed in earlier rounds; the OUTPUT side had never been examined.
+
+- **A quote's "Download PDF" called `downloadCSV`** (`crm/page.tsx:1997` → `utils.ts:15`) and saved a
+  six-column CSV *named `.csv`* — no line items, no HSN, no tax split, no GSTINs, no parties. The
+  neighbouring "Send to Customer" only flipped status and toasted "dispatch is pending email config".
+- **Invoices had no PDF anywhere** — only `window.print()` over a page with **no print stylesheet**,
+  so it printed the app chrome.
+- Now: `services/quote-pdf.ts` + `services/invoice-pdf.ts` (PDFKit, the existing mechanism), sharing
+  `services/pdf-money.ts`. Letterhead, both GSTINs, HSN/qty/UOM line table, rate-wise GST breakup
+  reconciled against the stored aggregate, place of supply, reverse-charge notation, signature block,
+  IRN/Ack when the ClearTax pipeline stored one. Routes refuse (409, naming the field) rather than
+  issue a defective document. **Conventions promoted to CLAUDE.md** — see "Generated documents".
+- **Refused to fabricate:** terms & conditions, payment terms and a signatory NAME do not exist as
+  data (zero matches in the CRM schema). The quote states "No terms and conditions are recorded
+  against this quotation" rather than inventing clauses. **OPEN, ~half a day:** `terms` +
+  `paymentTerms` on `crm_quotes` (or an org default with a per-quote override) plus a form field.
+
+### SHIPPED — GST-STATE (four defects, country level, all 39 jurisdictions)
+Each established by RUNNING, not reading:
+
+1. **SUPPLIER STATE WAS UNUSABLE.** Setup Wizard asked for an ISO 3166-2:IN code (placeholder `MH`,
+   default `KA`) and wrote it to `gstin_registry.state_code`. `normaliseStateToCode("KA")` → `null`,
+   so `computeGST` compared `""` against the buyer's `"29"` and billed **every sale inter-state IGST**.
+   Observed directly: a Karnataka→Karnataka supply stored `is_interstate = true`. Fixed by deriving
+   from the GSTIN server-side and rejecting a contradicting code.
+2. **BUYER STATE WAS FREE TEXT** on the vendor form (labelled "Code or Name") — the same bug on the
+   other side. Now a 39-entry picker storing the 2-digit code.
+3. **`placeOfSupply` WAS NEVER PERSISTED** by `createInvoice` or `createReceivableInvoice` — written
+   only when a credit note copied it from the original. Rule 46(n) requires it, and it is what makes
+   the split verifiable. Now resolved and stored on both paths.
+4. **RECEIVABLE ROWS HAD NO ROUTE to the invoice detail page** — no row `onClick` and no Details
+   action, unlike payables — so the document was unreachable for exactly the invoices it exists for.
+
+New **GST Registrations** screen (`/app/finance/accounting/gstin`): list / add / set-primary, with the
+place of supply derived live from the GSTIN as it is typed. The AR invoice form now defaults to **Line
+items** (Rule 46(g)(h)(i)); AP deliberately stays on Single amount.
+
+**CORRECTIONS OF RECORD (my own earlier claims, both wrong — found by checking):**
+- "The web invoice form never sends line items" — FALSE. An `InvoiceLineItemsEditor` already existed
+  for AP *and* AR behind a toggle; the gap was the **default**, not missing capability.
+- "A tenant cannot register its own GSTIN through the product" — FALSE. The **Setup Wizard** collects
+  it and writes via `orgWizardWrite.ts`. The defect was the *vocabulary* it wrote, not the absence of
+  a path. The invoice work was therefore far smaller than the 2–3 days first sized.
+
+### VALIDATION
+`lint:cold` 9/9 · `build` 11/11 · `check:migrations` in sync · web typecheck clean · new unit suites
+42/42 (invoice-pdf 19, quote-pdf 17, gstin-state-derivation 6 walking all 39 jurisdictions) · new e2e
+6/6 (quote-document, invoice-document, gst-registration) · full API suite 2013/2013 after fixing a
+`₹` that the parallel work had left in a `payslip-pdf.ts` COMMENT, tripping the committed
+`pdf-rupee-glyph` guard.
+
+**Migrations `0092`/`0093`/`0094` validated against a POPULATED copy** of the dev DB (36 employees,
+50 payslips, 5 orgs): reverted the three on a throwaway clone, seeded depreciation rows, replayed
+93→96. `0092`'s backfill derived `period 1 → 2024-2025`, `period 2 → 2025-2026` correctly; `0093`
+filled `payslips.arrears = 0.00` across all 50 rows and created `payroll_arrears` with RLS **enabled
+and forced**; `0094` defaulted all 36 employees. No data loss.
+**METHOD NOTE — the first attempt was a FALSE PASS:** drizzle reported "migrations applied
+successfully" while applying nothing, because the dev DB had already been migrated by the parallel
+agent and the clone inherited the finished state. The unchanged migration COUNT is what exposed it.
+**Always assert the count moved, not the success message.**
+
+### STILL OPEN (not built)
+- **No backfill for tenants whose `gstin_registry.state_code` already holds an ISO code.** The write
+  path is fixed; existing rows still resolve to `null` and still bill IGST. The stored value is
+  *unusable*, not merely stale, and nothing re-touches it, so the usual "validate the transition, not
+  the row" convention does not cover this. **Recommended: a corrective migration deriving `state_code`
+  from the `gstin` column where the current value is not a valid GST code, RAISING where the GSTIN is
+  blank. ~1 hour.** Owner decision.
+- `crm_accounts.billingAddress` is not on the account create form, so a quote's buyer address prints
+  empty. `vendors.create`'s **twin** in `procurement.ts` accepts no `gstin`/`state` (the top-level
+  `vendors.create` does) — a dead-twin trap if a caller moves.
+- Rule 46(e)(f)/(o): no delivery-address field for unregistered recipients ≥ ₹50,000.
+
+---
+
+## ⭐ STATE REFRESH — 2026-08-15
 
 **Last VERIFIED live:** `e11e5f5`, CI `31877482131`, all six jobs `success`, migration head `0085`
 (verified via `/api/health` → `version: e11e5f54fddf7f63…`).

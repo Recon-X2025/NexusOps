@@ -239,6 +239,51 @@ These are conventions, not per-commit state. They were established by code audit
   The two lists disagree on three union territories ("Jammu & Kashmir" vs "Jammu and Kashmir"), and
   `normaliseStateToCode` does a lowercased EXACT match with no `&`/`and` handling, so a PT name
   resolves to `null` → unknown buyer state → a silently wrong intra-state split.
+  **ISO 3166-2:IN codes ("KA", "MH") are a THIRD vocabulary and resolve to `null` as well.** The
+  Setup Wizard asked for one ("Primary State Code", placeholder `MH`, default `KA`) and wrote it
+  into `gstin_registry.state_code`, so the SUPPLIER had no resolvable state at all, `computeGST`
+  compared `""` against the buyer's `"29"`, and every sale billed inter-state IGST — the right total,
+  the wrong split, on documents customers claim input credit against. `organizations.primaryStateCode`
+  legitimately holds the ISO code for its own consumer; the GST registry must not be fed from it.
+- **The GSTIN is the authority on its own state — DERIVE it, never ask for it separately.** The
+  first two characters of a GSTIN *are* its state code, so a second field can only ever disagree.
+  `accounting.gstin.create` derives `stateCode`/`stateName` via `validateGSTIN` and REJECTS a supplied
+  code that contradicts the GSTIN; `orgWizardWrite` derives it too and stores `""` rather than
+  substituting the ISO code, because an empty state is an honest unknown while `"KA"` looks set and
+  resolves to nothing. `validateGSTIN` covers all **39** GST jurisdictions (01–24, 26–38 — 25 merged
+  into 26 in 2020 — plus 97 Other Territory and 99 Centre Jurisdiction), so deriving is complete for
+  every state and union territory rather than a hand-maintained list. Guard:
+  `gstin-state-derivation.test.ts` walks the whole table.
+
+## Generated documents (quotation, tax invoice, payslip, Form 16)
+
+- **ONE PDF mechanism: PDFKit, server-side, returning a `Buffer`**, served by a Fastify route and a
+  same-origin Next proxy (`services/{payslip,form16,quote,invoice}-pdf.ts` →
+  `http/*-pdf.ts` → `apps/web/src/app/api/**/route.ts`). Do not introduce a second approach —
+  no headless browser, no client-side renderer.
+- **"Rs.", never "₹", and ASCII only.** PDFKit's standard 14 fonts are WinAnsi-encoded and have no
+  U+20B9; the glyph renders as a missing character. The same applies to the em-dash (U+2014), which
+  silently prints as blank space. `pdf-rupee-glyph.test.ts` scans the whole source, comments included.
+  Money formatting lives once in `services/pdf-money.ts` (en-IN, two decimals, `-0` guard, full
+  figures — never an abbreviated "250K"), mirroring `formatStatementInr` in `apps/web`.
+- **The printed totals are the STORED totals.** A document renders the columns the engine wrote; it
+  does not re-compute tax. A rate-wise breakup derived for presentation is RECONCILED against the
+  stored aggregate first, and dropped if it differs by a paisa. A document that contradicts the
+  ledger is worse than one carrying less detail.
+- **A document REFUSES rather than mislead.** A quote whose buyer state is unknown, or an invoice
+  that is payable (the vendor's document, not ours), lacks a supplier GSTIN or place of supply, or
+  has no line items, answers **409 naming the field to fix** — it does not render. A warning banner
+  can be cropped or forwarded away; a document that was never generated cannot be sent. Both refusal
+  rules live in one exported helper per document so the screen and the route cannot disagree.
+- **Generate, do not file.** Document rendering never contacts a government portal. E-invoicing owns
+  that round-trip already (`coheronconnect-irn-generation` → `startIrnWorker` → `clearTaxGstAdapter`
+  → ClearTax), persisting `eInvoiceIrn`/`eInvoiceAckNumber`/`eInvoiceSignedQrCode`. The invoice PDF
+  PRINTS those columns and says plainly when they are empty. Do not add a second filing path.
+- **A tax invoice is issued only for `invoice_flow = "receivable"`.** A payable is the vendor's
+  statutory document being recorded; rendering "our" tax invoice for it fabricates someone else's
+  document under our letterhead. Rule 46 of the CGST Rules 2017 is the content standard — HSN,
+  description and quantity per line are mandatory, which is why the AR form defaults to Line items
+  and AP does not.
 - **Normalise BOTH party states to a code before any intra-vs-inter-state compare.** `computeGST`
   decides by a raw case-insensitive string compare, and the two sides arrive in different forms: the
   org side is a code (`"29"`) from `gstin_registry`, while counterparty state columns

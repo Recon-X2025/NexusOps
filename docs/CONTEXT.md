@@ -134,6 +134,53 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0082`).
 
+## 2026-08-17 — Quote & tax-invoice DOCUMENTS + GST state correctness (`ebfc9e0`, **committed, NOT pushed**)
+
+_Migrations **`0092`** (depreciation period key), **`0093`**/**`0094`** (payroll arrears, employee
+statutory identity — from a parallel session). Per-item detail in `reports/fix-plan.md` → the
+2026-08-17 STATE REFRESH. Conventions promoted to `CLAUDE.md` → "Generated documents"._
+
+**`ebfc9e0` is LOCAL ONLY**, 1 ahead of `origin/main`. A `main` push auto-deploys, so it awaits an
+owner go + snapshot. CI #313 on `main` is red — the branch being pushed onto is not uniformly green.
+
+**The output side had never been examined.** Earlier rounds fixed how a quote is *built*; nobody had
+asked what a salesperson can *send*. The answer was: nothing. The quote's "Download PDF" button called
+`downloadCSV` and produced a six-column CSV named `.csv` — no line items, no HSN, no tax split, no
+GSTINs, no parties. Invoices had no PDF at all, only `window.print()` over a page with no print
+stylesheet. Both now generate real PDFKit documents through the existing payslip/Form-16 mechanism.
+
+**Chasing "no state left out" through the stack surfaced four defects on the money path**, each found
+by running rather than reading — and the first is the one that matters:
+
+1. The Setup Wizard asked for a **2-letter ISO code** ("Primary State Code", placeholder `MH`, default
+   `KA`) and wrote it into `gstin_registry.state_code`. `normaliseStateToCode("KA")` returns **null**,
+   so the supplier had no state, `computeGST` compared `""` against the buyer's `"29"`, and **every
+   sale was billed inter-state IGST** — the right total with the wrong split, on documents customers
+   claim input credit against. Seen directly: a Karnataka→Karnataka supply stored `is_interstate = true`.
+   The GSTIN's first two characters *are* the state code, so it is now DERIVED and a contradicting
+   value rejected.
+2. The vendor form's state was free text — the same defect on the buyer side.
+3. `placeOfSupply` was **never persisted** by either invoice create path (only copied onto credit
+   notes). Rule 46(n) requires it.
+4. Receivable rows had **no route** to the invoice detail page, so the document was unreachable for
+   exactly the invoices it exists for.
+
+**Two corrections of record** (my own earlier claims, both wrong, both caught by checking rather than
+trusting): the invoice form *does* have a line-item editor for AP and AR — the gap was its **default**,
+not missing capability; and a tenant *can* register a GSTIN via the Setup Wizard — the defect was the
+**vocabulary** it wrote. The invoice work was therefore much smaller than first sized.
+
+**Open, needs an owner decision:** tenants whose `gstin_registry.state_code` already holds an ISO code
+still resolve to null and still bill IGST. The write path is fixed; **there is no backfill**. The
+stored value is unusable rather than merely stale, so the usual "validate the transition, not the row"
+convention does not cover it — a corrective migration deriving the code from the `gstin` column
+(~1 hour) is recommended.
+
+**Method note worth keeping:** the first migration validation was a **false pass** — drizzle reported
+"migrations applied successfully" while applying nothing, because the dev DB had already been migrated
+and the throwaway clone inherited the finished state. Only the unchanged migration COUNT exposed it.
+Assert that the count moved, not that the command said success.
+
 ## 2026-08-16 — Three rounds in one push: facilities removed · HR cases · permission gaps
 
 _Migrations **`0090`** (drops facilities) and **`0091`** (hr_cases number + subject). Per-item detail in
