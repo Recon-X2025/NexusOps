@@ -24,7 +24,7 @@ test.describe("Bank Reconciliation", () => {
     await loginAs(page, "admin@coheron.com");
 
     // Ensure a bank/cash account exists by seeding the standard COA (idempotent).
-    await page.goto("/app/accounting");
+    await page.goto("/app/finance/accounting/coa");
     await page.waitForLoadState("networkidle");
     const seedBtn = page.getByRole("button", { name: /Seed.*COA|Seed India|Seed Accounts/i }).first();
     if (await seedBtn.isVisible().catch(() => false)) {

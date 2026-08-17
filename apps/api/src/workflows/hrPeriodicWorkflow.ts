@@ -19,6 +19,7 @@ import {
 } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 import { revokeElapsedOffboardedAccess } from "../lib/offboarding-revoke";
+import { runDepreciationSweep } from "../lib/depreciation-sweep";
 
 function redisConnection() {
   return { url: process.env["REDIS_URL"] ?? "redis://localhost:6379" };
@@ -94,6 +95,19 @@ export function startHrPeriodicWorker(): Worker<HrPeriodicJobData> {
       const db = getDb();
       if (job.name === HR_MONTHLY_JOB_NAME) {
         await processMonthlySweep(db);
+        // Month-end depreciation rides the SAME monthly tick rather than a
+        // second scheduler. Opt-in per org, idempotent per (asset, financial
+        // year), and it charges only years that have fully elapsed — so the
+        // eleven months with nothing due post nothing. Failures are contained
+        // per org inside the sweep, so this cannot abort the HR sweeps above.
+        const depr = await runDepreciationSweep(db);
+        const acted = depr.filter((d) => d.charged > 0);
+        if (acted.length > 0) {
+          console.info(
+            `[hr-monthly] depreciation swept ${acted.length} org(s); ` +
+              `${acted.reduce((s, d) => s + d.charged, 0)} period(s) charged`,
+          );
+        }
       } else if (job.name === HR_YEARLY_JOB_NAME) {
         await processYearlySweep(db);
       } else if (job.name === HR_DAILY_JOB_NAME) {

@@ -48,7 +48,6 @@ const ADMIN_MODULE_ROUTES = [
   "/app/surveys",
   "/app/procurement",
   "/app/financial",
-  "/app/accounting",
   "/app/vendors",
   "/app/contracts",
   "/app/legal",

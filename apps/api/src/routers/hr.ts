@@ -395,6 +395,22 @@ export const hrRouter = router({
           para266EmployerUndertaking: z.boolean().optional(),
           para266ApprovalReference: z.string().optional(),
           para266EffectiveFrom: z.coerce.date().optional(),
+          // EPF INTERNATIONAL WORKER (G27). Contributes on FULL wages — the ₹15,000 ceiling does
+          // not apply — and coverage is MANDATORY BY STATUS, so unlike Para 26(6) no approval
+          // reference is required for it to take effect. Default false = unchanged.
+          internationalWorker: z.boolean().optional(),
+          // Income-tax residential status; drives TDS treatment for a non-resident.
+          residentialStatus: z.enum(["resident", "resident_not_ordinarily_resident", "non_resident"]).optional(),
+          // PF membership start — distinct from the employment start date.
+          pfJoinDate: z.coerce.date().optional(),
+          // UAN KYC with EPFO. An un-KYC'd UAN is a leading cause of ECR upload rejection.
+          pfKycStatus: z.enum(["pending", "done", "rejected"]).optional(),
+          pfKycDocument: z.string().max(40).optional(),
+          pfKycVerifiedAt: z.coerce.date().optional(),
+          // Per-identifier verification state — a stored number is not a verified one.
+          aadhaarVerification: z.enum(["unverified", "verified", "failed"]).optional(),
+          panVerification: z.enum(["unverified", "verified", "failed"]).optional(),
+          bankVerification: z.enum(["unverified", "verified", "failed"]).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -510,6 +526,15 @@ export const hrRouter = router({
             para266JointRequest: input.para266JointRequest,
             para266EmployerUndertaking: input.para266EmployerUndertaking,
             para266ApprovalReference: input.para266ApprovalReference,
+            internationalWorker: input.internationalWorker,
+            residentialStatus: input.residentialStatus,
+            pfJoinDate: input.pfJoinDate,
+            pfKycStatus: input.pfKycStatus,
+            pfKycDocument: input.pfKycDocument,
+            pfKycVerifiedAt: input.pfKycVerifiedAt,
+            aadhaarVerification: input.aadhaarVerification,
+            panVerification: input.panVerification,
+            bankVerification: input.bankVerification,
             para266EffectiveFrom: input.para266EffectiveFrom,
             status: "active",
           })
@@ -573,6 +598,16 @@ export const hrRouter = router({
         para266EmployerUndertaking: z.boolean().optional(),
         para266ApprovalReference: z.string().optional(),
         para266EffectiveFrom: z.coerce.date().optional(),
+        // G27 + statutory identity — see the create input for the reasoning on each.
+        internationalWorker: z.boolean().optional(),
+        residentialStatus: z.enum(["resident", "resident_not_ordinarily_resident", "non_resident"]).optional(),
+        pfJoinDate: z.coerce.date().optional(),
+        pfKycStatus: z.enum(["pending", "done", "rejected"]).optional(),
+        pfKycDocument: z.string().max(40).optional(),
+        pfKycVerifiedAt: z.coerce.date().optional(),
+        aadhaarVerification: z.enum(["unverified", "verified", "failed"]).optional(),
+        panVerification: z.enum(["unverified", "verified", "failed"]).optional(),
+        bankVerification: z.enum(["unverified", "verified", "failed"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -1873,7 +1908,7 @@ export const hrRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { payrollRuns, payslips: payslipsTable } = await import("@coheronconnect/db");
-        const { formatECRFile, buildEcrLine } = await import("../lib/india/ecr-format.js");
+        const { formatECRFile, buildEcrLine, ecrPreflight } = await import("../lib/india/ecr-format.js");
 
         const [run] = await db
           .select()
@@ -1892,12 +1927,15 @@ export const hrRouter = router({
           .from(payslipsTable)
           .where(eq(payslipsTable.payrollRunId, run.id));
 
+        // Collected for the pre-flight below, so the identity rows are read once, not twice.
+        const ecrEmployees: Array<typeof employees.$inferSelect> = [];
         const ecrLines = await Promise.all(
           slips.map(async (slip) => {
             const [emp] = await db
               .select()
               .from(employees)
               .where(eq(employees.id, slip.employeeId));
+            if (emp) ecrEmployees.push(emp);
             // ONE ECR line builder, shared with `india-compliance.filing.submit`.
             //
             // This path used to build its lines inline from the RAW BASIC:
@@ -1921,12 +1959,26 @@ export const hrRouter = router({
           }),
         );
 
+        // ECR PRE-FLIGHT. This is a PREVIEW, so it lists blockers rather than refusing — an
+        // operator needs to see every problem at once to go and fix them, not hit them one at a
+        // time. The portal SUBMIT path refuses on the same list (india-compliance.filing.submit).
+        const blockers = ecrPreflight(
+          ecrEmployees.map((e) => ({
+            id: e.id,
+            employeeId: e.employeeId,
+            uan: e.uan,
+            pfKycStatus: e.pfKycStatus,
+          })),
+        );
+
         const orgEpfoId = `EPFO_${org!.id.slice(0, 8).toUpperCase()}`;
         return {
           ecrContent: formatECRFile(orgEpfoId, input.month, input.year, ecrLines),
           totalLines: ecrLines.length,
           totalEmployeeContribution: slips.reduce((s, sl) => s + Number(sl.pfEmployee), 0),
           totalEmployerContribution: slips.reduce((s, sl) => s + Number(sl.pfEmployer), 0),
+          /** Named employees this file would be rejected for. Empty = clean to upload. */
+          blockers,
         };
       }),
   }),

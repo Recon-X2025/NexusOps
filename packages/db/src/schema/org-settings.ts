@@ -39,6 +39,16 @@ export type OrgProcurementSettings = {
 export type OrgFinancialSettings = {
   /** Closed accounting periods as `YYYY-MM`; blocks mark-paid on invoices in those months. */
   closedPeriods?: string[];
+  /**
+   * Opt IN to the automatic month-end depreciation sweep.
+   *
+   * Default is `false` — ABSENT MEANS OFF. A background job that posts to the
+   * general ledger must never start running against a tenant because they
+   * upgraded; a controller has to ask for it. Setting it back to false stops the
+   * sweep immediately (it is read per-org on every run, not cached), and the
+   * manual Run control on the depreciation screen is unaffected either way.
+   */
+  depreciationAutoRunEnabled?: boolean;
 };
 
 /** US-CRM-003: RevOps-configurable deal-close approval thresholds. */

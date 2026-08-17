@@ -386,4 +386,106 @@ describe("B2: auto-numbers are minted atomically (no unique-violation retry unde
         `keeps climbing. Got ${c.number}.`,
     ).toBe("JE-2026-00003");
   });
+
+  /**
+   * Regression for the AR/AP half of this invariant (audit-finance-ar-ap.md HIGH-1).
+   *
+   * `journal.create` drew from the atomic counter while every posting in
+   * `lib/invoice-journal.ts` numbered itself with `count(*) + 1` — two allocators
+   * over ONE unique namespace (`je_org_number_idx`). The counter only self-seeds
+   * from `MAX(...)` when its row does not yet exist, so once an invoice posting
+   * minted a number above the counter, the counter never caught up and the next
+   * manual entry walked straight into a duplicate key.
+   *
+   * This test would fail on the old code at the third step with a 23505.
+   */
+  it("invoice GL postings and manual journal creates share ONE counter and never collide", async () => {
+    const { postInvoiceJournalEntry } = await import("../lib/invoice-journal");
+    const caller = accountingRouter.createCaller(createMockContext(adminId, orgId));
+    const date = new Date("2026-06-10");
+
+    // 1. Two manual entries advance the atomic counter to 2.
+    const a = await caller.journal.create({ date, description: "manual one", lines: balancedLines() });
+    const b = await caller.journal.create({ date, description: "manual two", lines: balancedLines() });
+    expect([a.number, b.number]).toEqual(["JE-2026-00001", "JE-2026-00002"]);
+
+    // 2. An invoice posts its GL entry. Under count()+1 this minted JE-2026-00003
+    //    WITHOUT advancing the counter, which stayed at 2.
+    const invoiceJeId = await testDb().transaction(async (tx) =>
+      postInvoiceJournalEntry(tx, {
+        orgId,
+        createdById: adminId,
+        invoiceFlow: "receivable",
+        invoiceNumber: `INV-NUMBERING-${Date.now()}`,
+        date,
+        taxableValue: 1000,
+        cgstAmount: 90,
+        sgstAmount: 90,
+        igstAmount: 0,
+        isInterstate: false,
+        grossTotal: 1180,
+        financialYear: "2026-2027",
+      }),
+    );
+    expect(invoiceJeId, "The invoice GL entry must post.").toBeTruthy();
+
+    // 3. The next manual entry. On the old code the counter returned 3 → JE-2026-00003,
+    //    which the invoice posting had already taken → duplicate key violation.
+    const c = await caller.journal.create({ date, description: "manual three", lines: balancedLines() });
+
+    const rows = await testDb()
+      .select({ number: journalEntries.number })
+      .from(journalEntries)
+      .where(eq(journalEntries.orgId, orgId));
+    const numbers = rows.map((r) => r.number);
+
+    expect(
+      new Set(numbers).size,
+      `Every JE number in an org must be unique. Invoice postings and manual entries ` +
+        `must draw from the SAME atomic counter. Got: ${numbers.sort().join(", ")}`,
+    ).toBe(numbers.length);
+
+    expect(
+      c.number,
+      `The manual entry after an invoice posting must continue past it, not collide ` +
+        `with it. Got ${c.number} against ${numbers.sort().join(", ")}.`,
+    ).toBe("JE-2026-00004");
+  });
+
+  /**
+   * `trialBalance.asOfDate` was DECLARED and ignored — every line came from the
+   * `currentBalance` snapshot, so asking for a past date returned today's numbers
+   * with no error. It now derives from posted movements, like `balanceSheet`.
+   */
+  it("trialBalance honours asOfDate — a later entry is excluded from an earlier date", async () => {
+    const caller = accountingRouter.createCaller(createMockContext(adminId, orgId));
+
+    // Both paths read POSTED entries only — `journal.create` leaves a draft, which
+    // moves neither `currentBalance` nor the movement sum. Post them.
+    const inRange = await caller.journal.create({
+      date: new Date("2026-03-10"),
+      description: "in range",
+      lines: balancedLines(),
+    });
+    await caller.journal.post({ id: inRange.id });
+
+    const later = await caller.journal.create({
+      date: new Date("2026-09-20"),
+      description: "after the as-of date",
+      lines: balancedLines(),
+    });
+    await caller.journal.post({ id: later.id });
+
+    const asOfMarch = await caller.trialBalance({ asOfDate: new Date("2026-03-31T23:59:59.999Z") });
+    const snapshot = await caller.trialBalance({});
+
+    // Each entry moves 100 through cash. March sees one; the snapshot sees both.
+    expect(
+      asOfMarch.totalDebit,
+      `An as-at-March trial balance must exclude a September entry. If this equals the ` +
+        `snapshot total (${snapshot.totalDebit}), asOfDate is being ignored again.`,
+    ).toBeCloseTo(100, 2);
+    expect(snapshot.totalDebit).toBeCloseTo(200, 2);
+    expect(asOfMarch.isBalanced).toBe(true);
+  });
 });

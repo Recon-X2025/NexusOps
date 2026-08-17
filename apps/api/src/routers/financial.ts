@@ -32,9 +32,9 @@ import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/
 import { computeInvoiceFromLines } from "../lib/invoice-lines";
 import {
   getDuplicatePayablePolicy,
-  isInvoicePeriodClosed,
   parseOrgSettings,
 } from "../lib/org-settings";
+import { assertInvoiceTransition } from "../lib/invoice-transitions";
 import {
   enqueueIrnGenerationJob,
 } from "../workflows/irnGenerationWorkflow";
@@ -314,6 +314,13 @@ export const financialRouter = router({
             orgState,
             counterpartyState: vendorRow?.state ?? null,
           });
+      // Rule 46(n) — see the note on the receivable path below. Recorded on
+      // payables too so the stored split can be checked against the vendor's
+      // state when reconciling input credit.
+      const apPlaceOfSupply =
+        normaliseGstStateOrWarn(vendorRow?.state ?? null, "counterparty") ??
+        normaliseGstStateOrWarn(orgState, "org");
+
       const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
       // Insert the invoice and post its balanced GL journal entry atomically —
       // so balance-based dashboards (burn rate, cash runway, AP aging) see the
@@ -328,6 +335,7 @@ export const financialRouter = router({
           invoiceType: "tax_invoice",
           gstinId: orgGstinId,
           buyerGstin: orgGstinNum,
+          placeOfSupply: apPlaceOfSupply,
           supplierGstin: vendorRow?.gstin ?? null,
           amount: gst.amount,
           taxableValue: gst.taxableValue,
@@ -451,6 +459,27 @@ export const financialRouter = router({
             orgState,
             counterpartyState: customerRow?.state ?? null,
           });
+      /*
+       * Rule 46(n): the place of supply is a MANDATORY particular on a tax
+       * invoice, and it is the value that makes the CGST/SGST-vs-IGST split on
+       * the document verifiable by whoever receives it.
+       *
+       * It was never written on either create path — `placeOfSupply` was set
+       * only when a credit note copied it from the original, so every invoice
+       * raised through the product stored NULL. The split itself was computed
+       * correctly (`isInterstate` comes from the engine), but nothing recorded
+       * WHICH state it was computed against, and `/financial/invoice-pdf/:id`
+       * refuses to issue a document that cannot state it.
+       *
+       * Resolved the same way quotes resolve it (`buildQuoteTaxColumns`):
+       * counterparty state first, falling back to the supplier's own — both
+       * normalised to a 2-digit GST code so the stored value is one the engine
+       * can read back.
+       */
+      const arPlaceOfSupply =
+        normaliseGstStateOrWarn(customerRow?.state ?? null, "counterparty") ??
+        normaliseGstStateOrWarn(orgState, "org");
+
       const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
       // Insert + post the balanced AR journal entry atomically (see createInvoice).
       const inv = await db.transaction(async (tx) => {
@@ -466,6 +495,7 @@ export const financialRouter = router({
             gstinId: orgGstinId,
             supplierGstin: orgGstinNum,
             buyerGstin: customerRow?.gstin ?? null,
+            placeOfSupply: arPlaceOfSupply,
             amount: gst.amount,
             taxableValue: gst.taxableValue,
             cgstAmount: gst.cgstAmount,
@@ -1040,6 +1070,26 @@ export const financialRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+
+      // Read before writing: this used to be a bare UPDATE with no transition
+      // guard, so it would happily regress a `paid` invoice back to `approved`
+      // — which returned already-settled money to the AP aging report.
+      const [existing] = await db
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+
+      assertInvoiceTransition(
+        "approve",
+        {
+          status: existing.status,
+          approvedById: existing.approvedById ?? null,
+          invoiceDate: existing.invoiceDate ? new Date(existing.invoiceDate as Date) : null,
+        },
+        org!.settings,
+      );
+
       const [inv] = await db.update(invoices)
         .set({ status: "approved", approvedById: user!.id, updatedAt: new Date() })
         .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)))
@@ -1060,13 +1110,23 @@ export const financialRouter = router({
         .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
 
-      if (isInvoicePeriodClosed(org!.settings, existing.invoiceDate ? new Date(existing.invoiceDate as Date) : null)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Accounting period is closed for this invoice date",
-        });
-      }
+      // Period close, terminal states, and "approved before paid" all live in the
+      // shared guard so this procedure and `approveInvoice` cannot drift apart.
+      assertInvoiceTransition(
+        "pay",
+        {
+          status: existing.status,
+          approvedById: existing.approvedById ?? null,
+          invoiceDate: existing.invoiceDate ? new Date(existing.invoiceDate as Date) : null,
+        },
+        org!.settings,
+      );
 
+      // Segregation of duties. This check is only meaningful because the guard
+      // above has already established that an approver EXISTS — previously a
+      // never-approved invoice reached here with `approvedById === null`, which
+      // compared unequal to every user id and waved the same person through to
+      // both raise and pay it.
       if (existing.approvedById && existing.approvedById === user!.id) {
         throw new TRPCError({
           code: "FORBIDDEN",

@@ -5,10 +5,10 @@ import {
   eq,
   and,
   inArray,
-  count as dbCount,
   sql,
   type DbOrTx,
 } from "@coheronconnect/db";
+import { getNextYearScopedSeq } from "./auto-number";
 
 /**
  * Posts the general-ledger journal entry for a single period's depreciation
@@ -68,9 +68,22 @@ export async function postDepreciationJournalEntry(
     );
   }
 
-  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
-  const seq = (c?.n ?? 0) + 1;
-  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+  // The JE number MUST come from the same atomic per-(org, "JE-<year>") counter
+  // that `accounting.journal.create` draws on. This used to be `count(*) + 1`,
+  // which shares the `JE-YYYY-NNNNN` namespace with that counter while being
+  // blind to it — and `je_org_number_idx` is UNIQUE. Reproduced before the fix:
+  //
+  //   journal.create → JE-2026-00001, JE-2026-00002   (org_counters = 2)
+  //   depreciation   → count(*)+1 = 3 → JE-2026-00003 (org_counters still 2)
+  //   journal.create → org_counters 2→3 → JE-2026-00003
+  //                  → duplicate key value violates "je_org_number_idx"
+  //
+  // i.e. posting depreciation broke the NEXT manual journal entry with a 500.
+  // Harmless only while depreciation was unreachable; this round gives it a
+  // screen and a scheduled run, so it had to be closed first.
+  const jeYear = date.getFullYear();
+  const seq = await getNextYearScopedSeq(tx, orgId, "JE", jeYear, "journal_entries", "number");
+  const number = `JE-${jeYear}-${String(seq).padStart(5, "0")}`;
 
   const [je] = await tx
     .insert(journalEntries)

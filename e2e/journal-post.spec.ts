@@ -8,6 +8,10 @@
  * the entry was still a draft. Post/Reverse existed only on an orphaned
  * /app/accounting page with no nav path to it.
  *
+ * (That page was retired on 2026-08-17 — the history above is why this spec
+ * exists, not a description of the current tree. Post/Reverse now live on the
+ * sidebar Journal Entries page, which is what this spec clicks through.)
+ *
  * The spec proves the whole chain by CLICKING: create → post → the entry appears in
  * the General Ledger with a real debit and credit. page.goto is used once, for
  * /login, and nowhere else.

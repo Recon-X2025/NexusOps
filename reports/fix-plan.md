@@ -7185,3 +7185,278 @@ no-GST default, requisition-approve + PO-id 404, COA create + posting-against-re
 `utils.test.ts` +11 (`formatInr`/`pluralize`). Gate: `lint:cold` 9/9 forced; web suite 108/108; API full
 suite running. **Uncommitted — merges with EXIT-DATE + FULL-AND-FINAL (migration 0082) into one commit,
 pending owner go + snapshot.**
+
+---
+
+## GREYTHR-READ (2026-08-17) — competitive read of an incumbent's ESS; two gaps with money attached
+
+Read-only authenticated session on a customer greytHR tenant (`kivotos.greythr.com`), **ESS/employee
+role only** — no admin, payroll-config or statutory-filing surface was reachable, so nothing here
+describes their admin product. Nothing submitted, saved or downloaded; no personal or pay data
+retained. Full write-up: `docs/COMPETITIVE_GREYTHR.md`.
+
+**Nothing was built this round.** Two items entered `docs/GAP_ANALYSIS.md` as **G26** and **G27**.
+
+### G26 — arrears on a backdated salary revision (⛔ open)
+greytHR's Salary Revision screen carries **Payout Month as a field distinct from the effective date**;
+that difference *is* the arrears calculation. We have effective dating
+(`salaryStructures.familyId`/`effectiveFrom`/`effectiveTo`) but `lib/payslip-view.ts:198` hardcodes
+`arrears: 0` and `lib/payroll-cycle.ts` computes none — the payslip renders an arrears line that
+cannot be non-zero. A raise effective April, processed in June, silently underpays.
+**Sequence with the IT Act 2025 rename: s.89 (relief for arrears) → s.157, same surface.**
+
+### G27 — international worker: PF ceiling cannot be disapplied (⛔ open)
+An EPF international worker contributes on **full wages, no ₹15,000 ceiling**. `employees` has a
+sophisticated PF surface (`voluntaryPfRate`, four `para266_*`, `esiMember*`, `ptExempt*`) but **no
+international-worker flag and no residential status**, so the ceiling cannot be disapplied for one.
+Result would be under-contribution plus an ECR reporting a wage the dues do not correspond to — the
+exact failure the ECR rule in `CLAUDE.md` guards against. **Reachable-by-configuration, not
+reachable-today** — not verified that any tenant employs one. Per the reachability-before-severity
+rule, this is not top-of-board; it is a cheap two-column fix to hold ready.
+
+### The regulatory find (not a gap — a re-framing)
+greytHR publishes an in-product **IT Act 1961 → IT Act 2025 section mapping** behind the banner
+"Section names have been updated as per the Income Tax Act 2025. **Your saved data remains
+unchanged.**" That is a mature vendor's whole migration strategy, and it re-frames INDIA_ROADMAP #10
+as a **relabelling + forms-renaming job, not an engine job**. Keep `tax_declarations` identifiers
+(`80c`/`80d`/`80ccd1b`/`80tta`/`24b`); add a display-name map. The non-cosmetic part: **Form 16 →
+Form 130, Form 24Q → Form 143, Form 12BB → Form 124**. Full ~45-row table in
+`docs/COMPETITIVE_GREYTHR.md` §1. **NOT verified: whether the new Act changes any rate, slab or
+limit we compute** — the table is a naming map only; treat the compute side as still open.
+
+### Lower-priority deltas recorded, NOT built (detail in §3 of the doc)
+No loans/advances module (`payslips.advance_recovery` exists with its only writer being manual F&F
+input, `routers/settlement.ts:66,247` — anti-pattern #2) · leave half-days have no per-endpoint
+session model (`half_day` is an `attendance_status` value only, `hr.ts:1063`) · no restricted/optional
+holiday flow (**seen in nav only, not opened — thinner claim than the others**) · no attendance
+cut-off period · no employee-level PF KYC status (the only `kyc_status` is director DIN KYC) ·
+statutory IDs store values with no verification state · no letter-request flow.
+
+### Patterns worth adopting (§4 of the doc)
+**"Deduction Alert"** — their regularization calendar warns the employee, *before* payroll runs, that
+a day will cost them money, with the remedy one click away. Direct antidote to "capture without
+consequence"; for us it is a **UI change over data we already hold**. · Their leave ledger carries
+**Posted on / From / To / Expiry Date per credit lot**; ours (`leave_accrual_events`, `hr.ts:973`) is
+already a real immutable ledger with lapse/encashment/carry-forward types and comp-off anchoring, but
+keys accrual to `year`+`month` with **no covered period and no per-lot expiry** — the latter is the
+prerequisite for point-in-time balance reconstruction. · Field-level PII masking with a reveal
+toggle (cheap DPDP contribution). · Attendance stores **Total / Break / Actual** hours as three
+numbers, which is what makes penalty policies expressible. · Resignation initiates from the
+employee's own record (we have `final_settlements` from mig `0082`; missing only the request + state
+machine). · IT declaration is a **window** with a close date + "retain previous", plus a separate
+multi-plan regime comparator — the concrete shape of the CA's April-provisional/January-proofs ruling.
+
+### Engineering note worth keeping
+Their OAuth callback failed in an embedded browser that did not persist the session cookie
+(`request_forbidden … No CSRF value available in the session cookie`) and the SPA then **hung on the
+splash screen indefinitely with no user-facing error**. Worth a defensive look at our own login: a
+hard auth failure rendering as an infinite spinner is the worst available outcome.
+
+---
+
+## ARREARS UNIT (G26) — BUILT, UNCOMMITTED (2026-08-17); carries migration `0093`; API-only, no UI
+
+Closes **G26**. Built during a session with **multiple parallel sessions active in the same tree** —
+migration number and `_journal.json` are a reconciliation point (see the end of this section).
+
+**The gap, restated from the code.** `salaryStructures.upsert` refuses to edit a version that already
+has payslips and tells the operator to *"Post the change as arrears in the current month"*
+(`routers/payroll.ts:1266`) — a route with **no implementation anywhere**.
+`buildEmployeePayrollInput` hardcoded `arrears: 0` (`services/payroll-run-aggregates.ts`), `payslips`
+had no column to store it, and `payslip-view.ts:198` emitted a hardcoded `0`. So a backdated revision
+had no lawful route at all, and the payslip rendered an arrears line structurally incapable of being
+non-zero.
+
+**Design decision — arrears are an INPUT to a run, not an output.** Locking a run does
+`tx.delete(payslips)` then recomputes, so a figure stored only on the payslip is destroyed on the next
+recompute. Arrears therefore live in their own table keyed to the period they are PAID IN, and the run
+reads them. A test pins exactly this (record → re-run → figure survives).
+
+### Built
+- **`payroll_arrears`** table (mig `0093_giant_doctor_spectrum`) — org/employee cascade,
+  `sourceStructureId` SET NULL, unique `(employee, month, year)` so an upsert corrects rather than
+  accumulating (an accumulating row would double-pay on a second click). **RLS-walled in the same
+  migration** (ENABLE+FORCE+`tenant_isolation`), per the `0052`/`0061`/`0080` convention — it holds
+  money owed to a named employee.
+- **`payslips.arrears`** column — persists the figure the engine was actually fed.
+- **`packages/payroll-math/src/arrears.ts`** — pure `computeStructureArrears` (per-period delta,
+  payable/recovery split, `hasRecovery` so a fall never nets silently against a rise; each period
+  rounded BEFORE summing so the total reconciles line by line) + `arrearsPeriodsCovered`.
+- **`payroll.arrears.{list,upsert,remove,suggest}`** — `suggest` re-prices already-paid periods against
+  a backdated version **on the issued payslip's own paid-days/LOP basis** (else arrears silently pays
+  back correctly-deducted LOP) and **subtracts arrears already paid in a period** (else a prior arrears
+  payment reads as a shortfall and is proposed again). It PROPOSES only; nothing is written.
+- **`buildArrearsMap`** — ONE resolver shared by the preview/lock totals path and the payslip write
+  path. Two queries is how those two silently drift (it already happened once on tax declarations).
+- Guard: refuses to alter arrears for a period already `paid`/`CFO_APPROVED`.
+
+### Two defects found while building, both fixed here
+1. **DA was absent from the payslip view entirely.** `payslips.da` is written by the run and included
+   in gross, but `payslip-view.ts` had no `da` field at all — so for any **Basic+DA** employer (the
+   composition the WAGE-DA/C4 unit exists to support) the printed earnings lines could not sum to the
+   printed gross, and the employee's DA never appeared on their payslip. Added to the view, both
+   renderers, and the PDF (printed only when non-zero, so a basic-alone payslip gains no empty line).
+   Same defect class as the C6 hardcoded-ESI-zero.
+2. **A local-vs-UTC bug in my own first cut.** `arrearsPeriodsCovered` read `getUTCMonth()`; a structure
+   effective 1 Jul stored at local midnight is 30 Jun 18:30Z in IST, so it read as backdated into June
+   and would have proposed a month of arrears that is not owed. Now reads LOCAL fields, matching
+   `versionHasPayslips` and `resolveSalaryStructureForPeriod`. Pinned by a test. Related standing
+   hazard: PERIOD-START-TZ-BOUNDARY (this follows the existing convention rather than adding a third).
+
+### ⚠️ OPEN QUESTION — PF on arrears (needs a CA ruling; do not resolve by assertion)
+Paying arrears **changes the PF deducted in the payment month**. `computeEmployeePayslip` puts arrears
+in `excludedAllowances`, so a large arrears payment pushes excluded allowances past 50% of total
+remuneration and the Code on Wages **s.2(y) proviso claws the excess back into wages** — observed
+lifting a wage base from ₹10,000 to the ₹15,000 ceiling, i.e. PF rose from ₹1,200 to ₹1,800.
+
+EPFO's position is that arrears of *wages* attract PF in the month of payment, so a lift is
+**directionally** right. Unestablished: (a) whether the s.2(y) proviso is the correct *mechanism* or
+arrears-of-basic should enter the core wage directly; and (b) whether PF on arrears should be computed
+**month-wise against each covered month's own ceiling** rather than as one lump in the payment month.
+Those give different figures for anyone near the ceiling. **A test pins the current behaviour** so the
+ruling changes a failing test rather than silently changing everyone's PF.
+
+### UI — BUILT (same session), so this is NOT a G18-class unreachable item
+`apps/web/src/app/app/payroll/page.tsx` gains an **Arrears tab**: paid-in period selector, the recorded
+rows for that period (negative shown as "(recovery)" in red), remove, and a per-employee **Arrears**
+editor. The editor runs `suggest` on open, lists the re-priced months with their per-month delta, warns
+when any month fell, and offers "Use suggested ₹X" which fills the amount + reason + `sourceStructureId`.
+It **fills the field, never posts** — the operator saves. Both mutations refetch the list (the standing
+"refetch every list the procedure writes" rule).
+
+**RBAC keys, deliberately borrowed.** `payroll.arrears.*` is NOT in
+`trpc-procedure-rbac.generated.ts`, and the map was **not** regenerated as a side effect (standing rule:
+it carries drift). An unmapped key falls back to "any authenticated user" — looser than the server's
+`permissionProcedure`. So the `mergeTrpcQueryOpts` lookups pass existing entries with the IDENTICAL
+gate: `payroll.salaryStructures.list` (payroll:read). The key is an RBAC lookup, not the procedure being
+called, and the server enforces regardless. **Follow-up:** a clean regeneration should add the real keys.
+
+**Still not built:** a Playwright spec for the tab.
+
+### Gate
+`pnpm lint:cold` **9/9 forced** (before the UI). After the UI: `apps/api`, `packages/db`,
+`packages/payroll-math` typecheck **clean**; `apps/web` has **zero errors in `payroll/page.tsx`** but
+the workspace does not compile because of **one pre-existing error in another session's untracked file**,
+`apps/web/src/app/app/finance/accounting/gstin/page.tsx:263` — it passes `title`/`count`/`isLoading` to
+`ResourceView`, whose contract is `query` + render-prop `children: (data) => ReactNode`. **Verified not
+mine:** the error reproduces with `payroll/page.tsx` stashed. Left untouched — finishing another
+session's half-written screen would be guessing at intent. **`lint:cold` cannot go green until that file
+is fixed or removed.** `arrears.test.ts` (pure) **12/12**. `payroll-arrears.test.ts` (real
+Postgres) **10/10**. Adjacent suites re-run green: payslip-view, pf-rate-para266-bonus,
+money-invariants, exit-date-proration — **36/36**. Full API suite NOT yet run.
+
+### ⚠️ Reconciliation before commit (parallel sessions)
+- Migration **`0093`** was taken while another session's **uncommitted `0092`** was already in the tree.
+  `_journal.json` now carries both. If another session also claimed `0093`, renumber before commit.
+- Files this unit touched: `packages/db/src/schema/hr.ts`, `packages/payroll-math/src/{index,arrears,arrears.test}.ts`,
+  `apps/api/src/routers/payroll.ts`, `apps/api/src/services/payroll-run-aggregates.ts`,
+  `apps/api/src/lib/payslip-view.ts`, `apps/api/src/services/payslip-pdf.ts`,
+  `apps/api/src/__tests__/payroll-arrears.test.ts`, `packages/db/drizzle/0093_*`.
+  `payroll.ts` and `payslip-view.ts` are the likely collision points.
+
+---
+
+## EMPLOYEE-STATUTORY-IDENTITY (G27 + KYC + ID verification) — BUILT, UNCOMMITTED (2026-08-17); migration `0094`
+
+Closes **G27** and two of the lower-priority greytHR deltas on one additive migration. No new table
+(so no RLS block needed — `employees` is already walled).
+
+### G27 — international worker (the money path)
+An EPF **international worker contributes on FULL wages; the ₹15,000 ceiling does not apply.** There
+was no flag by which the ceiling could be disapplied, so hiring one under-contributed PF and filed an
+ECR reporting a wage the dues did not correspond to — the failure the ECR rule in `CLAUDE.md` exists
+to prevent.
+
+**The gating differs from Para 26(6), and the difference is the point.** Para 26(6) is ELECTIVE: no
+recorded EPFO approval reference, no uncapping. IW coverage is MANDATORY BY OPERATION OF THE SCHEME:
+the flag alone uncaps, there is no reference to require. Both reuse the engine's single uncap path
+(`isVoluntaryHigherPF`); the branch is in `buildEmployeePayrollInput`. A test asserts the two side by
+side on identical wages.
+
+**⚠️ DELIBERATE SCOPE LIMIT — EPS stays ceiling-capped for an IW.** EPFO's position that an IW's
+pension contribution is also on full wages rests on **Para 83, struck down by the Karnataka HC in 2024
+and under appeal**. Implementing it would be coding a rule that is currently void; leaving EPS capped
+matches the domestic treatment already shipped. **Pinned by a test** so a ruling breaks a test rather
+than silently moving pension contributions. Revisit when the appeal resolves.
+
+### Also added (both greytHR deltas)
+- **PF KYC** — `pf_kyc_status` (pending/done/rejected), `pf_kyc_document`, `pf_kyc_verified_at`, plus
+  `pf_join_date` (distinct from `start_date`; what EPS eligibility ages against). An un-KYC'd UAN is a
+  leading cause of ECR upload rejection, so this is an operational gate on filing.
+  **Default is `pending`, not `done`** — we do not know any existing employee's KYC state, and
+  defaulting to done would assert something unverified about a filing gate.
+- **Per-identifier verification state** — `aadhaar_verification` / `pan_verification` /
+  `bank_verification` on a shared `id_verification_status` enum (unverified/verified/failed), all
+  defaulting to `unverified`. A stored identifier is not a verified one: an unverified Aadhaar or a
+  mistyped PAN passes format validation and then fails at the portal.
+- **`residential_status`** (resident / RNOR / non-resident) — the income-tax fact driving non-resident
+  TDS treatment. Nullable; nothing consumes it yet, which is stated rather than implied.
+
+### Reachability
+Wired into **both** `hr.employees.create` and `hr.employees.update` inputs (the update path spreads
+`...rest`, so the fields flow to the `.set`). A test drives the real API: a capped domestic employee →
+`hr.employees.update({ internationalWorker: true })` → the **next run's payslip is uncapped**
+(base 15,000 → 20,000, employee PF 1,800 → 2,400). Not schema-only.
+
+**NOT built:** no UI field for these yet, and no ECR pre-flight that blocks a filing on
+`pf_kyc_status != 'done'` — which is the actual value of holding KYC state and should follow.
+
+### Gate
+`apps/api` typecheck clean. `employee-statutory-identity.test.ts` **7/7** on real Postgres.
+`pnpm check:migrations` green. Full `lint:cold` still blocked by the unrelated `gstin/page.tsx`
+error from a stopped parallel session (see the ARREARS UNIT gate note).
+
+---
+
+## G27 REACHABILITY + ECR PRE-FLIGHT — BUILT, UNCOMMITTED (2026-08-17); no migration
+
+Closes the three follow-ups left open by EMPLOYEE-STATUTORY-IDENTITY.
+
+### 1. Employee-form fields — the columns are now settable by a person
+`apps/web/src/app/app/hr/page.tsx` gains a **Statutory identity** block on BOTH the add and edit
+employee forms: international-worker checkbox, residential status, PF join date, UAN KYC status +
+document, and the three ID-verification selects. Wired into both submit payloads and the edit-form
+hydration, so a value round-trips. Before this the columns existed and were settable only by an API
+call — the same "built but unreachable" pattern as G18.
+
+### 2. ECR pre-flight — the reason `pf_kyc_status` exists
+New shared `ecrPreflight()` in `lib/india/ecr-format.ts` (ONE helper, both callers), blocking on:
+- **No UAN.** `generateECR` substituted the literal string `"UNKNOWN"` for a missing UAN, so a member
+  with no UAN produced a valid-looking line carrying a **fabricated identifier** — the
+  invent-an-identifier defect class from `CLAUDE.md`, except this one leaves the building and goes to
+  a regulator. Found while wiring the pre-flight; not previously recorded.
+- **UAN KYC not `done`.** `pending` AND `rejected` both block — the obvious mistake is testing
+  `!== "pending"`, and a rejected KYC is just as unfileable.
+
+**Deliberately asymmetric, and that is the design:**
+- `hr.payroll.generateECR` is a PREVIEW → returns `blockers` in the payload and refuses nothing. An
+  operator needs every problem at once to go and fix them, not one per attempt.
+- `india-compliance.filing.submit` PUSHES to the portal → **throws**, naming up to five members and
+  counting the rest. A rejected upload costs a filing window. **Honours the path's existing `force`
+  flag** rather than inventing a second override.
+
+### 3. Playwright — and what running it actually found
+`e2e/payroll-arrears.spec.ts` — **1 passed**. Reaches the tab through real navigation, asserts the PF
+warning is on screen before money can be recorded, drives the period selector, and asserts both empty
+states are honest.
+
+**Two things only running it could have found:**
+
+- **A defect in the new screen (fixed).** The employee list used a ternary that collapsed
+  `undefined` (loading, or disabled by the RBAC gate) into **"No employees found."** — the screen
+  asserted something it did not know. Now distinguishes loading / error / genuinely-empty. This is
+  the same class as the SURFACES round: make the screen tell the truth.
+- **⚠️ E2E SEED GAP — the e2e database has ZERO employees org-wide** (verified:
+  `select count(*) from employees` on `coheronconnect_test` returns 0). So **no acceptance spec can
+  exercise any employee-dependent screen** — this affects the existing **Tax declarations** and
+  **Form 16 issuance** tabs exactly as much as Arrears. The spec is therefore scoped to what a click
+  can genuinely prove on this seed, and says so in its own header. The record → persist → remove path
+  stays covered by `payroll-arrears.test.ts` (10 cases, real Postgres).
+  **A self-skipping test was considered and rejected** — it would go green while proving nothing,
+  which is precisely the "a check that appears to exist may not run" trap in `CLAUDE.md`.
+  **Follow-up: seed employees into the e2e database.** Until then, employee-dependent acceptance
+  coverage is structurally impossible, not merely absent.
+
+### Gate
+`apps/api` typecheck clean. `apps/web` clean except the unrelated `gstin/page.tsx` error from a
+stopped parallel session. `ecr-preflight.test.ts` **10/10**. `e2e/payroll-arrears.spec.ts` **1/1**.

@@ -132,7 +132,22 @@ function FinancialPageInner() {
   // header is derived; when off, the legacy single-amount path is unchanged.
   const [apLineMode, setApLineMode] = useState(false);
   const [apLines, setApLines] = useState<InvoiceLineRow[]>([emptyLine()]);
-  const [arLineMode, setArLineMode] = useState(false);
+  /**
+   * AR defaults to LINE ITEMS, unlike AP above.
+   *
+   * A receivable is a tax invoice WE issue, and Rule 46(g)(h)(i) of the CGST
+   * Rules require HSN/SAC, description and quantity per line. "Single amount"
+   * produces an invoice with no `invoice_line_items` rows at all, which cannot
+   * be issued as a compliant document — `/financial/invoice-pdf/:id` refuses it
+   * for exactly that reason. Defaulting to the compliant mode means the ordinary
+   * path produces an issuable invoice; single-amount remains available for the
+   * cases that genuinely have one line and no HSN.
+   *
+   * AP is deliberately left on "Single amount": a payable is the VENDOR's
+   * invoice being recorded, we never issue it, so line detail is bookkeeping
+   * preference rather than a statutory requirement.
+   */
+  const [arLineMode, setArLineMode] = useState(true);
   const [arLines, setArLines] = useState<InvoiceLineRow[]>([emptyLine()]);
   const { data: legalEntitiesList } = trpc.financial.listLegalEntities.useQuery(
     undefined,
@@ -616,7 +631,12 @@ function FinancialPageInner() {
                             {inv.status === "pending" && can("financial", "write") && (
                               <button onClick={() => approveInvoiceMutation.mutate({ id: inv.id })} disabled={approveInvoiceMutation.isPending} className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">Approve</button>
                             )}
-                            {(inv.status === "pending" || inv.status === "overdue") && can("financial", "write") && (
+                            {/* Approval is a precondition of payment, so "pending" must NOT
+                                offer Mark Paid — it used to, which let a never-approved
+                                invoice be settled and defeated the segregation-of-duties
+                                check (it reads `approvedById`, which stayed null).
+                                `assertInvoiceTransition` now enforces this server-side too. */}
+                            {(inv.status === "approved" || inv.status === "overdue") && can("financial", "write") && (
                               <button onClick={() => markPaidMutation.mutate({ id: inv.id })} disabled={markPaidMutation.isPending} className="text-[10px] text-green-600 hover:underline disabled:opacity-50">Mark Paid</button>
                             )}
                             <button onClick={() => router.push(`/app/financial/invoices/${inv.id}`)} className="text-[10px] text-primary hover:underline font-bold">Details</button>
@@ -694,10 +714,29 @@ function FinancialPageInner() {
                           <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
                           <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
                           <td className="flex flex-wrap gap-2">
+                            {/*
+                              Receivable rows had NO way to open the invoice — no row
+                              onClick (the payables table above has one) and no Details
+                              action. The invoice detail page is where "Download Tax
+                              Invoice" lives, so the statutory document was unreachable
+                              by clicking for exactly the invoices it exists for: the
+                              ones we ISSUE. Payables were always reachable.
+                            */}
+                            <button
+                              type="button"
+                              data-testid="ar-invoice-details"
+                              onClick={() => router.push(`/app/financial/invoices/${inv.id}`)}
+                              className="text-[10px] text-primary hover:underline font-bold"
+                            >
+                              Details
+                            </button>
                             {inv.status === "pending" && can("financial", "write") && (
                               <button type="button" onClick={() => approveInvoiceMutation.mutate({ id: inv.id })} disabled={approveInvoiceMutation.isPending} className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">Approve</button>
                             )}
-                            {(inv.status === "pending" || inv.status === "approved" || inv.status === "overdue") && can("financial", "write") && (
+                            {/* Same rule as the payables table above: approval first.
+                                "pending" previously appeared here and let an unapproved
+                                invoice be settled. */}
+                            {(inv.status === "approved" || inv.status === "overdue") && can("financial", "write") && (
                               <button type="button" onClick={() => markPaidMutation.mutate({ id: inv.id, paymentMethod: "collection" })} disabled={markPaidMutation.isPending} className="text-[10px] text-green-600 hover:underline disabled:opacity-50">Mark paid</button>
                             )}
                           </td>

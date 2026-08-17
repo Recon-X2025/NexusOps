@@ -21,7 +21,7 @@ const PAGES: Array<{ name: string; path: string }> = [
   { name: "tickets-new", path: "/app/tickets/new" },
   { name: "command", path: "/app/command" },
   { name: "vendors", path: "/app/vendors" },
-  { name: "accounting", path: "/app/accounting" },
+  { name: "accounting", path: "/app/finance/accounting/coa" },
   { name: "secretarial", path: "/app/secretarial" },
   { name: "recruitment", path: "/app/recruitment" },
 ];

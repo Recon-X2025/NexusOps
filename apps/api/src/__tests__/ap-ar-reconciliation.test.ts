@@ -53,6 +53,8 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
   let adminId: string;
   let acc: any;
   let fin: any;
+  /** A second actor, needed because approving and paying cannot be the same person. */
+  let finApprover: any;
 
   beforeEach(async () => {
     const seeded = await seedFullOrg();
@@ -60,8 +62,26 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
     adminId = seeded.adminId!;
     acc = accountingRouter.createCaller(createMockContext(adminId, orgId));
     fin = financialRouter.createCaller(createMockContext(adminId, orgId));
+    finApprover = financialRouter.createCaller(createMockContext(seeded.financeId!, orgId));
     await acc.coa.seed();
   });
+
+  /**
+   * Approve then pay.
+   *
+   * These tests used to call `markPaid` straight after `createInvoice`. That only
+   * worked because the server did not check whether an invoice had been approved
+   * — the defect recorded as ARAP-2 in `reports/audit-finance-ar-ap.md`. The
+   * assertions below were always right; the SETUP was encoding the bug, so the
+   * setup is what changed (see `CLAUDE.md` → TESTS-ENCODE-DEFECTS).
+   *
+   * Approval and payment are deliberately different actors: segregation of duties
+   * refuses the same user doing both.
+   */
+  async function settle(invoiceId: string) {
+    await finApprover.approveInvoice({ id: invoiceId });
+    return fin.markPaid({ id: invoiceId });
+  }
 
   it("payable invoice creation raises AP by the gross total", async () => {
     const before = await coaBalance(orgId, "2110");
@@ -126,7 +146,7 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
     const bankBefore = await coaBalance(orgId, "1120");
     expect(Math.abs(apAfterCreate)).toBeCloseTo(Number(inv.amount), 2);
 
-    await fin.markPaid({ id: inv.id });
+    await settle(inv.id);
 
     const apAfterPay = await coaBalance(orgId, "2110");
     const bankAfter = await coaBalance(orgId, "1120");
@@ -148,7 +168,7 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
     const bankBefore = await coaBalance(orgId, "1120");
     expect(arAfterCreate).toBeCloseTo(Number(inv.amount), 2);
 
-    await fin.markPaid({ id: inv.id });
+    await settle(inv.id);
 
     const arAfterPay = await coaBalance(orgId, "1130");
     const bankAfter = await coaBalance(orgId, "1120");
@@ -156,7 +176,7 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
     expect(bankAfter - bankBefore).toBeCloseTo(Number(inv.amount), 2);
   });
 
-  it("markPaid is idempotent — a second call posts no second settlement", async () => {
+  it("a second markPaid is REFUSED and cannot double-relieve cash", async () => {
     const vendorId = await seedCounterparty(orgId);
     const inv = await fin.createInvoice({
       vendorId,
@@ -164,11 +184,18 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
       amount: "10000",
       gstRate: 18,
     });
-    await fin.markPaid({ id: inv.id });
+    await settle(inv.id);
     const bankOnce = await coaBalance(orgId, "1120");
-    await fin.markPaid({ id: inv.id });
+
+    // This used to be a silent no-op: the second call succeeded and relied on
+    // `postInvoiceSettlementEntry`'s duplicate check to avoid a second entry.
+    // The transition guard now rejects it earlier and LOUDLY — paying an
+    // already-paid invoice is a mistake worth surfacing, not absorbing.
+    // (The settlement-level duplicate check remains as defence in depth, and is
+    // still exercised directly by the invoice-journal tests.)
+    await expect(fin.markPaid({ id: inv.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
     const bankTwice = await coaBalance(orgId, "1120");
-    // The settlement guard prevents double-relieving cash.
     expect(Math.abs(bankOnce - bankTwice)).toBeLessThan(TOL);
     expect(Math.abs(await coaBalance(orgId, "2110"))).toBeLessThan(TOL);
   });

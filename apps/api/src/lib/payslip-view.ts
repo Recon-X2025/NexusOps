@@ -62,6 +62,9 @@ export interface PayslipView {
   };
   earnings: {
     basic: number;
+    /** Dearness Allowance earned. Its own line: statutorily disclosable, part of the PF/ESI
+     *  wage-base core (basic+DA), and already inside `gross`. 0 for a basic-alone composition. */
+    da: number;
     hra: number;
     specialAllowance: number;
     lta: number;
@@ -188,14 +191,23 @@ export function buildPayslipView(args: {
     },
     earnings: {
       basic: Number(slip.basic || 0),
+      // DA was absent from this view entirely while `payslips.da` was written by the run and
+      // included in gross — so for any Basic+DA employer (the composition WAGE-DA/C4 exists to
+      // support) the printed earnings lines could not sum to the printed gross, and the
+      // employee's DA did not appear on their payslip at all. Same defect class as the
+      // hardcoded arrears/ESI zeroes.
+      da: Number(slip.da || 0),
       hra: Number(slip.hra || 0),
       specialAllowance: Number(slip.specialAllowance || 0),
       lta: Number(slip.lta || 0),
       conveyance: Number(slip.conveyanceAllowance || 0),
       medical: Number(slip.medicalAllowance || 0),
-      // Not stored as separate columns today; kept in the shape for renderers + future use.
+      // Overtime is still not stored as its own column; kept in the shape for renderers.
       overtime: 0,
-      arrears: 0,
+      // ARREARS: read the STORED column, not a hardcoded 0. Same defect class as the C6 ESI
+      // fix below — gross already includes arrears, so a hardcoded 0 here makes the printed
+      // earnings lines fail to sum to the printed gross whenever back-pay was paid.
+      arrears: Number(slip.arrears || 0),
       bonus: Number(slip.bonus || 0),
       otherEarnings: 0,
       gross: Number(slip.grossEarnings || 0),
@@ -258,6 +270,7 @@ export function payslipViewToPdfInput(
     daysWorked: view.period.daysWorked,
     lopDays: view.period.lopDays,
     basicEarned: view.earnings.basic,
+    daEarned: view.earnings.da,
     hraEarned: view.earnings.hra,
     specialAllowance: view.earnings.specialAllowance,
     lta: view.earnings.lta,
@@ -303,6 +316,7 @@ export function payslipViewToPortalRow(
     daysWorked: view.period.daysWorked,
     lopDays: view.period.lopDays,
     basicEarned: view.earnings.basic,
+    daEarned: view.earnings.da,
     hraEarned: view.earnings.hra,
     specialAllowance: view.earnings.specialAllowance,
     lta: view.earnings.lta,

@@ -178,6 +178,12 @@ export async function seed() {
     { code: "1130", name: "Accounts Receivable (Trade)", type: "asset", subType: "accounts_receivable", isSystem: true, parentCode: "1100" },
     { code: "1140", name: "GST Input Tax Credit (ITC)", type: "asset", subType: "other_current_asset", isSystem: true, parentCode: "1100" },
     { code: "1200", name: "Fixed Assets", type: "asset", subType: "fixed_asset", isSystem: false, parentCode: "1000" },
+    // 1290 + 5500 are the two legs of the depreciation posting. Without BOTH,
+    // `postDepreciationJournalEntry` returns null: the charge is recorded against
+    // the asset and the general ledger never moves. Kept in step with
+    // INDIA_COA_SEED (routers/accounting.ts) — `coa-seed-parity.test.ts` fails if
+    // either list drops a code a posting path depends on.
+    { code: "1290", name: "Accumulated Depreciation", type: "contra_asset", subType: "accumulated_depreciation", isSystem: false, parentCode: "1200" },
     { code: "2000", name: "Liabilities", type: "liability", subType: "other_current_liability", isSystem: true, parentCode: null },
     { code: "2100", name: "Current Liabilities", type: "liability", subType: "other_current_liability", isSystem: true, parentCode: "2000" },
     { code: "2110", name: "Accounts Payable (Trade)", type: "liability", subType: "accounts_payable", isSystem: true, parentCode: "2100" },
@@ -192,6 +198,7 @@ export async function seed() {
     { code: "5000", name: "Expenses", type: "expense", subType: "expense", isSystem: true, parentCode: null },
     { code: "5100", name: "Cost of Revenue", type: "expense", subType: "cost_of_goods_sold", isSystem: false, parentCode: "5000" },
     { code: "5300", name: "Office & Admin Expenses", type: "expense", subType: "expense", isSystem: false, parentCode: "5000" },
+    { code: "5500", name: "Depreciation", type: "expense", subType: "depreciation", isSystem: true, parentCode: "5000" },
   ];
   const coaCodeToId = new Map<string, string>();
   for (const acct of coaSeed) {

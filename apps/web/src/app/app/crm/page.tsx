@@ -325,6 +325,46 @@ const ACTIVITY_TYPE_CFG: Record<ActivityType, { color: string; icon: string }> =
 };
 
 /**
+ * Download the quotation as a real PDF.
+ *
+ * This control used to call `downloadCSV` and emit a six-column CSV named `.csv`
+ * while the button said "Download PDF" — no line items, no tax split, no GSTINs.
+ * It now fetches the PDFKit-generated document from the API.
+ *
+ * `fetch` rather than `window.open` because the API answers **409** with a JSON
+ * explanation when the quote's tax basis cannot be verified (no linked account,
+ * or an account with a missing/unrecognised state — either of which would make
+ * the CGST/SGST split an unverified guess on a document a customer may claim
+ * input credit against). `window.open` would dump that JSON into a blank tab;
+ * this surfaces the message that names the field to fix.
+ */
+async function downloadQuotePdf(id: string, quoteNumber: string): Promise<void> {
+  try {
+    const res = await fetch(`/api/crm/quote-pdf/${id}`, { credentials: "include" });
+    if (!res.ok) {
+      let message = `Could not generate the quotation (HTTP ${res.status}).`;
+      if (res.headers.get("content-type")?.includes("application/json")) {
+        const body = (await res.json()) as { message?: string };
+        if (body?.message) message = body.message;
+      }
+      toast.error(message, { duration: 12_000 });
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `quote-${quoteNumber}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch {
+    toast.error("Could not reach the server to generate the quotation.");
+  }
+}
+
+/**
  * Keys are exactly `quote_status`: draft | sent | accepted | rejected | expired.
  * "viewed" and "declined" were offered by the status picker and do not exist in
  * the enum — picking either produced a zod error toast and no change.
@@ -1991,7 +2031,7 @@ export default function CRMPage() {
                           <Send className="w-3 h-3 inline mr-1" />Send to Customer
                         </button>
                         <button
-                          onClick={() => downloadCSV([{ Quote_Number: q.quoteNumber ?? q.id, Deal_ID: q.dealId ?? "", Total: q.total, Currency: "INR", Status: q.status, Valid_Until: q.validUntil ?? "" }], `quote_${q.quoteNumber ?? q.id}`)}
+                          onClick={() => downloadQuotePdf(q.id, q.quoteNumber ?? q.id)}
                           className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
                         >
                           <FileText className="w-3 h-3 inline mr-1" />Download PDF

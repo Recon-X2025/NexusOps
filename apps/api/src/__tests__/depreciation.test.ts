@@ -115,12 +115,19 @@ describe("Depreciation router (Sprint 2.1)", () => {
 
   // ── run (SLM) ────────────────────────────────────────────────────────────────
   it("charges equal SLM periods, ties book value out, and trues up the final period", async () => {
-    const assetId = await seedAsset(100_000);
+    // Purchased in FY2022-23 so all five annual periods fall in the past — the
+    // run refuses to charge a financial year that has not started, so an asset
+    // bought this year cannot have its whole life charged in one sitting.
+    // (This test previously called run() five times back-to-back with no time
+    // passing and asserted five charges. That WAS the defect: the period key was
+    // an ordinal counter, so repeated calls just advanced it. It is now keyed on
+    // the financial year the charge is for.)
+    const assetId = await seedAsset(100_000, new Date("2022-04-01"));
     await caller.setup({ assetId, usefulLifeYears: 5, salvageValue: 10_000 });
 
     let last: any;
     for (let p = 1; p <= 5; p++) {
-      last = await caller.run({ assetId });
+      last = await caller.run({ assetId, throughFinancialYear: `${2021 + p}-${2022 + p}` });
       expect(last.charged).toBe(true);
       expect(last.period).toBe(p);
     }
@@ -145,10 +152,11 @@ describe("Depreciation router (Sprint 2.1)", () => {
   });
 
   it("refuses to charge past a fully-depreciated asset", async () => {
-    const assetId = await seedAsset(50_000);
+    // Two annual periods, both already elapsed → one catch-up run charges both.
+    const assetId = await seedAsset(50_000, new Date("2023-04-01"));
     await caller.setup({ assetId, usefulLifeYears: 2 });
-    await caller.run({ assetId });
-    await caller.run({ assetId });
+    const caught = await caller.run({ assetId });
+    expect(caught.periodsCharged).toBe(2);
     await expect(caller.run({ assetId })).rejects.toThrow(/fully depreciated/i);
   });
 
@@ -162,8 +170,8 @@ describe("Depreciation router (Sprint 2.1)", () => {
       method: "WDV",
     });
 
-    const first = await caller.run({ assetId });
-    const second = await caller.run({ assetId });
+    const first = await caller.run({ assetId, throughFinancialYear: "2024-2025" });
+    const second = await caller.run({ assetId, throughFinancialYear: "2025-2026" });
     // Declining-balance: the second charge is strictly smaller than the first.
     expect(second.depreciation).toBeLessThan(first.depreciation);
     expect(second.bookValue).toBeLessThan(first.bookValue);
@@ -177,8 +185,10 @@ describe("Depreciation router (Sprint 2.1)", () => {
     await caller.setup({ assetId: a1, usefulLifeYears: 5 });
     await caller.setup({ assetId: a2, usefulLifeYears: 3 });
 
-    const res = await caller.runAll();
+    // One financial year, so exactly one period per asset.
+    const res = await caller.runAll({ throughFinancialYear: "2024-2025" });
     expect(res.charged).toBe(2);
+    expect(res.assetsTouched).toBe(2);
     expect(res.totalDepreciation).toBeGreaterThan(0);
 
     // Each asset now has exactly one ledger entry (period 1).
@@ -192,7 +202,7 @@ describe("Depreciation router (Sprint 2.1)", () => {
     const a2 = await seedAsset(60_000);
     await caller.setup({ assetId: a1, usefulLifeYears: 5 });
     await caller.setup({ assetId: a2, usefulLifeYears: 3 });
-    await caller.run({ assetId: a1 });
+    await caller.run({ assetId: a1, throughFinancialYear: "2024-2025" });
 
     const reg = await caller.register();
     expect(reg.items).toHaveLength(2);
@@ -250,5 +260,99 @@ describe("Depreciation router (Sprint 2.1)", () => {
     await expect(
       memberCaller.setup({ assetId, usefulLifeYears: 5 }),
     ).rejects.toThrow();
+  });
+
+  // ── Idempotency (the guard this round exists for) ──────────────────────────
+  //
+  // Before it, `period` was `periodsElapsed + 1` — an ordinal counter — so the
+  // unique index on (asset_id, period) only stopped two CONCURRENT runs racing
+  // the same ordinal. Sequential calls simply advanced it: three run() calls in
+  // one sitting produced three charges. A month-end scheduler makes repeat runs
+  // routine (a retry, a redeploy, someone pressing the button twice), so the key
+  // is now the financial year the charge is FOR.
+  describe("idempotency", () => {
+    it("charges once no matter how many times the same period is run", async () => {
+      const assetId = await seedAsset(120_000, new Date("2024-04-01"));
+      await caller.setup({ assetId, usefulLifeYears: 10 });
+
+      const first = await caller.run({ assetId, throughFinancialYear: "2024-2025" });
+      const second = await caller.run({ assetId, throughFinancialYear: "2024-2025" });
+      const third = await caller.run({ assetId, throughFinancialYear: "2024-2025" });
+
+      expect(first.charged).toBe(true);
+      expect(first.periodsCharged).toBe(1);
+      expect(second.charged).toBe(false);
+      expect(third.charged).toBe(false);
+      expect(second.skipped[0]?.reason).toBe("not_due");
+
+      // One ledger row, one JE, and the register moved exactly once.
+      expect(await caller.entries({ assetId })).toHaveLength(1);
+      const [reg] = await testDb()
+        .select()
+        .from(assetDepreciation)
+        .where(eq(assetDepreciation.assetId, assetId));
+      expect(reg!.periodsElapsed).toBe(1);
+      expect(Number(reg!.accumulatedDepreciation)).toBe(12_000);
+    });
+
+    it("runAll is idempotent for the same financial year", async () => {
+      const a1 = await seedAsset(100_000, new Date("2024-04-01"));
+      const a2 = await seedAsset(60_000, new Date("2024-04-01"));
+      await caller.setup({ assetId: a1, usefulLifeYears: 5 });
+      await caller.setup({ assetId: a2, usefulLifeYears: 3 });
+
+      const one = await caller.runAll({ throughFinancialYear: "2024-2025" });
+      const two = await caller.runAll({ throughFinancialYear: "2024-2025" });
+
+      expect(one.charged).toBe(2);
+      expect(two.charged).toBe(0);
+      expect(two.totalDepreciation).toBe(0);
+      expect(await caller.entries({ assetId: a1 })).toHaveLength(1);
+      expect(await caller.entries({ assetId: a2 })).toHaveLength(1);
+    });
+
+    it("catches up every elapsed financial year in one run, then stops", async () => {
+      // Bought in FY2023-24; by FY2026-27 three complete years are owed.
+      const assetId = await seedAsset(90_000, new Date("2023-04-01"));
+      await caller.setup({ assetId, usefulLifeYears: 9 });
+
+      const caught = await caller.run({ assetId, throughFinancialYear: "2025-2026" });
+      expect(caught.periodsCharged).toBe(3); // FY2023-24, 2024-25, 2025-26
+      expect(caught.depreciation).toBe(30_000);
+
+      const again = await caller.run({ assetId, throughFinancialYear: "2025-2026" });
+      expect(again.charged).toBe(false);
+      expect(await caller.entries({ assetId })).toHaveLength(3);
+    });
+
+    it("refuses to charge a financial year that has not started", async () => {
+      const assetId = await seedAsset(50_000, new Date("2024-04-01"));
+      await caller.setup({ assetId, usefulLifeYears: 5 });
+      const nextFy = new Date().getFullYear() + 2;
+      await expect(
+        caller.run({ assetId, throughFinancialYear: `${nextFy}-${nextFy + 1}` }),
+      ).rejects.toThrow(/has not started/i);
+    });
+  });
+
+  // ── preview (what the screen shows before anything is posted) ──────────────
+  it("preview reports what would post without writing anything", async () => {
+    const assetId = await seedAsset(100_000, new Date("2024-04-01"));
+    await caller.setup({ assetId, usefulLifeYears: 5 });
+
+    const before = await caller.preview({ throughFinancialYear: "2024-2025" });
+    expect(before.postableCount).toBe(1);
+    expect(before.totalDepreciation).toBe(20_000);
+    expect(before.items[0]!.status).toBe("postable");
+    // Nothing was written by previewing.
+    expect(await caller.entries({ assetId })).toHaveLength(0);
+
+    await caller.run({ assetId, throughFinancialYear: "2024-2025" });
+
+    const after = await caller.preview({ throughFinancialYear: "2024-2025" });
+    expect(after.postableCount).toBe(0);
+    // Still listed — with the reason it will not post, rather than vanishing.
+    expect(after.items[0]!.status).toBe("already_charged");
+    expect(after.items[0]!.depreciation).toBe(0);
   });
 });

@@ -717,67 +717,47 @@ export const indiaComplianceRouter = router({
 
         // Rebuild the canonical `#~#` ECR body from the payroll run behind this
         // return so the pushed payload is always regenerated from source of truth.
-        const {
-          payrollRuns,
-          payslips: payslipsTable,
-          employees: employeesTable,
-          users: usersTable,
-          organizations: orgsTable,
-        } = await import("@coheronconnect/db");
-        const { formatECRFile, buildEcrLine } = await import("../lib/india/ecr-format.js");
+        //
+        // Shared with the customer-facing download (`GET /statutory/ecr`) via
+        // buildEcrBodyForPeriod, so the file a customer inspects before filing
+        // and the file this path pushes are produced by one implementation and
+        // cannot drift apart.
+        const { buildEcrBodyForPeriod, EcrBuildError } = await import("../lib/india/ecr-build.js");
 
-        // Establishment id from the org's REAL EPF code — refuse if absent, never fabricate
-        // one from the org id (that fabricated id was the defect this replaces).
-        const [orgRow] = await db
-          .select({ epfCode: orgsTable.epfCode })
-          .from(orgsTable)
-          .where(eq(orgsTable.id, org!.id));
-        const orgEpfoId = orgRow?.epfCode?.trim();
-        if (!orgEpfoId) {
+        let built: Awaited<ReturnType<typeof buildEcrBodyForPeriod>>;
+        try {
+          built = await buildEcrBodyForPeriod(db, org!.id, submission.month, submission.year);
+        } catch (err) {
+          if (err instanceof EcrBuildError) {
+            throw new TRPCError({
+              code: err.code === "NO_PAYROLL_RUN" ? "NOT_FOUND" : "BAD_REQUEST",
+              message: err.message,
+            });
+          }
+          throw err;
+        }
+        const ecrLines = built.lines;
+
+        // ECR PRE-FLIGHT — this path PUSHES to the portal, so it REFUSES rather than warns: a
+        // member with no UAN or an un-KYC'd UAN is rejected by EPFO, and a rejected upload costs
+        // a filing window. Honours the existing `force` flag rather than inventing a second
+        // override, so an operator who knows better retains the escape hatch the path already had.
+        const ecrBlockers = built.blockers;
+        if (ecrBlockers.length > 0 && !input.force) {
+          const named = ecrBlockers
+            .slice(0, 5)
+            .map((b) => `${b.employeeCode}: ${b.reason}`)
+            .join("; ");
+          const more = ecrBlockers.length > 5 ? ` (+${ecrBlockers.length - 5} more)` : "";
           throw new TRPCError({
             code: "BAD_REQUEST",
             message:
-              "Cannot file the EPF ECR: the organisation has no EPF establishment code. " +
-              "Set the EPF code in Organisation Settings → Statutory Identity before filing.",
+              `Cannot file the EPF ECR: ${ecrBlockers.length} member(s) would be rejected by EPFO. ` +
+              `${named}${more}. Fix these on the employee records, or re-submit with force to file anyway.`,
           });
         }
 
-        const [run] = await db
-          .select()
-          .from(payrollRuns)
-          .where(
-            and(
-              eq(payrollRuns.orgId, org!.id),
-              eq(payrollRuns.month, submission.month),
-              eq(payrollRuns.year, submission.year),
-            ),
-          );
-        if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run for this return not found" });
-
-        const slips = await db
-          .select()
-          .from(payslipsTable)
-          .where(eq(payslipsTable.payrollRunId, run.id));
-
-        const ecrLines = await Promise.all(
-          slips.map(async (slip) => {
-            const [emp] = await db
-              .select({ uan: employeesTable.uan, employeeCode: employeesTable.employeeId, userId: employeesTable.userId })
-              .from(employeesTable)
-              .where(eq(employeesTable.id, slip.employeeId));
-            const [u] = emp?.userId
-              ? await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, emp.userId))
-              : [];
-            // Single source of the member figures (see buildEcrLine): epfWages from the persisted
-            // wage base (defect 1), employer EPS/EPF from the persisted split (defect 6), NCP from
-            // LOP (defect 3), and the member's real name (defect 2).
-            return buildEcrLine(slip, {
-              uan: emp?.uan ?? "UNKNOWN",
-              memberName: u?.name ?? emp?.employeeCode ?? "EMPLOYEE",
-            });
-          }),
-        );
-        const ecrBody = formatECRFile(orgEpfoId, submission.month, submission.year, ecrLines);
+        const ecrBody = built.ecrBody;
 
         const { enqueueStatutoryFilingJob } = await import(
           "../workflows/statutoryFilingWorkflow.js"

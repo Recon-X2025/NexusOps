@@ -5,11 +5,41 @@ import {
   eq,
   and,
   inArray,
-  count as dbCount,
   sql,
   type DbOrTx,
 } from "@coheronconnect/db";
 import { computeRetainUntil } from "./retention";
+import { getNextYearScopedSeq } from "./auto-number";
+
+/**
+ * Mints the next `JE-YYYY-NNNNN` from the SAME atomic per-`(org, "JE-<year>")`
+ * counter that `accounting.journal.create`, its reversal, and
+ * `depreciation-journal.ts` draw on.
+ *
+ * Every posting in this file used to number itself with `count(*) + 1`, which
+ * shares the `JE-YYYY-NNNNN` namespace with that counter while being blind to
+ * it — and `je_org_number_idx` is UNIQUE. The counter only self-seeds from
+ * `MAX(...)` when its row does not yet exist, so it never recovered:
+ *
+ *   journal.create → JE-2026-00001..00003      (org_counters = 3)
+ *   invoice post   → count(*)+1 = 4 → JE-2026-00004   (org_counters STILL 3)
+ *   journal.create → org_counters 3→4 → JE-2026-00004
+ *                  → duplicate key value violates "je_org_number_idx"
+ *
+ * That mattered more here than in a standalone posting: these run INSIDE the
+ * invoice-creation transaction (`routers/financial.ts:352` and friends) and are
+ * not wrapped, so a collision rolled back the entire invoice — the user could
+ * not create it at all, and saw a raw Postgres error.
+ *
+ * `count(*)` was also not year-scoped while the emitted number is, so after a
+ * year boundary the count kept climbing and could land straight on top of an
+ * existing number.
+ */
+async function nextJournalNumber(tx: DbOrTx, orgId: string, date: Date): Promise<string> {
+  const year = date.getFullYear();
+  const seq = await getNextYearScopedSeq(tx, orgId, "JE", year, "journal_entries", "number");
+  return `JE-${year}-${String(seq).padStart(5, "0")}`;
+}
 
 /**
  * Posts the general-ledger journal entry for an invoice.
@@ -122,9 +152,7 @@ export async function postInvoiceJournalEntry(
     );
   }
 
-  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
-  const seq = (c?.n ?? 0) + 1;
-  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+  const number = await nextJournalNumber(tx, orgId, date);
 
   const [je] = await tx
     .insert(journalEntries)
@@ -242,9 +270,7 @@ export async function postCreditNoteJournalEntry(
     );
   }
 
-  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
-  const seq = (c?.n ?? 0) + 1;
-  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+  const number = await nextJournalNumber(tx, orgId, date);
 
   const [je] = await tx
     .insert(journalEntries)
@@ -343,9 +369,7 @@ export async function postDebitNoteJournalEntry(
     );
   }
 
-  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
-  const seq = (c?.n ?? 0) + 1;
-  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+  const number = await nextJournalNumber(tx, orgId, date);
 
   const [je] = await tx
     .insert(journalEntries)
@@ -456,9 +480,7 @@ export async function postInvoiceSettlementEntry(
     );
   }
 
-  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
-  const seq = (c?.n ?? 0) + 1;
-  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+  const number = await nextJournalNumber(tx, orgId, date);
 
   const [je] = await tx
     .insert(journalEntries)
@@ -553,9 +575,7 @@ export async function reverseInvoiceJournalEntry(
   const totalDebit = swapped.reduce((s, l) => s + l.debit, 0);
   const totalCredit = swapped.reduce((s, l) => s + l.credit, 0);
 
-  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
-  const seq = (c?.n ?? 0) + 1;
-  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+  const number = await nextJournalNumber(tx, orgId, date);
 
   const [rev] = await tx
     .insert(journalEntries)

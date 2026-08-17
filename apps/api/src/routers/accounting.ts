@@ -28,6 +28,8 @@ import {
   normaliseStateToCode,
   type HsnSummaryLine,
 } from "../lib/india/gst-engine";
+// The GSTIN is the authority on its own state — see `gstin.create` below.
+import { validateGSTIN } from "@coheronconnect/payroll-math";
 
 type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
 type JeRow = InferSelectModel<typeof journalEntriesTbl>;
@@ -48,7 +50,7 @@ function fyYear(fy: string): number {
 }
 
 /** Standard India COA seed list */
-const INDIA_COA_SEED = [
+export const INDIA_COA_SEED = [
   // ── Assets
   { code: "1000", name: "Assets",                      type: "asset",     subType: "other_asset",         isSystem: true, parentCode: null },
   { code: "1100", name: "Current Assets",              type: "asset",     subType: "other_current_asset", isSystem: true, parentCode: "1000" },
@@ -514,20 +516,63 @@ export const accountingRouter = router({
   }),
 
   /** Trial Balance */
+  /**
+   * Trial balance, optionally as at a date.
+   *
+   * `asOfDate` used to be DECLARED and silently ignored — every line came from the
+   * `currentBalance` snapshot, so a caller asking for a past date got today's
+   * numbers with no error. It is now honoured on the same basis as `balanceSheet`:
+   * opening balance plus the net movement on POSTED journal-entry lines dated on or
+   * before the date. Without it the snapshot is used, which is inception-to-date.
+   *
+   * `financialYear` was removed rather than implemented. It had never done anything,
+   * and an input that advertises a filter it does not apply is worse than no input —
+   * it returns a confidently wrong answer. Both callers passed `{}`.
+   */
   trialBalance: permissionProcedure("financial", "read").input(z.object({
-    financialYear: z.string().optional(),
     asOfDate: z.coerce.date().optional(),
   })).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
+    const {
+      chartOfAccounts, journalEntries, journalEntryLines,
+      eq: dbEq, and: dbAnd, lte, sql: dbSql,
+    } = await import("@coheronconnect/db");
 
     const accounts = await db.select().from(chartOfAccounts)
       .where(dbEq(chartOfAccounts.orgId, org!.id));
 
+    const asOf = input?.asOfDate;
+
+    // Same derivation as `balanceSheet` — keep the two in step, or a trial balance
+    // and a balance sheet pulled for the same date will disagree.
+    let balanceOf = (a: CoaRow) => Number(a.currentBalance);
+    if (asOf) {
+      const movements = await db
+        .select({
+          accountId: journalEntryLines.accountId,
+          net: dbSql<string>`coalesce(sum(${journalEntryLines.debitAmount} - ${journalEntryLines.creditAmount}), 0)`,
+        })
+        .from(journalEntryLines)
+        .innerJoin(
+          journalEntries,
+          dbAnd(
+            dbEq(journalEntryLines.journalEntryId, journalEntries.id),
+            dbEq(journalEntries.status, "posted"),
+            lte(journalEntries.date, asOf),
+          ),
+        )
+        .where(dbEq(journalEntryLines.orgId, org!.id))
+        .groupBy(journalEntryLines.accountId);
+
+      const netByAccount = new Map<string, number>();
+      for (const m of movements) netByAccount.set(m.accountId, Number(m.net));
+      balanceOf = (a: CoaRow) => Number(a.openingBalance) + (netByAccount.get(a.id) ?? 0);
+    }
+
     const isDebitNormal = (type: string) => ["asset", "expense", "contra_liability", "contra_equity", "contra_income"].includes(type);
 
     const lines = accounts.map((a: CoaRow) => {
-      const bal = Number(a.currentBalance);
+      const bal = balanceOf(a);
       const isDrNormal = isDebitNormal(a.type);
       
       let debit = 0;
@@ -569,25 +614,20 @@ export const accountingRouter = router({
     };
   }),
 
-  /** Income Statement (P&L) */
-  incomeStatement: permissionProcedure("financial", "read").input(z.object({
-    financialYear: z.string().optional(),
-    startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional(),
-  })).query(async ({ ctx }) => {
-    const { org, db } = ctx;
-    const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
-
-    const accounts = await db.select().from(chartOfAccounts).where(dbEq(chartOfAccounts.orgId, org!.id));
-    const income   = accounts.filter((a: CoaRow) => a.type === "income");
-    const expenses = accounts.filter((a: CoaRow) => a.type === "expense");
-
-    const totalIncome   = income.reduce((s: number, a: CoaRow) => s + Math.abs(Number(a.currentBalance)), 0);
-    const totalExpenses = expenses.reduce((s: number, a: CoaRow) => s + Math.abs(Number(a.currentBalance)), 0);
-    const netProfit     = totalIncome - totalExpenses;
-
-    return { income, expenses, totalIncome, totalExpenses, netProfit };
-  }),
+  // `incomeStatement` was REMOVED on 2026-08-17. Use `profitAndLoss` below.
+  //
+  // It read the `currentBalance` snapshot, so it always reported inception-to-date
+  // while advertising `financialYear`/`startDate`/`endDate` on its input schema and
+  // silently ignoring all three. It also summed every account with `Math.abs()`,
+  // which ADDED contra-revenue instead of subtracting it — COA 4130 (Sales Returns
+  // & Allowances) is deliberately typed `income` and debited by credit notes, so
+  // any refund inflated both income and net profit.
+  //
+  // Its only caller in the whole web app was the P&L tab of the orphaned
+  // `/app/accounting` console, which rendered the figure as "Net Profit" with no
+  // period selector. Both were retired together. `profitAndLoss` sums posted
+  // journal-entry movements inside a real date window and signs contra accounts
+  // correctly.
 
   /**
    * Profit & Loss for a date range — the *period-accurate* P&L.
@@ -781,7 +821,12 @@ export const accountingRouter = router({
       gstin: z.string().length(15).regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Invalid GSTIN format"),
       legalName: z.string().min(1),
       tradeName: z.string().optional(),
-      stateCode: z.string().length(2),
+      /**
+       * OPTIONAL, and derived when omitted — the first two characters of a GSTIN
+       * ARE its state code, so asking for it separately only creates a chance to
+       * disagree. Supplying one that contradicts the GSTIN is rejected below.
+       */
+      stateCode: z.string().length(2).optional(),
       stateName: z.string().optional(),
       address: z.string().optional(),
       registrationDate: z.coerce.date().optional(),
@@ -790,11 +835,49 @@ export const accountingRouter = router({
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { gstinRegistry, eq: dbEq } = await import("@coheronconnect/db");
+
+      /*
+       * The state code is DERIVED from the GSTIN, never taken on trust.
+       *
+       * `gstin_registry.stateCode` is the supplier side of every GST split:
+       * `resolveOrgState` reads it, and `computeGST` decides intra- vs
+       * inter-state from it. It must therefore be a 2-DIGIT GST code ("29"), and
+       * `normaliseStateToCode` returns null for anything else.
+       *
+       * The Setup Wizard asked for a "2-letter ISO 3166-2:IN code" (placeholder
+       * "MH", default "KA") and wrote THAT here. Both normalise to null, so the
+       * supplier had no state, `computeGST` compared "" against the buyer's
+       * "29", and every sale was billed INTER-state IGST — the right total, the
+       * wrong split, on documents customers claim input credit against.
+       *
+       * `validateGSTIN` covers all 39 GST jurisdictions (01–24, 26–38, plus 97
+       * Other Territory and 99 Centre Jurisdiction), so deriving is complete for
+       * every state and union territory rather than a list someone maintains.
+       */
+      const parsed = validateGSTIN(input.gstin);
+      if (!parsed.valid || !parsed.stateCode) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: parsed.error ?? "Invalid GSTIN" });
+      }
+      if (input.stateCode && input.stateCode !== parsed.stateCode) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `State code ${input.stateCode} contradicts GSTIN ${input.gstin}, which is registered in ${parsed.stateName} (${parsed.stateCode}). The GSTIN decides the state.`,
+        });
+      }
+
       if (input.isPrimary) {
         // Demote all others
         await db.update(gstinRegistry).set({ isPrimary: false }).where(dbEq(gstinRegistry.orgId, org!.id));
       }
-      const [gstin] = await db.insert(gstinRegistry).values({ ...input, orgId: org!.id }).returning();
+      const [gstin] = await db
+        .insert(gstinRegistry)
+        .values({
+          ...input,
+          stateCode: parsed.stateCode,
+          stateName: input.stateName ?? parsed.stateName,
+          orgId: org!.id,
+        })
+        .returning();
       return gstin!;
     }),
 
@@ -1171,6 +1254,121 @@ export const accountingRouter = router({
         gstin: gstin.gstin,
         period: `${input.month}/${input.year}`,
       };
+    }),
+
+    // ── Filing record ──────────────────────────────────────────────────────
+    //
+    // The product prepares returns; the customer files them on the GST portal
+    // themselves. These three procedures are the evidence trail around that
+    // hand-off: what was generated, when, and the ARN the portal gave back.
+    // Without them a generated return is ephemeral and nobody can answer
+    // "have we filed this month?".
+
+    /** Persist a generated return so the payload filed is the payload on record. */
+    recordFiling: permissionProcedure("financial", "write").input(z.object({
+      gstinId: z.string().uuid(),
+      formType: z.enum(["GSTR-1", "GSTR-3B"]),
+      month: z.number().int().min(1).max(12),
+      year: z.number().int(),
+      jsonPayload: z.string(),
+      totalOutputTax: z.number().default(0),
+      totalItc: z.number().default(0),
+      netPayable: z.number().default(0),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { gstrFilings, gstinRegistry, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+
+      const [gstin] = await db.select().from(gstinRegistry)
+        .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
+      if (!gstin) throw new TRPCError({ code: "NOT_FOUND", message: "GSTIN not found for this organisation" });
+
+      // Indian financial year runs April→March: Jan–Mar belong to the FY that
+      // started the previous calendar year.
+      const fyStart = input.month >= 4 ? input.year : input.year - 1;
+      const financialYear = `${fyStart}-${fyStart + 1}`;
+
+      // Re-generating a return for the same period replaces the draft rather
+      // than accumulating rows — but never once it has been filed, because at
+      // that point the stored payload is the evidence of what went to the
+      // portal and must not be silently overwritten.
+      const [existing] = await db.select().from(gstrFilings)
+        .where(dbAnd(
+          dbEq(gstrFilings.orgId, org!.id),
+          dbEq(gstrFilings.gstinId, input.gstinId),
+          dbEq(gstrFilings.formType, input.formType),
+          dbEq(gstrFilings.month, input.month),
+          dbEq(gstrFilings.year, input.year),
+        )).limit(1);
+
+      if (existing && (existing.status === "filed" || existing.status === "accepted")) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            `${input.formType} for ${input.month}/${input.year} is already recorded as ` +
+            `${existing.status}${existing.arn ? ` (ARN ${existing.arn})` : ""}. ` +
+            "A filed return's payload is the record of what was submitted and cannot be replaced.",
+        });
+      }
+
+      const values = {
+        orgId: org!.id,
+        gstinId: input.gstinId,
+        formType: input.formType,
+        month: input.month,
+        year: input.year,
+        financialYear,
+        status: "ready" as const,
+        totalOutputTax: String(input.totalOutputTax),
+        totalItc: String(input.totalItc),
+        netPayable: String(input.netPayable),
+        jsonPayload: input.jsonPayload,
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        const [row] = await db.update(gstrFilings).set(values)
+          .where(dbEq(gstrFilings.id, existing.id)).returning();
+        return row;
+      }
+      const [row] = await db.insert(gstrFilings).values(values).returning();
+      return row;
+    }),
+
+    /** Record that the customer filed it on the portal, with the ARN received. */
+    markFiled: permissionProcedure("financial", "write").input(z.object({
+      filingId: z.string().uuid(),
+      arn: z.string().trim().min(1, "Enter the ARN shown on the GST portal"),
+      filedAt: z.coerce.date().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { gstrFilings, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+
+      const [existing] = await db.select().from(gstrFilings)
+        .where(dbAnd(dbEq(gstrFilings.id, input.filingId), dbEq(gstrFilings.orgId, org!.id))).limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Filing record not found" });
+
+      const [row] = await db.update(gstrFilings).set({
+        status: "filed",
+        arn: input.arn,
+        filedAt: input.filedAt ?? new Date(),
+        updatedAt: new Date(),
+      }).where(dbEq(gstrFilings.id, existing.id)).returning();
+      return row;
+    }),
+
+    /** Filing history — answers "have we filed this period?". */
+    listFilings: permissionProcedure("financial", "read").input(z.object({
+      gstinId: z.string().uuid().optional(),
+      year: z.number().int().optional(),
+    }).optional()).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { gstrFilings, eq: dbEq, and: dbAnd, desc } = await import("@coheronconnect/db");
+      const filters = [dbEq(gstrFilings.orgId, org!.id)];
+      if (input?.gstinId) filters.push(dbEq(gstrFilings.gstinId, input.gstinId));
+      if (input?.year) filters.push(dbEq(gstrFilings.year, input.year));
+      return db.select().from(gstrFilings)
+        .where(dbAnd(...filters))
+        .orderBy(desc(gstrFilings.year), desc(gstrFilings.month));
     }),
   }),
 

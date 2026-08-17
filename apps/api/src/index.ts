@@ -555,6 +555,17 @@ async function bootstrap() {
   const { registerPayrollForm16PdfRoute } = await import("./http/payroll-form16-pdf.js");
   registerPayrollForm16PdfRoute(fastify);
 
+  const { registerCrmQuotePdfRoute } = await import("./http/crm-quote-pdf.js");
+  registerCrmQuotePdfRoute(fastify);
+
+  const { registerFinancialInvoicePdfRoute } = await import("./http/financial-invoice-pdf.js");
+  registerFinancialInvoicePdfRoute(fastify);
+
+  // Statutory return downloads — the product prepares the file; the customer
+  // uploads it to the government portal themselves.
+  const { registerStatutoryEcrRoute } = await import("./http/statutory-ecr.js");
+  registerStatutoryEcrRoute(fastify);
+
   // External webhook receivers (eMudhra e-sign, AiSensy WhatsApp, Razorpay).
   // Mounted as a separate Fastify HTTP route group so HMAC verification can
   // run against the raw body BEFORE the prototype-pollution sanitiser.

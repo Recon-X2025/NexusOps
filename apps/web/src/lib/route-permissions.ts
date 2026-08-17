@@ -87,9 +87,18 @@ const ROUTE_MODULE_RULES: ReadonlyArray<{ prefix: string; module: Module }> = [
 
   // ── Finance & Procurement ──────────────────────────────────────────────────
   { prefix: "/app/finance-procurement", module: "financial" },
+  // Longest prefix wins: the depreciation screen lives under Finance but every
+  // `depreciation.*` procedure gates on `cmdb` (it is part of the asset module).
+  // Guarding the route on `financial` would let a finance-only user reach a page
+  // whose every query is denied.
+  { prefix: "/app/finance/depreciation", module: "cmdb" },
   { prefix: "/app/finance", module: "financial" },
   { prefix: "/app/financial", module: "financial" },
-  { prefix: "/app/accounting", module: "financial" },
+  // `/app/accounting` was retired on 2026-08-17. It was a duplicate finance
+  // console with no sidebar entry, reachable only by URL, whose P&L tab reported
+  // an inception-to-date figure labelled "Net Profit". Its two unique screens
+  // (GSTR Generation, Trial Balance) were promoted to /app/finance/accounting/*
+  // first, so nothing was stranded by the removal.
   { prefix: "/app/procurement", module: "financial" },
   { prefix: "/app/expenses", module: "financial" },
   { prefix: "/app/vendors", module: "vendors" },

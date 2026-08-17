@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { downloadBankFile } from "@/lib/utils";
+import { downloadBankFile, formatInr } from "@/lib/utils";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -151,7 +151,12 @@ export default function PayrollPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
   const [createYear, setCreateYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<"runs" | "structures" | "declarations" | "form16s">("runs");
+  const [activeTab, setActiveTab] = useState<"runs" | "structures" | "arrears" | "declarations" | "form16s">("runs");
+  // ARREARS: the period arrears are PAID IN. Defaults to the current month, which is the run
+  // an operator is normally preparing when a backdated revision lands.
+  const [arrMonth, setArrMonth] = useState<number>(new Date().getMonth() + 1);
+  const [arrYear, setArrYear] = useState<number>(new Date().getFullYear());
+  const [arrFor, setArrFor] = useState<Record<string, unknown> | null>(null);
   const [form16For, setForm16For] = useState<Record<string, unknown> | null>(null);
   const [structureEditor, setStructureEditor] = useState<StructureFormState | null>(null);
   // C1 declaration capture: which employee's declaration is being edited, and the FY it targets.
@@ -184,8 +189,25 @@ export default function PayrollPage() {
   // Employees drive both the Form 16 e-sign list and the investment-declaration capture tab.
   const employeesQuery = trpc.hr.employees.list.useQuery(
     { limit: 200 },
-    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "form16s" || activeTab === "declarations" }),
+    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "form16s" || activeTab === "declarations" || activeTab === "arrears" }),
   );
+
+  // ARREARS — back-pay for an earlier period, paid in this one. RBAC keys: the generated map has
+  // no `payroll.arrears.*` entry (it was NOT regenerated here — it carries drift, per CLAUDE.md), and
+  // an unmapped key falls back to "any authenticated user", looser than the server's own gate. So the
+  // lookup keys below are existing entries with the IDENTICAL gate: `salaryStructures.list` is
+  // payroll:read, `salaryStructures.upsert` is payroll:write. The key is an RBAC lookup, not the
+  // procedure being called; the server enforces `permissionProcedure` regardless.
+  const arrearsQuery = trpc.payroll.arrears.list.useQuery(
+    { month: arrMonth, year: arrYear },
+    mergeTrpcQueryOpts("payroll.salaryStructures.list", { enabled: activeTab === "arrears" }),
+  );
+  const upsertArrears = trpc.payroll.arrears.upsert.useMutation({
+    onSuccess: () => { void arrearsQuery.refetch(); setArrFor(null); },
+  });
+  const removeArrears = trpc.payroll.arrears.remove.useMutation({
+    onSuccess: () => { void arrearsQuery.refetch(); },
+  });
   const selectedRun = trpc.payroll.runs.get.useQuery(
     { id: selectedRunId! },
     mergeTrpcQueryOpts("payroll.runs.get", { enabled: !!selectedRunId }),
@@ -302,7 +324,7 @@ export default function PayrollPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-        {(["runs", "structures", "declarations", "form16s"] as const).map((tab) => (
+        {(["runs", "structures", "arrears", "declarations", "form16s"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -312,7 +334,7 @@ export default function PayrollPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
-            {tab === "runs" ? "Payroll runs" : tab === "structures" ? "Salary structures" : tab === "declarations" ? "Tax declarations" : "Form 16 issuance"}
+            {tab === "runs" ? "Payroll runs" : tab === "structures" ? "Salary structures" : tab === "arrears" ? "Arrears" : tab === "declarations" ? "Tax declarations" : "Form 16 issuance"}
           </button>
         ))}
       </div>
@@ -740,6 +762,131 @@ export default function PayrollPage() {
         </div>
       )}
 
+      {activeTab === "arrears" && (
+        <div className="space-y-3">
+          <p className="text-body-sm text-gray-500 dark:text-gray-400">
+            Back-pay for an <span className="font-medium">earlier</span> period, paid out in the period
+            selected here. This is the route the salary-structure editor points to when a version already
+            has payslips: those payslips are issued (and may be filed) and must not be rewritten, so the
+            shortfall is paid as arrears instead.
+          </p>
+          <p className="text-caption text-amber-700 dark:text-amber-500">
+            Arrears are added to gross and are taxed. They also change the PF deducted this month, because
+            a large arrears payment pushes excluded allowances past the Code-on-Wages 50% threshold and the
+            statutory wage base rises with it. Check the recomputed run before approving.
+          </p>
+
+          <div className="flex items-end gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-caption text-gray-500 dark:text-gray-400">Paid in month</span>
+              <select
+                value={arrMonth}
+                onChange={(e) => setArrMonth(Number(e.target.value))}
+                className="rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2 py-1.5 text-body-sm"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{MONTHS[m - 1]}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-caption text-gray-500 dark:text-gray-400">Year</span>
+              <input
+                type="number"
+                value={arrYear}
+                onChange={(e) => setArrYear(Number(e.target.value))}
+                className="w-24 rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2 py-1.5 text-body-sm"
+              />
+            </label>
+          </div>
+
+          {arrearsQuery.isLoading && (
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">Loading arrears…</div>
+          )}
+          {arrearsQuery.data && arrearsQuery.data.length === 0 && (
+            <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-center text-body-sm text-gray-500">
+              No arrears recorded for {MONTHS[arrMonth - 1]} {arrYear}.
+            </div>
+          )}
+          {arrearsQuery.data && arrearsQuery.data.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <table className="w-full text-body-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Employee #</th>
+                    <th className="px-4 py-2 font-medium text-right">Amount</th>
+                    <th className="px-4 py-2 font-medium">Reason</th>
+                    <th className="px-4 py-2 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {arrearsQuery.data.map((row) => (
+                    <tr key={row.id as string} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{(row.employeeCode as string) ?? "—"}</td>
+                      <td className={`px-4 py-2 text-right tabular-nums ${Number(row.amount) < 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-gray-100"}`}>
+                        {formatInr(Number(row.amount))}
+                        {Number(row.amount) < 0 && <span className="ml-1 text-caption">(recovery)</span>}
+                      </td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(row.reason as string) || "—"}</td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          disabled={removeArrears.isPending}
+                          onClick={() => removeArrears.mutate({ id: row.id as string })}
+                          className="px-2.5 py-1 rounded text-caption border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <h3 className="text-body-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Record arrears</h3>
+            {employeesQuery.isLoading && (
+              <div className="text-body-sm text-gray-500 dark:text-gray-400">Loading employees…</div>
+            )}
+            {employeesQuery.error && (
+              <div className="text-body-sm text-red-600 dark:text-red-400">
+                Could not load employees: {employeesQuery.error.message}
+              </div>
+            )}
+            {employeesQuery.data && employeesQuery.data.length > 0 ? (
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <table className="w-full text-body-sm">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {employeesQuery.data.map((emp) => (
+                      <tr key={emp.id as string} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{(emp.name as string) ?? "—"}</td>
+                        <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(emp.employeeNumber as string) ?? "—"}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setArrFor(emp as Record<string, unknown>)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-caption border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Arrears
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : employeesQuery.data ? (
+              // Only claim "none" when the query actually returned an empty list. Collapsing
+              // undefined (loading, or disabled by the RBAC gate) into "no employees" makes the
+              // screen assert something it does not know — the defect class this repo keeps hitting.
+              <div className="text-body-sm text-gray-500 dark:text-gray-400">No employees found.</div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {activeTab === "declarations" && (
         <div className="space-y-3">
           <p className="text-body-sm text-gray-500 dark:text-gray-400">
@@ -790,6 +937,27 @@ export default function PayrollPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ARREARS capture modal */}
+      {arrFor && (
+        <ArrearsModal
+          employee={arrFor}
+          month={arrMonth}
+          year={arrYear}
+          onClose={() => setArrFor(null)}
+          onSave={(amount, reason, sourceStructureId) =>
+            upsertArrears.mutate({
+              employeeId: arrFor.id as string,
+              month: arrMonth,
+              year: arrYear,
+              amount,
+              reason: reason || undefined,
+              sourceStructureId,
+            })
+          }
+          saving={upsertArrears.isPending}
+        />
       )}
 
       {/* C1 declaration capture modal */}
@@ -1127,6 +1295,156 @@ export default function PayrollPage() {
 // C1 declaration capture modal. Numeric inputs per section for one employee/FY, upserted with
 // provenance=provisional. The STATUTORY CAPS are NOT applied here — computeTax caps at run time; this
 // captures the raw declared amounts. Old-regime only: a new-regime employee is warned entries do nothing.
+/**
+ * Record arrears for one employee in one paid-in period.
+ *
+ * "Suggest" re-prices the already-paid months a backdated structure version covers, on each
+ * issued payslip's OWN paid-days/LOP basis, and nets off arrears already paid in those months.
+ * It fills the field — it never posts. The operator decides the figure.
+ */
+function ArrearsModal({
+  employee,
+  month,
+  year,
+  onClose,
+  onSave,
+  saving,
+}: {
+  employee: Record<string, unknown>;
+  month: number;
+  year: number;
+  onClose: () => void;
+  onSave: (amount: number, reason: string, sourceStructureId?: string) => void;
+  saving: boolean;
+}) {
+  const [amount, setAmount] = useState<string>("");
+  const [reason, setReason] = useState<string>("");
+  const [sourceStructureId, setSourceStructureId] = useState<string | undefined>(undefined);
+  const { mergeTrpcQueryOpts } = useRBAC();
+
+  // Same RBAC-key reasoning as the list query above: `payroll.arrears.*` is not in the generated
+  // map, so borrow an existing entry with the identical payroll:read gate.
+  const suggestion = trpc.payroll.arrears.suggest.useQuery(
+    { employeeId: employee.id as string, month, year },
+    mergeTrpcQueryOpts("payroll.salaryStructures.list", {}),
+  );
+  const sug = suggestion.data as
+    | {
+        applicable: boolean;
+        reason?: string;
+        payable?: number;
+        recovery?: number;
+        hasRecovery?: boolean;
+        structureId?: string;
+        structureName?: string;
+        periods?: Array<{ month: number; year: number; paidGross: number; revisedGross: number; delta: number }>;
+      }
+    | undefined;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-white dark:bg-gray-900 shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-3">
+          <h2 className="text-body font-medium text-gray-900 dark:text-gray-100">
+            Arrears — {(employee.name as string) ?? "Employee"}
+          </h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          <p className="text-caption text-gray-500 dark:text-gray-400">
+            Paid in {MONTHS[month - 1]} {year}.
+          </p>
+
+          <div className="rounded border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+            <div className="text-caption font-medium text-gray-700 dark:text-gray-300">
+              Suggestion from a backdated structure
+            </div>
+            {suggestion.isLoading && <div className="text-caption text-gray-500">Checking…</div>}
+            {sug && !sug.applicable && (
+              <div className="text-caption text-gray-500 dark:text-gray-400">{sug.reason}</div>
+            )}
+            {sug && sug.applicable && (
+              <>
+                <div className="text-caption text-gray-500 dark:text-gray-400">
+                  {sug.structureName} — re-priced {sug.periods?.length ?? 0} already-paid month
+                  {(sug.periods?.length ?? 0) === 1 ? "" : "s"}.
+                </div>
+                {(sug.periods ?? []).map((pd) => (
+                  <div key={`${pd.year}-${pd.month}`} className="flex justify-between text-caption tabular-nums">
+                    <span className="text-gray-500">{MONTHS[pd.month - 1]} {pd.year}</span>
+                    <span className={pd.delta < 0 ? "text-red-600" : "text-gray-700 dark:text-gray-300"}>
+                      {formatInr(pd.delta)}
+                    </span>
+                  </div>
+                ))}
+                {sug.hasRecovery && (
+                  <div className="text-caption text-amber-700 dark:text-amber-500">
+                    At least one month went DOWN. A recovery of pay already banked is a decision, not a
+                    computation — it is not proposed automatically.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={!sug.payable}
+                  onClick={() => {
+                    setAmount(String(sug.payable ?? 0));
+                    setSourceStructureId(sug.structureId);
+                    if (!reason) setReason(`Backdated revision — ${sug.structureName ?? "structure"}`);
+                  }}
+                  className="mt-1 px-2.5 py-1 rounded text-caption border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Use suggested {formatInr(sug.payable ?? 0)}
+                </button>
+              </>
+            )}
+          </div>
+
+          <label className="block">
+            <span className="text-caption text-gray-500 dark:text-gray-400">Amount (₹)</span>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2 py-1.5 text-body-sm"
+            />
+            <span className="text-caption text-gray-400">Negative recovers an overpayment.</span>
+          </label>
+
+          <label className="block">
+            <span className="text-caption text-gray-500 dark:text-gray-400">Reason</span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              placeholder="Apr–Jun revision backdated"
+              className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2 py-1.5 text-body-sm"
+            />
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 px-5 py-3">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded text-body-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving || amount.trim() === "" || Number.isNaN(Number(amount))}
+            onClick={() => onSave(Number(amount), reason, sourceStructureId)}
+            className="px-3 py-1.5 rounded text-body-sm bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save arrears"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DeclarationModal({
   employee,
   fiscalYear,

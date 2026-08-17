@@ -21,6 +21,7 @@ import {
   ptChallanRecords,
   tdsChallanRecords,
   taxDeclarations,
+  payrollArrears,
   documents,
   documentVersions,
   eq,
@@ -53,6 +54,12 @@ import { resolveSalaryStructureForPeriod, structureNotEffectiveError } from "../
 import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 import { computeRetainUntil } from "../lib/retention";
 import {
+  arrearsPeriodsCovered,
+  computeStructureArrears,
+  type ArrearsPeriodInput,
+} from "@coheronconnect/payroll-math";
+import {
+  buildArrearsMap,
   buildEmployeePayrollInput,
   buildPtHalfYearlyContext,
   buildYtdContext,
@@ -574,6 +581,10 @@ const runsRouter = router({
           ]),
       );
 
+      // ARREARS: back-pay recorded against this run's period, from the SAME shared resolver the
+      // preview/lock totals use — a second query here is how the two silently drift apart.
+      const arrearsMap = await buildArrearsMap(db, org!.id, row.month, row.year);
+
       await db.transaction(async (tx) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
 
@@ -594,7 +605,7 @@ const runsRouter = router({
         for (const { emp, st } of empRows) {
           let slip: ReturnType<typeof computeEmployeePayslip>;
           try {
-            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), declMap.get(emp.id), ytdMap.get(emp.id));
+            const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), declMap.get(emp.id), ytdMap.get(emp.id), arrearsMap.get(emp.id));
             slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
           } catch (e) {
             // One employee's bad data must NOT roll back the transaction and leave every
@@ -653,6 +664,9 @@ const runsRouter = router({
             medicalAllowance: "0",
             conveyanceAllowance: "0",
             bonus: String(slip.bonus),
+            // Persist the arrears the engine was actually fed, so the payslip reconstructs and
+            // Form-16 / the ECR read a real figure. `payslip-view` used to emit a hardcoded 0 here.
+            arrears: String(slip.arrears),
             grossEarnings: String(slip.grossEarnings),
             pfEmployee: String(slip.employeePF),
             pfEmployer: String(slip.employerPF),
@@ -1514,11 +1528,260 @@ const taxDeclarationsRouter = router({
     }),
 });
 
+/**
+ * ARREARS — the route `salaryStructures.upsert` has always told operators to take
+ * ("Post the change as arrears in the current month") and which had no implementation.
+ *
+ * An arrears line is an INPUT to a run, keyed to the period it is PAID IN, so it survives the
+ * delete-and-recompute that locking a run performs. `suggest` derives a proposed figure from a
+ * backdated structure version; it never posts one — the operator upserts what they agree.
+ */
+const arrearsRouter = router({
+  /** Arrears recorded for a period, newest employee-code first. */
+  list: permissionProcedure("payroll", "read")
+    .input(z.object({ month: z.number().int().min(1).max(12), year: z.number().int().min(2000).max(2100) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db
+        .select({
+          id: payrollArrears.id,
+          employeeId: payrollArrears.employeeId,
+          employeeCode: employees.employeeId,
+          month: payrollArrears.month,
+          year: payrollArrears.year,
+          amount: payrollArrears.amount,
+          reason: payrollArrears.reason,
+          sourceStructureId: payrollArrears.sourceStructureId,
+          createdAt: payrollArrears.createdAt,
+          updatedAt: payrollArrears.updatedAt,
+        })
+        .from(payrollArrears)
+        .innerJoin(employees, eq(payrollArrears.employeeId, employees.id))
+        .where(
+          and(
+            eq(payrollArrears.orgId, org!.id),
+            eq(payrollArrears.month, input.month),
+            eq(payrollArrears.year, input.year),
+          ),
+        )
+        .orderBy(employees.employeeId);
+    }),
+
+  /**
+   * Record (or correct) the arrears payable to one employee in one period. Upsert on the
+   * unique (employee, month, year) so re-submitting corrects rather than accumulating —
+   * an accumulating arrears row would double-pay on the second click.
+   */
+  upsert: permissionProcedure("payroll", "write")
+    .input(
+      z.object({
+        employeeId: z.string().uuid(),
+        month: z.number().int().min(1).max(12),
+        year: z.number().int().min(2000).max(2100),
+        // Signed: negative is a recovery of overpayment. Bounded to keep a slipped decimal
+        // or a pasted CTC out of a money path.
+        amount: z.number().min(-10_000_000).max(10_000_000),
+        reason: z.string().max(500).optional(),
+        sourceStructureId: z.string().uuid().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      // Employee must belong to THIS org — a foreign uuid must 404, not write a cross-tenant row.
+      const [emp] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+
+      // Refuse to alter arrears for a period whose run is already approved or paid: those
+      // payslips are issued and, for an approved run, may already be filed. The correct route
+      // for a change after that point is arrears in a LATER month — the same rule that governs
+      // salary-structure versions (see `versionHasPayslips`).
+      const [runRow] = await db
+        .select({ status: payrollRuns.status, pipelineStatus: payrollRuns.pipelineStatus })
+        .from(payrollRuns)
+        .where(
+          and(
+            eq(payrollRuns.orgId, org!.id),
+            eq(payrollRuns.month, input.month),
+            eq(payrollRuns.year, input.year),
+          ),
+        )
+        .limit(1);
+      if (runRow && (runRow.status === "paid" || runRow.pipelineStatus === "CFO_APPROVED")) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "This period's payroll is already approved or paid; its payslips cannot be changed. " +
+            "Record the arrears against a later month instead.",
+        });
+      }
+
+      const [saved] = await db
+        .insert(payrollArrears)
+        .values({
+          orgId: org!.id,
+          employeeId: input.employeeId,
+          month: input.month,
+          year: input.year,
+          amount: input.amount.toFixed(2),
+          reason: input.reason ?? null,
+          sourceStructureId: input.sourceStructureId ?? null,
+          createdById: user?.id ?? null,
+        })
+        .onConflictDoUpdate({
+          target: [payrollArrears.employeeId, payrollArrears.month, payrollArrears.year],
+          set: {
+            amount: input.amount.toFixed(2),
+            reason: input.reason ?? null,
+            sourceStructureId: input.sourceStructureId ?? null,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      return saved;
+    }),
+
+  remove: permissionProcedure("payroll", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [deleted] = await db
+        .delete(payrollArrears)
+        .where(and(eq(payrollArrears.id, input.id), eq(payrollArrears.orgId, org!.id)))
+        .returning();
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true as const };
+    }),
+
+  /**
+   * Propose an arrears figure for one employee, from a backdated salary-structure version.
+   *
+   * Re-prices every already-paid period the revision covers, on the SAME paid-days / LOP basis
+   * as the payslip that was actually issued for that period — so an employee who had LOP in May
+   * does not get their LOP paid back as arrears. Reads issued payslips only; computes nothing
+   * for a period with no payslip (nothing was paid, so nothing is owed in arrears).
+   *
+   * Returns a PROPOSAL. Nothing is written — the operator decides and calls `upsert`.
+   */
+  suggest: permissionProcedure("payroll", "read")
+    .input(
+      z.object({
+        employeeId: z.string().uuid(),
+        /** The period the arrears would be paid in — normally the run being prepared. */
+        month: z.number().int().min(1).max(12),
+        year: z.number().int().min(2000).max(2100),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [emp] = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      if (!emp.salaryStructureId) {
+        return { applicable: false as const, reason: "Employee has no salary structure assigned." };
+      }
+
+      // The version in force for the period being PAID IN — the revised figures.
+      const revised = await resolveSalaryStructureForPeriod(
+        db,
+        org!.id,
+        emp.salaryStructureId,
+        new Date(input.year, input.month - 1, 1),
+      );
+      if (!revised) {
+        return { applicable: false as const, reason: "No salary-structure version is effective for this period." };
+      }
+
+      // Only a BACKDATED version can produce arrears. One effective from the paid-in period
+      // (or later) is already priced by this run — proposing arrears for it would pay twice.
+      const covered = arrearsPeriodsCovered(
+        new Date(revised.effectiveFrom),
+        input.month,
+        input.year,
+      );
+      if (covered.length === 0) {
+        return {
+          applicable: false as const,
+          reason: "This structure version is not backdated — the current run already prices it.",
+        };
+      }
+
+      // What was actually paid in each covered period.
+      const issued = await db
+        .select({
+          month: payslips.month,
+          year: payslips.year,
+          grossEarnings: payslips.grossEarnings,
+          arrears: payslips.arrears,
+          paidDays: payslips.paidDays,
+          lopDays: payslips.lopDays,
+        })
+        .from(payslips)
+        .where(and(eq(payslips.orgId, org!.id), eq(payslips.employeeId, input.employeeId)));
+      const issuedByPeriod = new Map(issued.map((p) => [`${p.year}-${p.month}`, p]));
+
+      const periodInputs: ArrearsPeriodInput[] = [];
+      for (const c of covered) {
+        const slip = issuedByPeriod.get(`${c.year}-${c.month}`);
+        if (!slip) continue; // never paid ⇒ nothing owed as ARREARS for that month
+
+        const daysInMonth = new Date(c.year, c.month, 0).getDate();
+        const paidDays = Number(slip.paidDays || 0);
+
+        // Re-price the period on the revised structure, on the SAME attendance basis. The
+        // engine's own input builder is reused so the revised figure is produced by exactly
+        // the same arithmetic that produced the original — not a parallel formula that could
+        // drift from it.
+        const revisedInput = buildEmployeePayrollInput(
+          emp,
+          revised,
+          c.month,
+          c.year,
+          { daysInMonth, daysWorked: paidDays, lopDays: Number(slip.lopDays || 0) },
+        );
+        const revisedSlip = computeEmployeePayslip(
+          revisedInput,
+          calendarToFyMonth(c.month),
+          await resolveStatutoryCeilings(db, org!.id, new Date(c.year, c.month - 1, 1)),
+        );
+
+        // Compare LIKE WITH LIKE: strip any arrears already paid in that period out of the
+        // gross that was paid, or a prior arrears payment reads as a shortfall and is paid again.
+        const paidGrossExArrears = Number(slip.grossEarnings || 0) - Number(slip.arrears || 0);
+
+        periodInputs.push({
+          month: c.month,
+          year: c.year,
+          paidGross: paidGrossExArrears,
+          revisedGross: revisedSlip.grossEarnings,
+          paidDays,
+          daysInMonth,
+        });
+      }
+
+      const computation = computeStructureArrears(periodInputs);
+      return {
+        applicable: true as const,
+        structureId: revised.id,
+        structureName: revised.structureName,
+        effectiveFrom: revised.effectiveFrom,
+        ...computation,
+      };
+    }),
+});
+
 export const payrollRouter = router({
   runs: runsRouter,
   payslips: payslipsRouter,
   salaryStructures: salaryStructuresRouter,
   taxDeclarations: taxDeclarationsRouter,
+  arrears: arrearsRouter,
 
   generateForm16ToDms: permissionProcedure("payroll", "write")
     .input(z.object({ employeeId: z.string().uuid(), fy: z.string() }))

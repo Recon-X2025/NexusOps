@@ -207,6 +207,17 @@ export const assetDepreciationEntries = pgTable(
       .references(() => assets.id, { onDelete: "cascade" }),
     /** 1-based period (year) index this charge covers. */
     period: integer("period").notNull(),
+    /**
+     * The CALENDAR period this charge belongs to, as a financial year (`2026-2027`).
+     *
+     * `period` above is an ordinal counter (`periodsElapsed + 1`), which is why the
+     * old unique index on `(asset_id, period)` did NOT make the run idempotent: a
+     * second run in the same month simply advanced the counter and charged again
+     * (three calls in one sitting produced three charges — measured, not assumed).
+     * A scheduled job makes that certain rather than possible, so the guard has to
+     * key on the period the charge is FOR, not on how many charges have happened.
+     */
+    periodKey: text("period_key").notNull(),
     openingBookValue: decimal("opening_book_value", { precision: 14, scale: 2 }).notNull(),
     depreciation: decimal("depreciation", { precision: 14, scale: 2 }).notNull(),
     accumulatedDepreciation: decimal("accumulated_depreciation", { precision: 14, scale: 2 }).notNull(),
@@ -217,6 +228,11 @@ export const assetDepreciationEntries = pgTable(
   },
   (t) => ({
     assetPeriodIdx: uniqueIndex("asset_depreciation_entries_asset_period_idx").on(t.assetId, t.period),
+    /** The real idempotency guard: one charge per asset per financial year. */
+    assetPeriodKeyIdx: uniqueIndex("asset_depreciation_entries_asset_period_key_idx").on(
+      t.assetId,
+      t.periodKey,
+    ),
     orgIdx: index("asset_depreciation_entries_org_idx").on(t.orgId),
     assetIdx: index("asset_depreciation_entries_asset_idx").on(t.assetId),
   }),

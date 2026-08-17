@@ -45,6 +45,8 @@ export interface PayslipPDFInput {
   lopDays: number;
   // Earnings
   basicEarned: number;
+  /** Dearness Allowance earned. Its own statutory line; 0 for a basic-alone composition. */
+  daEarned: number;
   hraEarned: number;
   specialAllowance: number;
   lta: number;
@@ -252,6 +254,11 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
     // Earnings rows
     const earnings = [
       ["Basic", input.basicEarned],
+      // DA is printed only when non-zero: a basic-alone payslip must not gain an empty "Rs. 0" line.
+      // (Written "Rs." not the rupee sign — `pdf-rupee-glyph.test.ts` scans this
+      //  whole source, comments included, because the glyph is absent from
+      //  PDFKit's WinAnsi standard fonts and renders as a missing character.)
+      ...(input.daEarned > 0 ? [["DA", input.daEarned] as [string, number]] : []),
       ["HRA", input.hraEarned],
       ["Special Allowance", input.specialAllowance],
       ["LTA", input.lta],

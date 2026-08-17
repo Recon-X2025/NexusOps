@@ -190,6 +190,14 @@ export default function HRPage() {
     para266EmployerUndertaking: false,
     para266ApprovalReference: "",
     para266EffectiveFrom: "",
+    internationalWorker: false,
+    residentialStatus: "",
+    pfJoinDate: "",
+    pfKycStatus: "pending",
+    pfKycDocument: "",
+    aadhaarVerification: "unverified",
+    panVerification: "unverified",
+    bankVerification: "unverified",
   });
   const [editEmpForm, setEditEmpForm] = useState({
     department: "",
@@ -222,6 +230,14 @@ export default function HRPage() {
     para266EmployerUndertaking: false,
     para266ApprovalReference: "",
     para266EffectiveFrom: "",
+    internationalWorker: false,
+    residentialStatus: "",
+    pfJoinDate: "",
+    pfKycStatus: "pending",
+    pfKycDocument: "",
+    aadhaarVerification: "unverified",
+    panVerification: "unverified",
+    bankVerification: "unverified",
   });
 
   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
@@ -272,6 +288,14 @@ export default function HRPage() {
         para266EmployerUndertaking: false,
         para266ApprovalReference: "",
         para266EffectiveFrom: "",
+        internationalWorker: false,
+        residentialStatus: "",
+        pfJoinDate: "",
+        pfKycStatus: "pending",
+        pfKycDocument: "",
+        aadhaarVerification: "unverified",
+        panVerification: "unverified",
+        bankVerification: "unverified",
       });
     },
     onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not create employee"),
@@ -1517,6 +1541,85 @@ export default function HRPage() {
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, para266EffectiveFrom: e.target.value }))}
                 />
               </div>
+              {/* ── Statutory identity: international worker, KYC, ID verification ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Statutory identity</p>
+                <p className="text-[10px] text-muted-foreground">An <strong>international worker</strong> contributes PF on the FULL wage — the ₹15,000 ceiling does not apply — and coverage is mandatory by status, so unlike Para 26(6) it needs no approval reference. UAN KYC is a filing gate: an un-KYC&rsquo;d UAN is a leading cause of ECR rejection.</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={addEmpForm.internationalWorker} onChange={(e) => setAddEmpForm((f) => ({ ...f, internationalWorker: e.target.checked }))} />
+                  International worker (EPF) — uncapped PF wage base
+                </label>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Residential status (income tax)</label>
+                <select
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.residentialStatus}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, residentialStatus: e.target.value }))}
+                >
+                  <option value="">Not recorded</option>
+                  <option value="resident">Resident</option>
+                  <option value="resident_not_ordinarily_resident">Resident but not ordinarily resident</option>
+                  <option value="non_resident">Non-resident</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">PF join date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.pfJoinDate}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, pfJoinDate: e.target.value }))}
+                />
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">Distinct from the employment start date; EPS eligibility ages against this.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-muted-foreground">UAN KYC status</label>
+                  <select
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.pfKycStatus}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, pfKycStatus: e.target.value }))}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="done">Done</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">KYC document</label>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.pfKycDocument}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, pfKycDocument: e.target.value }))}
+                    placeholder="PAN / AADHAAR / BANK"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ["aadhaarVerification", "Aadhaar"],
+                  ["panVerification", "PAN"],
+                  ["bankVerification", "Bank"],
+                ] as const).map(([key, label]) => (
+                  <div key={key}>
+                    <label className="text-[11px] text-muted-foreground">{label} verified</label>
+                    <select
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                      value={addEmpForm[key]}
+                      onChange={(e) => setAddEmpForm((f) => ({ ...f, [key]: e.target.value }))}
+                    >
+                      <option value="unverified">Unverified</option>
+                      <option value="verified">Verified</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
             </div>
             {/* FORM-SILENT-REFUSAL: say what is still missing rather than leaving a disabled button
@@ -1585,6 +1688,17 @@ export default function HRPage() {
                     para266JointRequest: addEmpForm.para266JointRequest,
                     para266EmployerUndertaking: addEmpForm.para266EmployerUndertaking,
                     para266ApprovalReference: addEmpForm.para266ApprovalReference.trim() || undefined,
+                    // Statutory identity. Empty select ⇒ undefined so the field is left unset rather than
+                    // written as an empty value; the checkbox and the two status selects always have a value.
+                    internationalWorker: addEmpForm.internationalWorker,
+                    residentialStatus: (addEmpForm.residentialStatus || undefined) as
+                      | "resident" | "resident_not_ordinarily_resident" | "non_resident" | undefined,
+                    pfJoinDate: addEmpForm.pfJoinDate ? new Date(`${addEmpForm.pfJoinDate}T12:00:00`) : undefined,
+                    pfKycStatus: addEmpForm.pfKycStatus as "pending" | "done" | "rejected",
+                    pfKycDocument: addEmpForm.pfKycDocument.trim() || undefined,
+                    aadhaarVerification: addEmpForm.aadhaarVerification as "unverified" | "verified" | "failed",
+                    panVerification: addEmpForm.panVerification as "unverified" | "verified" | "failed",
+                    bankVerification: addEmpForm.bankVerification as "unverified" | "verified" | "failed",
                     para266EffectiveFrom: addEmpForm.para266EffectiveFrom
                       ? new Date(`${addEmpForm.para266EffectiveFrom}T12:00:00`)
                       : undefined,
@@ -1961,6 +2075,85 @@ export default function HRPage() {
                   onChange={(e) => setEditEmpForm((f) => ({ ...f, para266EffectiveFrom: e.target.value }))}
                 />
               </div>
+              {/* ── Statutory identity: international worker, KYC, ID verification ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Statutory identity</p>
+                <p className="text-[10px] text-muted-foreground">An <strong>international worker</strong> contributes PF on the FULL wage — the ₹15,000 ceiling does not apply — and coverage is mandatory by status, so unlike Para 26(6) it needs no approval reference. UAN KYC is a filing gate: an un-KYC&rsquo;d UAN is a leading cause of ECR rejection.</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={editEmpForm.internationalWorker} onChange={(e) => setEditEmpForm((f) => ({ ...f, internationalWorker: e.target.checked }))} />
+                  International worker (EPF) — uncapped PF wage base
+                </label>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Residential status (income tax)</label>
+                <select
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.residentialStatus}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, residentialStatus: e.target.value }))}
+                >
+                  <option value="">Not recorded</option>
+                  <option value="resident">Resident</option>
+                  <option value="resident_not_ordinarily_resident">Resident but not ordinarily resident</option>
+                  <option value="non_resident">Non-resident</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">PF join date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.pfJoinDate}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, pfJoinDate: e.target.value }))}
+                />
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">Distinct from the employment start date; EPS eligibility ages against this.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-muted-foreground">UAN KYC status</label>
+                  <select
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.pfKycStatus}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, pfKycStatus: e.target.value }))}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="done">Done</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">KYC document</label>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.pfKycDocument}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, pfKycDocument: e.target.value }))}
+                    placeholder="PAN / AADHAAR / BANK"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ["aadhaarVerification", "Aadhaar"],
+                  ["panVerification", "PAN"],
+                  ["bankVerification", "Bank"],
+                ] as const).map(([key, label]) => (
+                  <div key={key}>
+                    <label className="text-[11px] text-muted-foreground">{label} verified</label>
+                    <select
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                      value={editEmpForm[key]}
+                      onChange={(e) => setEditEmpForm((f) => ({ ...f, [key]: e.target.value }))}
+                    >
+                      <option value="unverified">Unverified</option>
+                      <option value="verified">Verified</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
             </div>
             <div className="flex gap-2 p-5 pt-3 border-t border-border shrink-0">
@@ -2015,6 +2208,17 @@ export default function HRPage() {
                     para266EffectiveFrom: editEmpForm.para266EffectiveFrom
                       ? new Date(`${editEmpForm.para266EffectiveFrom}T12:00:00`)
                       : undefined,
+                    // Statutory identity. Empty select ⇒ undefined so the field is left unset rather than
+                    // written as an empty value; the checkbox and the two status selects always have a value.
+                    internationalWorker: editEmpForm.internationalWorker,
+                    residentialStatus: (editEmpForm.residentialStatus || undefined) as
+                      | "resident" | "resident_not_ordinarily_resident" | "non_resident" | undefined,
+                    pfJoinDate: editEmpForm.pfJoinDate ? new Date(`${editEmpForm.pfJoinDate}T12:00:00`) : undefined,
+                    pfKycStatus: editEmpForm.pfKycStatus as "pending" | "done" | "rejected",
+                    pfKycDocument: editEmpForm.pfKycDocument.trim() || undefined,
+                    aadhaarVerification: editEmpForm.aadhaarVerification as "unverified" | "verified" | "failed",
+                    panVerification: editEmpForm.panVerification as "unverified" | "verified" | "failed",
+                    bankVerification: editEmpForm.bankVerification as "unverified" | "verified" | "failed",
                   });
                 }}
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
@@ -2219,6 +2423,14 @@ export default function HRPage() {
                                   para266EffectiveFrom: emp.para266EffectiveFrom
                                     ? String(emp.para266EffectiveFrom).slice(0, 10)
                                     : "",
+                                  internationalWorker: Boolean(emp.internationalWorker),
+                                  residentialStatus: String(emp.residentialStatus ?? ""),
+                                  pfJoinDate: emp.pfJoinDate ? String(emp.pfJoinDate).slice(0, 10) : "",
+                                  pfKycStatus: String(emp.pfKycStatus ?? "pending"),
+                                  pfKycDocument: String(emp.pfKycDocument ?? ""),
+                                  aadhaarVerification: String(emp.aadhaarVerification ?? "unverified"),
+                                  panVerification: String(emp.panVerification ?? "unverified"),
+                                  bankVerification: String(emp.bankVerification ?? "unverified"),
                                 });
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"

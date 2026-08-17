@@ -248,7 +248,7 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
           { k: "tan",   l: "TAN (TDS) *", ph: "BLRE12345A",  hint: "10-character TAN for TDS filing" },
           { k: "pf",    l: "EPF Establishment Code", ph: "KA/BNG/12345/000/0001", hint: "Optional at setup; required before generating an EPF ECR (20+ employees, or voluntary)." },
           { k: "esi",   l: "ESI Establishment No.", ph: "12000123450000999", hint: "ESIC employer code — leave blank if not ESI-registered" },
-          { k: "stateCode", l: "Primary State Code *", ph: "MH", hint: "2-letter ISO 3166-2:IN code" },
+          { k: "stateCode", l: "Primary State Code *", ph: "MH", hint: "2-letter ISO 3166-2:IN code. NOT the GST state — that is taken from the GSTIN above." },
         ].map(f => (
           <div key={f.k}>
             <label className="text-[11px] font-medium text-muted-foreground block mb-1">{f.l}</label>

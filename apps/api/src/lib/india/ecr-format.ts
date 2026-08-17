@@ -49,6 +49,60 @@ export interface EcrPayslipInput {
  *   - NCP: full days only (no half days); equals the days in the month when declared wages are 0.
  * `memberName` is the person's name; `uan` their UAN.
  */
+/** One employee who would make an ECR upload fail, and the reason. */
+export interface EcrBlocker {
+  employeeId: string;
+  employeeCode: string;
+  reason: string;
+}
+
+/** The employee fields the ECR pre-flight reads. */
+export interface EcrPreflightEmployee {
+  id: string;
+  employeeId: string | null;
+  uan: string | null;
+  pfKycStatus: "pending" | "done" | "rejected" | null;
+}
+
+/**
+ * ECR PRE-FLIGHT — catch the upload rejections BEFORE the file goes to EPFO.
+ *
+ * Two conditions, both of which EPFO rejects on and neither of which was detectable here before:
+ *
+ *  1. **No UAN.** `generateECR` substituted the literal string `"UNKNOWN"` for a missing UAN, so a
+ *     member with no UAN produced a syntactically valid line carrying a fabricated identifier —
+ *     the same "invent a displayed identifier" defect class called out in CLAUDE.md, except this
+ *     one leaves the building and goes to a regulator.
+ *  2. **UAN KYC not done.** An un-KYC'd UAN is a leading cause of ECR rejection. The whole reason
+ *     `employees.pf_kyc_status` exists is to be checked here; storing it and never reading it
+ *     would be the "stored but never evaluated" anti-pattern.
+ *
+ * Returns the blockers, NAMED. It does not decide what to do with them — the preview path lists
+ * them so an operator can fix them, and the portal-submit path refuses. `rejected` and `pending`
+ * are both blockers: neither is a KYC that EPFO will accept.
+ */
+export function ecrPreflight(employees: EcrPreflightEmployee[]): EcrBlocker[] {
+  const blockers: EcrBlocker[] = [];
+  for (const e of employees) {
+    const code = e.employeeId ?? e.id.slice(0, 8);
+    if (!e.uan?.trim()) {
+      blockers.push({
+        employeeId: e.id,
+        employeeCode: code,
+        reason: "No UAN on record — EPFO cannot match the member.",
+      });
+    }
+    if (e.pfKycStatus !== "done") {
+      blockers.push({
+        employeeId: e.id,
+        employeeCode: code,
+        reason: `UAN KYC is ${e.pfKycStatus ?? "not recorded"} — EPFO rejects un-KYC'd members.`,
+      });
+    }
+  }
+  return blockers;
+}
+
 export function buildEcrLine(
   slip: EcrPayslipInput,
   identity: { uan: string; memberName: string },

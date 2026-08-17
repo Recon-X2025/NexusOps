@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, organizations, taxDeclarations, finalSettlements, eq, and, or, gte, isNull, isNotNull, inArray, notExists } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, payrollArrears, organizations, taxDeclarations, finalSettlements, eq, and, or, gte, isNull, isNotNull, inArray, notExists } from "@coheronconnect/db";
 import { resolveSalaryStructureForPeriod, structureNotEffectiveError } from "../lib/india/salary-structure-resolver";
 import {
   computeEmployeePayslip,
@@ -137,6 +137,37 @@ export async function buildPtHalfYearlyContext(
 }
 
 /** Prior year-to-date totals (this employer, this FY) fed to the engine as the running base. */
+/**
+ * ARREARS for a run period, as `employeeId → signed rupees`.
+ *
+ * ONE resolver, deliberately: the preview/lock totals path and the payslip WRITE path must
+ * read arrears from the same place or the run's headline total disagrees with the sum of its
+ * own payslips. That exact divergence already happened once on tax declarations (see the F9/C1
+ * note in `computePayrollRunTotals`), so this is a shared helper rather than two queries.
+ *
+ * Keyed on the period the arrears is PAID IN, which is the run's own (month, year).
+ */
+export async function buildArrearsMap(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  orgId: string,
+  month: number,
+  year: number,
+): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ employeeId: payrollArrears.employeeId, amount: payrollArrears.amount })
+    .from(payrollArrears)
+    .where(
+      and(
+        eq(payrollArrears.orgId, orgId),
+        eq(payrollArrears.month, month),
+        eq(payrollArrears.year, year),
+      ),
+    );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new Map<string, number>(rows.map((r: any) => [r.employeeId, Number(r.amount || 0)]));
+}
+
 export type YtdPriorContext = { ytdGross: number; ytdPF: number; ytdTDS: number; ytdNetPay: number };
 
 /**
@@ -266,6 +297,10 @@ export function buildEmployeePayrollInput(
   // PR5: prior YTD (this employer, this FY) from payslip history; the engine adds the current month.
   // Absent ⇒ 0 (first FY run / mid-year joiner's first run / paths that don't render a running total).
   ytdPrior?: YtdPriorContext,
+  // ARREARS: back-pay for an EARLIER period being paid in this one, read from `payroll_arrears`
+  // for (employee, this month, this year). Signed — a negative figure is a recorded recovery of
+  // an overpayment. Absent ⇒ 0 (the overwhelmingly common case, byte-identical to before).
+  arrears?: number,
 ): EmployeePayrollInput {
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
@@ -366,7 +401,10 @@ export function buildEmployeePayrollInput(
     daysWorked,
     lopDays,
     overtime: 0,
-    arrears: 0,
+    // Fed from `payroll_arrears`. The engine adds this to gross (computeGross) and treats it as an
+    // EXCLUDED allowance for the Labour-Code wage base — arrears do not lift the PF/ESI core, which
+    // is basic+DA of the CURRENT period. TDS does pick it up, via gross.
+    arrears: arrears ?? 0,
     bonus: 0,
     otherEarnings: 0,
     otherDeductions: 0,
@@ -374,10 +412,20 @@ export function buildEmployeePayrollInput(
     // the effective date has been reached. No reference ⇒ the ₹15,000 ceiling applies regardless of
     // what else is recorded (that reference is what makes the uncapped contribution lawful). Reuses
     // the engine's isVoluntaryHigherPF uncap path.
+    // Two routes to an UNCAPPED PF wage base, and they gate differently:
+    //   Para 26(6) — ELECTIVE. Requires a recorded EPFO approval reference AND a reached
+    //     effective date. No reference ⇒ the ₹15,000 ceiling applies regardless of what else
+    //     is recorded; that reference is what makes the uncapped contribution lawful.
+    //   International worker — MANDATORY BY STATUS. An IW contributes on full wages by
+    //     operation of the scheme, so there is no reference to require and no effective date
+    //     to reach: the flag alone uncaps.
+    // Both reuse the engine's single uncap path. EPS stays ceiling-capped in BOTH cases —
+    // for an IW that is a deliberate scope decision (Para 83 is under appeal), not an oversight.
     isVoluntaryHigherPF:
-      !!emp.para266ApprovalReference?.trim() &&
-      !!emp.para266EffectiveFrom &&
-      new Date(emp.para266EffectiveFrom) <= new Date(year, month - 1, 1),
+      emp.internationalWorker === true ||
+      (!!emp.para266ApprovalReference?.trim() &&
+        !!emp.para266EffectiveFrom &&
+        new Date(emp.para266EffectiveFrom) <= new Date(year, month - 1, 1)),
     // Voluntary PF: extra employee rate above 12% (percentage on the employee record → fraction).
     // Employee-only; employer contribution unchanged. Default 0 = no VPF (byte-identical).
     voluntaryPfRate: Number(emp.voluntaryPfRate ?? 0) / 100,
@@ -601,9 +649,12 @@ export async function computePayrollRunTotals(
       ]),
   );
 
+  // ARREARS: same source the write path reads, so preview totals and the written payslips agree.
+  const previewArrearsMap = await buildArrearsMap(db, orgId, month, year);
+
   for (const { emp, st } of rows) {
     try {
-      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), previewDeclMap.get(emp.id), ytdMap.get(emp.id));
+      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id), previewDeclMap.get(emp.id), ytdMap.get(emp.id), previewArrearsMap.get(emp.id));
       const slip = computeEmployeePayslip(input, fyMonth, ceilings);
 
       // An unknown/misspelled state (e.g. "Karnatak") resolves to ₹0 PT — the same

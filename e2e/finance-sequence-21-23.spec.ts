@@ -30,6 +30,6 @@ test.describe("Finance sequence 21–23 (C4)", () => {
     await loginAs(page, "admin@coheron.com");
     await expectNoRuntimeCrash(page, "/app/financial");
     await expectNoRuntimeCrash(page, "/app/work-orders/parts");
-    await expectNoRuntimeCrash(page, "/app/accounting");
+    await expectNoRuntimeCrash(page, "/app/finance/accounting/coa");
   });
 });

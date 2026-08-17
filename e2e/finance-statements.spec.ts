@@ -149,8 +149,20 @@ test.describe("Finance statements — balance sheet and P&L", () => {
 
     const incomeAfterEl = page.getByTestId("pnl-total-income");
     await expect(incomeAfterEl).toBeVisible({ timeout: 20_000 });
-    const incomeAfter = parseInr(await incomeAfterEl.innerText());
-    expect(incomeAfter - incomeBefore).toBeCloseTo(AMOUNT, 2);
+    // POLLED, not read once. This is a return visit, so React Query has the
+    // FIRST visit's result cached and renders it immediately while refetching
+    // in the background — `staleTime: 0` + `refetchOnMount: "always"` guarantee
+    // the refetch happens, not that the stale figure is hidden while it does.
+    // Reading innerText() synchronously therefore observed the pre-posting ₹0
+    // and asserted a delta of 0 against 1,23,456. The equality below is
+    // unchanged and just as strict — it is only allowed to arrive
+    // asynchronously, which is what "the P&L reflects it" actually means.
+    await expect
+      .poll(
+        async () => parseInr(await incomeAfterEl.innerText()) - incomeBefore,
+        { timeout: 20_000, message: "the P&L must pick up the posted revenue" },
+      )
+      .toBeCloseTo(AMOUNT, 2);
 
     // The revenue account is itemised, and the net figure renders.
     await expect(page.getByTestId("pnl-amount-4100")).toBeVisible();

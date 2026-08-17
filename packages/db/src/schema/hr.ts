@@ -43,6 +43,36 @@ export const taxRegimeEnum = pgEnum("tax_regime", ["old", "new"]);
 // structural under-deduction. See computePT / reports/fix-plan.md → C2.
 export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
 
+/**
+ * Income-tax residential status. Drives TDS treatment; a non-resident is taxed on Indian-
+ * sourced income only and does not get the resident slab benefits in the same way. Stored
+ * because it is a per-employee statutory fact the employer must hold, not something derivable
+ * from any other column we keep.
+ */
+export const residentialStatusEnum = pgEnum("residential_status", [
+  "resident",
+  "resident_not_ordinarily_resident",
+  "non_resident",
+]);
+
+/**
+ * UAN KYC state with EPFO. An un-KYC'd UAN is a leading cause of ECR upload rejection, so this
+ * is an operational gate on filing, not decoration. `pending` is the honest default for every
+ * existing row — we do not know, and claiming `done` would assert something unverified.
+ */
+export const pfKycStatusEnum = pgEnum("pf_kyc_status", ["pending", "done", "rejected"]);
+
+/**
+ * Verification state of a statutory identifier. A stored number is not the same as a verified
+ * one: an unverified Aadhaar or a mistyped PAN passes format validation and then fails at the
+ * portal. Held per identifier so the failure is visible before a filing, not during one.
+ */
+export const idVerificationStatusEnum = pgEnum("id_verification_status", [
+  "unverified",
+  "verified",
+  "failed",
+]);
+
 export const payrollRunStatusEnum = pgEnum("payroll_run_status", [
   "draft",
   "under_review",
@@ -257,6 +287,31 @@ export const employees = pgTable(
      */
     esiMember: boolean("esi_member"),
     esiMemberPeriodStart: timestamp("esi_member_period_start", { withTimezone: true }),
+    /**
+     * EPF INTERNATIONAL WORKER. An IW contributes on FULL wages — the ₹15,000 ceiling does not
+     * apply — and coverage is mandatory by status, not elective, so unlike Para 26(6) this needs
+     * NO approval reference to take effect. Default false leaves every existing employee exactly
+     * as they are.
+     *
+     * SCOPE NOTE: this uncaps the PF WAGE BASE only. EPS treatment for an IW is deliberately left
+     * capped at the ceiling, same as a domestic member — EPFO's position that EPS is also on full
+     * wages for IWs rests on Para 83, which the Karnataka HC struck down in 2024 and which is
+     * under appeal. Implementing the contested half would be inventing a rule. See
+     * reports/fix-plan.md → EMPLOYEE-STATUTORY-IDENTITY.
+     */
+    internationalWorker: boolean("international_worker").notNull().default(false),
+    /** Income-tax residential status; null = not recorded (unchanged behaviour). */
+    residentialStatus: residentialStatusEnum("residential_status"),
+    /** Date PF membership began — distinct from `startDate`, and what EPS eligibility ages against. */
+    pfJoinDate: timestamp("pf_join_date", { withTimezone: true }),
+    pfKycStatus: pfKycStatusEnum("pf_kyc_status").notNull().default("pending"),
+    /** Which document satisfied UAN KYC ("PAN", "AADHAAR", "BANK"); null until done. */
+    pfKycDocument: text("pf_kyc_document"),
+    pfKycVerifiedAt: timestamp("pf_kyc_verified_at", { withTimezone: true }),
+    /** Per-identifier verification state. A stored value is not a verified one. */
+    aadhaarVerification: idVerificationStatusEnum("aadhaar_verification").notNull().default("unverified"),
+    panVerification: idVerificationStatusEnum("pan_verification").notNull().default("unverified"),
+    bankVerification: idVerificationStatusEnum("bank_verification").notNull().default("unverified"),
     bankAccountNumber: text("bank_account_number"),
     bankIfsc: text("bank_ifsc"),
     bankName: text("bank_name"),
@@ -628,6 +683,11 @@ export const payslips = pgTable(
     medicalAllowance: decimal("medical_allowance", { precision: 12, scale: 2 }).notNull().default("0"),
     conveyanceAllowance: decimal("conveyance_allowance", { precision: 12, scale: 2 }).notNull().default("0"),
     bonus: decimal("bonus", { precision: 12, scale: 2 }).notNull().default("0"),
+    // ARREARS: back-pay paid in THIS period for an earlier one — the amount the engine was fed
+    // (`EmployeePayrollInput.arrears`), persisted so the payslip reconstructs and Form-16 / the
+    // ECR read a real figure instead of the display-time 0 that `payslip-view.ts` used to emit.
+    // Sourced from `payroll_arrears` for the run's period; 0 when none is recorded.
+    arrears: decimal("arrears", { precision: 12, scale: 2 }).notNull().default("0"),
     grossEarnings: decimal("gross_earnings", { precision: 12, scale: 2 }).notNull().default("0"),
     pfEmployee: decimal("pf_employee", { precision: 12, scale: 2 }).notNull().default("0"),
     pfEmployer: decimal("pf_employer", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -675,7 +735,78 @@ export const payslips = pgTable(
   }),
 );
 
+/**
+ * ARREARS — back-pay owed for an EARLIER period, paid out in a later one.
+ *
+ * An arrears line is an INPUT to a payroll run, never an output of it: locking a run
+ * deletes and recomputes every payslip (`payroll.ts` — `tx.delete(payslips)`), so a figure
+ * stored only on the payslip would be destroyed on the next recompute. It therefore lives
+ * in its own table, keyed to the period it is PAID IN (month/year), and the run reads it.
+ *
+ * Why this table exists at all: `salaryStructures.upsert` refuses to edit a version that
+ * already has payslips and tells the operator to "post the change as arrears in the current
+ * month" — a route that had no implementation anywhere. This is that route.
+ *
+ * One line per employee per paid-in period (unique index), so a re-run is idempotent and an
+ * operator correcting a figure upserts rather than accumulating duplicates.
+ */
+export const payrollArrears = pgTable(
+  "payroll_arrears",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** The period this arrears amount is PAID IN (not the period it accrued for). */
+    month: integer("month").notNull(),
+    year: integer("year").notNull(),
+    /**
+     * Signed rupees. Positive = back-pay owed to the employee (the normal case).
+     * Negative = recovery of an overpayment; permitted, but never auto-proposed by
+     * `suggest` — recovering pay already banked is a decision, not a computation.
+     */
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    /** Free text shown on the run and retained for audit ("Apr–Jun revision backdated"). */
+    reason: text("reason"),
+    /**
+     * The salary-structure VERSION whose backdating produced this figure, when it came from
+     * `suggest`. Null for a hand-entered amount. SET NULL: losing the provenance link must
+     * not delete a money row.
+     */
+    sourceStructureId: uuid("source_structure_id").references(() => salaryStructures.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    employeePeriodIdx: uniqueIndex("payroll_arrears_employee_period_idx").on(
+      t.employeeId,
+      t.month,
+      t.year,
+    ),
+    orgIdx: index("payroll_arrears_org_idx").on(t.orgId),
+    orgPeriodIdx: index("payroll_arrears_org_period_idx").on(t.orgId, t.year, t.month),
+  }),
+);
+
 // ── Relations ──────────────────────────────────────────────────────────────
+export const payrollArrearsRelations = relations(payrollArrears, ({ one }) => ({
+  org: one(organizations, { fields: [payrollArrears.orgId], references: [organizations.id] }),
+  employee: one(employees, {
+    fields: [payrollArrears.employeeId],
+    references: [employees.id],
+  }),
+  sourceStructure: one(salaryStructures, {
+    fields: [payrollArrears.sourceStructureId],
+    references: [salaryStructures.id],
+  }),
+}));
+
 export const employeesRelations = relations(employees, ({ one, many }) => ({
   org: one(organizations, { fields: [employees.orgId], references: [organizations.id] }),
   user: one(users, { fields: [employees.userId], references: [users.id] }),

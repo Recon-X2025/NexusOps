@@ -6,6 +6,8 @@ import {
   superAdminAuditLogs
 } from "@coheronconnect/db/schema";
 import { panColumns } from "../lib/pan";
+// The GSTIN is the authority on its own state code — see the GST registry block below.
+import { validateGSTIN } from "@coheronconnect/payroll-math";
 
 export class DuplicateGstinError extends Error {
   constructor() {
@@ -164,19 +166,42 @@ export async function writeWizardData(
           .where(eq(gstinRegistry.orgId, orgId))
           .limit(1);
 
+        /*
+         * The GST registry's state code comes from the GSTIN, NOT from the
+         * wizard's `stateCode` field.
+         *
+         * That field is labelled "2-letter ISO 3166-2:IN code" (placeholder
+         * "MH", default "KA") and also feeds `organizations.primaryStateCode`,
+         * which is a different vocabulary for a different consumer. Writing it
+         * here made the supplier state unresolvable: `normaliseStateToCode("KA")`
+         * returns null, so `computeGST` compared "" against the buyer's "29" and
+         * billed every sale as INTER-state IGST.
+         *
+         * `getGstStateCode` derives from the GSTIN and covers all 39 GST
+         * jurisdictions, so no state or union territory is left out. When there
+         * is no GSTIN there is no GST registration to speak of, and the ISO code
+         * is NOT substituted — an empty state is an honest unknown, whereas "KA"
+         * is a value that looks set and resolves to nothing.
+         */
+        const gstStateCode = (g: string | undefined): string => {
+          const parsed = g ? validateGSTIN(g) : null;
+          return parsed?.valid && parsed.stateCode ? parsed.stateCode : "";
+        };
+
         if (existingGstin) {
           const gstinUpdate: any = { updatedAt: new Date() }; // any-ratchet-allow: dynamic update builder
-          if (input.india.gstin !== undefined) gstinUpdate.gstin = input.india.gstin;
-          if (input.india.stateCode !== undefined) gstinUpdate.stateCode = input.india.stateCode;
+          if (input.india.gstin !== undefined) {
+            gstinUpdate.gstin = input.india.gstin;
+            gstinUpdate.stateCode = gstStateCode(input.india.gstin);
+          }
           await tx.update(gstinRegistry).set(gstinUpdate).where(eq(gstinRegistry.orgId, orgId));
         } else {
           const finalGstin = input.india.gstin ?? "";
-          const finalStateCode = input.india.stateCode ?? input.india.gstin?.substring(0, 2) ?? "";
           await tx.insert(gstinRegistry).values({
             orgId,
             gstin: finalGstin,
             legalName: updateFields.name ?? orgRow.name,
-            stateCode: finalStateCode,
+            stateCode: gstStateCode(input.india.gstin),
             isPrimary: true
           });
         }

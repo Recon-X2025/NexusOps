@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
+// The GST state vocabulary — 2-digit codes, all 39 jurisdictions.
+import { GSTIN_STATE_CODES } from "@coheronconnect/payroll-math";
 
 const VENDOR_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Name", required: true },
@@ -129,8 +131,31 @@ export default function VendorsPage() {
                 <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.gstin} onChange={(e) => setVendorForm(f => ({ ...f, gstin: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] text-muted-foreground">State (Code or Name)</label>
-                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.state} onChange={(e) => setVendorForm(f => ({ ...f, state: e.target.value }))} />
+                <label className="text-[11px] text-muted-foreground">State (Place of Supply)</label>
+                {/*
+                  A SELECT over the GST vocabulary, storing the 2-digit code.
+                  This was free text labelled "Code or Name", and this value is
+                  the BUYER side of every GST split: `computeGST` compares it
+                  against the supplier's state to choose CGST+SGST vs IGST.
+                  `normaliseStateToCode` accepts a 2-digit code or a full state
+                  NAME and returns null for anything else — so a typed "KA" or
+                  "MH" silently became "no state", defaulting the invoice to
+                  intra-state on an unverified basis. All 39 GST jurisdictions
+                  are offered, so no state or union territory is left out.
+                */}
+                <select
+                  data-testid="vendor-state"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={vendorForm.state}
+                  onChange={(e) => setVendorForm(f => ({ ...f, state: e.target.value }))}
+                >
+                  <option value="">— Select state —</option>
+                  {Object.entries(GSTIN_STATE_CODES)
+                    .sort((a, b) => a[1].localeCompare(b[1]))
+                    .map(([code, name]) => (
+                      <option key={code} value={code}>{name} ({code})</option>
+                    ))}
+                </select>
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">PAN</label>
