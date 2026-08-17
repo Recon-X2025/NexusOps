@@ -1,4 +1,8 @@
 import { router, permissionProcedure } from "../lib/trpc";
+import { getNextNumber } from "../lib/auto-number";
+import { resolveAssetAccounts, describeAccountFailure } from "../lib/asset-accounts";
+import { postAssetAcquisitionEntry } from "../lib/asset-acquisition-journal";
+import { currentFY } from "./accounting";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -6,6 +10,7 @@ import {
   assetStatusEnum,
   assetTypes,
   assetHistory,
+  chartOfAccounts,
   ciItems,
   ciRelationships,
   softwareLicenses,
@@ -18,6 +23,7 @@ import {
   discoveryRuns,
   eq,
   and,
+  inArray,
   count,
   desc,
   asc,
@@ -94,39 +100,83 @@ export const assetsRouter = router({
     .mutation(async ({ ctx, input }) => {
     const { db, org, user } = ctx;
 
-    const [countResult] = await db
-      .select({ count: count() })
-      .from(assets)
-      .where(eq(assets.orgId, org!.id));
-
-    const seq = (countResult?.count ?? 0) + 1;
-    const assetTag = `AST-${String(seq).padStart(4, "0")}`;
-
-    const [asset] = await db
-      .insert(assets)
-      .values({
-        orgId: org!.id,
-        assetTag,
-        name: input.name,
-        typeId: input.typeId,
-        status: input.status ?? "in_stock",
-        ownerId: input.ownerId,
-        location: input.location,
-        purchaseDate: input.purchaseDate,
-        purchaseCost: input.purchaseCost?.toString(),
-        warrantyExpiry: input.warrantyExpiry,
-        vendor: input.vendor,
-        customFields: input.customFields,
-        parentAssetId: input.parentAssetId,
-      })
-      .returning();
-
-    await db.insert(assetHistory).values({
-      assetId: asset!.id,
-      actorId: user!.id,
-      action: "created",
-      details: { assetTag },
+    /*
+     * The GL accounts this asset will post to, resolved BEFORE anything is
+     * written. An asset whose accounts cannot be resolved is rejected here, in
+     * front of the person creating it, who can fix it — rather than at a
+     * month-end job, where the failure lands on someone who did not cause it and
+     * cannot tell what was intended.
+     */
+    const resolution = await resolveAssetAccounts(db, {
+      orgId: org!.id,
+      typeId: input.typeId,
     });
+    if (!resolution.ok) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: describeAccountFailure(resolution.failure) });
+    }
+
+    /*
+     * `assetTag` was `count(*) + 1`, against a UNIQUE index
+     * (`assets_org_tag_idx`). Deleting any asset makes the next create collide
+     * and 500, and two concurrent creates race to the same tag. `org_counters`
+     * is the atomic per-org allocator every other identifier in this codebase
+     * draws on — it is delete-proof because it never re-reads the table.
+     */
+    const assetTag = await getNextNumber(db, org!.id, "AST", "AST", 4);
+
+    // Insert + capitalise atomically: an asset on the register but absent from
+    // the ledger is exactly the state this round exists to end.
+    const acquisitionDate = input.purchaseDate ?? new Date();
+    const { asset, posting } = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(assets)
+        .values({
+          orgId: org!.id,
+          assetTag,
+          name: input.name,
+          typeId: input.typeId,
+          status: input.status ?? "in_stock",
+          ownerId: input.ownerId,
+          location: input.location,
+          purchaseDate: input.purchaseDate,
+          purchaseCost: input.purchaseCost?.toString(),
+          warrantyExpiry: input.warrantyExpiry,
+          vendor: input.vendor,
+          customFields: input.customFields,
+          parentAssetId: input.parentAssetId,
+        })
+        .returning();
+
+      const post = await postAssetAcquisitionEntry(tx, {
+        orgId: org!.id,
+        createdById: user!.id,
+        assetId: row!.id,
+        assetTag,
+        assetName: input.name,
+        assetAccountId: resolution.accounts.assetAccountId,
+        cost: Number(input.purchaseCost ?? 0),
+        date: acquisitionDate,
+        financialYear: currentFY(acquisitionDate),
+      });
+
+      await tx.insert(assetHistory).values({
+        assetId: row!.id,
+        actorId: user!.id,
+        action: "created",
+        // The record says whether the asset reached the ledger, and if not, why.
+        // A capitalisation that degrades to nothing must not do so silently.
+        details: post.posted
+          ? { assetTag, capitalised: true, journalEntryId: post.journalEntryId, account: resolution.accounts.codes.asset }
+          : { assetTag, capitalised: false, reason: post.reason },
+      });
+
+      return { asset: row, posting: post };
+    });
+
+    // NOTE on the not-posted cases: an asset may legitimately be recorded with no
+    // purchase cost, and that is not an error — it is simply not on the books.
+    // The `assetHistory` row written above carries `capitalised: false` and the
+    // reason, so the record says what happened rather than leaving a silent gap.
 
     // Fire-and-forget automation hooks (never roll back the create).
     if (asset) {
@@ -387,6 +437,70 @@ export const assetsRouter = router({
         },
         items,
       };
+    }),
+
+  /**
+   * Map an asset TYPE to the GL accounts its assets post to.
+   *
+   * The type is the right grain: a building, a vehicle and a laptop capitalise
+   * into different asset accounts and depreciate into different expense lines,
+   * and `assets.type_id` is NOT NULL so every asset resolves through exactly one
+   * type. All three are nullable — clearing one falls back to the 5500/1290/1200
+   * constants, so a tenant can always get back to the previous behaviour.
+   *
+   * Each account is verified to belong to THIS org before it is stored: a
+   * cross-tenant account id would otherwise post one tenant's assets into
+   * another's ledger.
+   */
+  updateTypeAccounts: permissionProcedure("cmdb", "write")
+    .input(
+      z.object({
+        typeId: z.string().uuid(),
+        assetAccountId: z.string().uuid().nullable().optional(),
+        accumulatedDepreciationAccountId: z.string().uuid().nullable().optional(),
+        depreciationExpenseAccountId: z.string().uuid().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [type] = await db
+        .select({ id: assetTypes.id })
+        .from(assetTypes)
+        .where(and(eq(assetTypes.id, input.typeId), eq(assetTypes.orgId, org!.id)));
+      if (!type) throw new TRPCError({ code: "NOT_FOUND", message: "Asset type not found" });
+
+      const ids = [
+        input.assetAccountId,
+        input.accumulatedDepreciationAccountId,
+        input.depreciationExpenseAccountId,
+      ].filter((v): v is string => typeof v === "string");
+      if (ids.length > 0) {
+        const owned = await db
+          .select({ id: chartOfAccounts.id })
+          .from(chartOfAccounts)
+          .where(and(eq(chartOfAccounts.orgId, org!.id), inArray(chartOfAccounts.id, ids)));
+        if (owned.length !== new Set(ids).size) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "One or more accounts do not belong to this organisation.",
+          });
+        }
+      }
+
+      const [updated] = await db
+        .update(assetTypes)
+        .set({
+          ...(input.assetAccountId !== undefined ? { assetAccountId: input.assetAccountId } : {}),
+          ...(input.accumulatedDepreciationAccountId !== undefined
+            ? { accumulatedDepreciationAccountId: input.accumulatedDepreciationAccountId }
+            : {}),
+          ...(input.depreciationExpenseAccountId !== undefined
+            ? { depreciationExpenseAccountId: input.depreciationExpenseAccountId }
+            : {}),
+        })
+        .where(and(eq(assetTypes.id, input.typeId), eq(assetTypes.orgId, org!.id)))
+        .returning();
+      return updated!;
     }),
 
   listTypes: permissionProcedure("cmdb", "read").query(async ({ ctx }) => {

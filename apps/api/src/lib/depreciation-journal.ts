@@ -1,4 +1,5 @@
 import {
+  assets,
   journalEntries,
   journalEntryLines,
   chartOfAccounts,
@@ -9,6 +10,7 @@ import {
   type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextYearScopedSeq } from "./auto-number";
+import { resolveAssetAccounts } from "./asset-accounts";
 
 /**
  * Posts the general-ledger journal entry for a single period's depreciation
@@ -40,23 +42,39 @@ export async function postDepreciationJournalEntry(
   // No-op period: nothing to post.
   if (!(charge > 0)) return null;
 
-  const codes = { expense: "5500", accum: "1290" };
-  const wanted = [codes.expense, codes.accum];
-  const accts = await tx
-    .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
-    .from(chartOfAccounts)
-    .where(and(eq(chartOfAccounts.orgId, orgId), inArray(chartOfAccounts.code, wanted)));
-  const codeToId = new Map<string, string>(accts.map((a) => [a.code, a.id]));
+  /*
+   * Accounts come from the asset's own mapping now, not from two hardcoded
+   * codes. `resolveAssetAccounts` applies asset override → type default → the
+   * 5500/1290 constants this function used to hardcode, so behaviour is
+   * unchanged for a tenant that has mapped nothing, while a tenant that HAS
+   * mapped (vehicles to one expense line, buildings to another) gets what they
+   * configured. One resolver, shared with `assets.create` — a second copy would
+   * let the capitalisation and the depreciation of the same asset disagree about
+   * which accounts it belongs to.
+   */
+  const [assetRow] = await tx
+    .select({ typeId: assets.typeId })
+    .from(assets)
+    .where(and(eq(assets.id, assetId), eq(assets.orgId, orgId)));
+  if (!assetRow) return null;
 
-  // If the standard accounts aren't seeded we can't post a valid entry.
-  for (const c of wanted) {
-    if (!codeToId.has(c)) return null;
-  }
+  const resolution = await resolveAssetAccounts(tx, {
+    orgId,
+    typeId: assetRow.typeId,
+    assetId,
+  });
+  // Unresolvable accounts still return null — the caller's `unposted` counter
+  // reports it, which stays as the last line of defence. See `runDepreciationForOrg`.
+  if (!resolution.ok) return null;
+  const codeToId = {
+    expense: resolution.accounts.depreciationExpenseAccountId,
+    accum: resolution.accounts.accumulatedDepreciationAccountId,
+  };
 
   type Line = { accountId: string; debit: number; credit: number; description: string };
   const lines: Line[] = [
-    { accountId: codeToId.get(codes.expense)!, debit: charge, credit: 0, description: "Depreciation expense" },
-    { accountId: codeToId.get(codes.accum)!, debit: 0, credit: charge, description: "Accumulated depreciation" },
+    { accountId: codeToId.expense, debit: charge, credit: 0, description: "Depreciation expense" },
+    { accountId: codeToId.accum, debit: 0, credit: charge, description: "Accumulated depreciation" },
   ];
 
   const totalDebit = lines.reduce((s, l) => s + l.debit, 0);

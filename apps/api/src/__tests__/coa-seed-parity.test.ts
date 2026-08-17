@@ -50,6 +50,7 @@ const REQUIRED_POSTING_CODES = [
   "1110", // Cash and Cash Equivalents  (settlement cash leg fallback)
   "1120", // Bank Accounts              (settlement cash leg)
   "1130", // Accounts Receivable        (AR control)
+  "1200", // Fixed Assets               (asset capitalisation debit leg)
   "1290", // Accumulated Depreciation   (depreciation credit leg)
   "2110", // Accounts Payable           (AP control)
   "4100", // Revenue from Operations    (AR revenue leg)
@@ -93,19 +94,29 @@ describe("chart-of-accounts seed parity", () => {
   });
 
   it("REQUIRED_POSTING_CODES stays in step with what the posting code actually looks up", () => {
-    // A cheap guard against this list going stale: the two depreciation legs are
-    // named as string literals in `lib/depreciation-journal.ts`, so if someone
-    // repoints that posting at different accounts this test names the drift
-    // instead of the parity check quietly passing against the wrong codes.
-    const depJournal = fs.readFileSync(path.resolve(HERE, "../lib/depreciation-journal.ts"), "utf8");
-    const codes = depJournal.match(/const codes = \{[^}]*\}/)?.[0] ?? "";
-    for (const c of ["5500", "1290"]) {
+    // A cheap guard against this list going stale.
+    //
+    // These codes USED to be string literals in `lib/depreciation-journal.ts`
+    // (`const codes = { expense: "5500", accum: "1290" }`), and this test read
+    // that block. They have since moved: the posting accounts are resolved per
+    // asset (override -> type default -> constant) by `lib/asset-accounts.ts`,
+    // which is now the single home of the fallback codes AND of the account the
+    // acquisition entry credits. The old assertion was not wrong — it correctly
+    // detected that the constants left the file it was watching. It is repointed
+    // here rather than deleted, because the drift it guards against is real.
+    const assetAccounts = fs.readFileSync(path.resolve(HERE, "../lib/asset-accounts.ts"), "utf8");
+    const fallbacks = assetAccounts.match(/DEFAULT_ASSET_ACCOUNT_CODES = \{[^}]*\}/)?.[0] ?? "";
+    for (const c of ["1200", "1290", "5500"]) {
       expect(
-        codes.includes(c),
-        `depreciation-journal.ts no longer references account ${c}. Update REQUIRED_POSTING_CODES ` +
-          `in this test and both seed lists together.`,
+        fallbacks.includes(c),
+        `asset-accounts.ts no longer lists account ${c} as a posting fallback. Update ` +
+          `REQUIRED_POSTING_CODES in this test and both seed lists together.`,
       ).toBe(true);
     }
+    expect(
+      assetAccounts.includes('ACQUISITION_CREDIT_CODE = "2110"'),
+      "asset-accounts.ts no longer credits 2110 on acquisition. Update REQUIRED_POSTING_CODES.",
+    ).toBe(true);
   });
 
   it("the base seed introduces no account code the canonical list does not define", () => {

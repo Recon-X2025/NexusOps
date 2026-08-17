@@ -14,6 +14,7 @@ import {
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import { contracts } from "./contracts";
+import { chartOfAccounts } from "./accounting";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const assetStatusEnum = pgEnum("asset_status", [
@@ -76,6 +77,23 @@ export const assetTypes = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     icon: text("icon"),
+    /*
+     * GL accounts an asset of this type posts to.
+     *
+     * The grain is the TYPE, not the asset: a building, a vehicle and a laptop
+     * capitalise into different asset accounts and depreciate into different
+     * expense lines, and `assets.type_id` is NOT NULL, so every existing asset
+     * already resolves through exactly one of these with no backfill.
+     *
+     * All three are nullable, and resolution falls back to the 5500/1290
+     * constants `depreciation-journal.ts` has always used, so no tenant breaks
+     * on the day this ships. RESTRICT because the chart of accounts is a lookup
+     * table (repo FK policy): an account that assets post to must not be
+     * deletable out from under them.
+     */
+    assetAccountId: uuid("asset_account_id").references(() => chartOfAccounts.id, { onDelete: "restrict" }),
+    accumulatedDepreciationAccountId: uuid("accumulated_depreciation_account_id").references(() => chartOfAccounts.id, { onDelete: "restrict" }),
+    depreciationExpenseAccountId: uuid("depreciation_expense_account_id").references(() => chartOfAccounts.id, { onDelete: "restrict" }),
     fieldsSchema: jsonb("fields_schema").$type<Array<{
       key: string;
       label: string;
@@ -112,6 +130,16 @@ export const assets = pgTable(
     vendor: text("vendor"),
     /** Optional link to the procurement/warranty/lease contract covering this asset. */
     contractId: uuid("contract_id").references(() => contracts.id, { onDelete: "set null" }),
+    /*
+     * Per-asset OVERRIDE of the type-level mapping above. Carried in the schema
+     * but deliberately NOT exposed on any form yet: the type is the right grain
+     * for almost every tenant, and shipping the columns now means the eventual
+     * "this one asset is different" needs a form change, not a second migration.
+     * Resolution order is: asset override → type default → 5500/1290 constants.
+     */
+    assetAccountId: uuid("asset_account_id").references(() => chartOfAccounts.id, { onDelete: "restrict" }),
+    accumulatedDepreciationAccountId: uuid("accumulated_depreciation_account_id").references(() => chartOfAccounts.id, { onDelete: "restrict" }),
+    depreciationExpenseAccountId: uuid("depreciation_expense_account_id").references(() => chartOfAccounts.id, { onDelete: "restrict" }),
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
     parentAssetId: uuid("parent_asset_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
