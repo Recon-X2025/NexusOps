@@ -81,6 +81,17 @@ const identity: PayslipIdentityInput = {
   },
   userName: "Asha Rao",
   decryptedPan: "ABCDE1234F",
+  /**
+   * The plaintext account, supplied ALONGSIDE the stored column — exactly as
+   * `decryptedPan` sits beside `employee.pan` above.
+   *
+   * `employees.bank_account_number` is now KMS-envelope-encrypted, so the view
+   * masks this decrypted value rather than the stored one. Masking the stored
+   * column would mask CIPHERTEXT and print something like `XXXXa3f9` on a
+   * payslip. The assertion below (`XXXX3456`) is unchanged and still correct —
+   * only where the value comes from moved.
+   */
+  decryptedBankAccount: "1234567890123456",
 };
 
 // An ESI-eligible employee (gross ≤ ₹21,000): ESI is deducted and included in the total.

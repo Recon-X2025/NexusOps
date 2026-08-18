@@ -61,6 +61,9 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
       const userName = (row.userRow.name as string) || "Employee";
       // Decrypt the stored (envelope) PAN for the payslip; legacy plaintext rows read through.
       const decryptedPan = await decryptPan(row.emp.pan);
+      // Same boundary for the account number — mask the plaintext, never the envelope.
+      const { decryptBankAccount } = await import("../lib/bank-account.js");
+      const decryptedBankAccount = await decryptBankAccount(row.emp.bankAccountNumber);
 
       // PT2: annual tax figures from the same engine-backed helper the on-screen payslip uses,
       // so the PDF and the screen agree. C1: pass the employee's FY declarations so the annual tax
@@ -106,6 +109,7 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
           employee: row.emp,
           userName,
           decryptedPan: decryptedPan ?? null,
+          decryptedBankAccount: decryptedBankAccount ?? null,
         },
       });
 

@@ -199,17 +199,29 @@ export function isInvoicePeriodClosed(orgSettings: unknown, invoiceDate: Date | 
 }
 
 /**
- * Payroll approval steps for a NEW run: 2 or 3, defaulting to 3.
+ * Payroll approval steps for a NEW run: 2 or 3, defaulting to **2**.
  *
  * Callers must stamp the returned value onto the run at creation and read it back
  * from the run thereafter — changing this setting must never alter a run already
- * in flight. Anything stored that is not 2 or 3 (hand-edited JSON, an older
- * write) falls back to 3, the safer length.
+ * in flight.
+ *
+ * WHY 2 AND NOT 3. Segregation of duties is enforced per step: the Finance step
+ * refuses whoever approved HR, and the CFO step refuses whoever approved either.
+ * A 3-step chain therefore requires THREE distinct approver accounts before a
+ * first run can complete. Pilot tenants of 30-80 people frequently do not have
+ * three people who should be approving payroll, and a default they cannot satisfy
+ * blocks the run rather than protecting it. Two steps still guarantee that no one
+ * person approves their own work, which is the property segregation exists for.
+ * Tenants that want a CFO gate set 3 explicitly on Payroll -> Runs.
+ *
+ * Nothing writes this key at org creation, so this constant is what a fresh org
+ * resolves to. Anything stored that is not 2 or 3 (hand-edited JSON, an older
+ * write) also falls back to 2 — a value the tenant can always satisfy.
  */
 export const PAYROLL_APPROVAL_CHAIN_LENGTHS = [2, 3] as const;
 export type PayrollApprovalChainLength = (typeof PAYROLL_APPROVAL_CHAIN_LENGTHS)[number];
 
 export function getPayrollApprovalChainLength(orgSettings: unknown): PayrollApprovalChainLength {
   const n = parseOrgSettings(orgSettings).payroll?.approvalChainLength;
-  return n === 2 ? 2 : 3;
+  return n === 3 ? 3 : 2;
 }

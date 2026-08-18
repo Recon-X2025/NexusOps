@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "bank_account_masked_display" text;

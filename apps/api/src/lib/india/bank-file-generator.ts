@@ -98,8 +98,30 @@ function validate(rows: BankFileRow[]): PartitionedRows {
   const skipped: Array<{ employeeId: string; reason: string }> = [];
   let totalAmount = 0;
   for (const r of rows) {
-    if (!r.bankAccountNumber || r.bankAccountNumber.length < 4) {
-      skipped.push({ employeeId: r.employeeId, reason: "Missing bank account number" });
+    // An absent account and a too-short one are DIFFERENT problems with
+    // different fixes, and these strings surface verbatim in the caller's
+    // `skipped[]`. Reporting "Missing" for a present-but-invalid number sends
+    // whoever reads it looking for a blank field that is not blank.
+    const acct = (r.bankAccountNumber ?? "").trim();
+    if (!acct) {
+      skipped.push({ employeeId: r.employeeId, reason: "No bank account number on file" });
+      continue;
+    }
+    if (acct.length < 4) {
+      skipped.push({
+        employeeId: r.employeeId,
+        reason: `Bank account number too short to be valid: '${acct}' (${acct.length} characters)`,
+      });
+      continue;
+    }
+    // A beneficiary name is a required field on every one of these formats, and
+    // the bank matches it against the account holder. No usable name means the
+    // row does not belong in a payment instruction.
+    if (!(r.employeeName ?? "").trim()) {
+      skipped.push({
+        employeeId: r.employeeId,
+        reason: "No account holder name on file — set the employee's bank account name",
+      });
       continue;
     }
     const ifsc = (r.bankIfsc ?? "").toUpperCase().trim();

@@ -51,6 +51,8 @@ import { expandLeaveToAttendance } from "../lib/india/leave-attendance";
 import { normaliseFeed, type RawAttendanceFeedRow } from "../lib/india/attendance-ingest";
 import { resolveShift, derivePunch, type ShiftDefinition } from "../lib/india/shift-schedule";
 import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
+// Account number is encrypted at rest, same envelope mechanism as PAN. IFSC stays plaintext.
+import { bankAccountColumns } from "../lib/bank-account";
 import { CreateLeaveRequestSchema, LeaveTypeEnum } from "@coheronconnect/types";
 import { normaliseStateToCode } from "@coheronconnect/payroll-math";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
@@ -506,7 +508,7 @@ export const hrRouter = router({
             ...panCols,
             uan: input.uan,
             esiIpNumber: input.esiIpNumber,
-            bankAccountNumber: input.bankAccountNumber,
+            ...(await bankAccountColumns(input.bankAccountNumber)),
             bankIfsc: input.bankIfsc,
             bankName: input.bankName,
             bankAccountName: input.bankAccountName,
@@ -655,6 +657,10 @@ export const hrRouter = router({
         const data = {
           ...rest,
           ...panCols,
+          // AFTER `...rest`, so the plaintext `bankAccountNumber` that spread in is
+          // overwritten by the encrypted blob + mask. An absent value yields `{}`,
+          // leaving the stored columns untouched.
+          ...(await bankAccountColumns((rest as { bankAccountNumber?: string }).bankAccountNumber)),
           ...(previousEmployerIncome !== undefined
             ? { previousEmployerIncome: String(previousEmployerIncome) }
             : {}),

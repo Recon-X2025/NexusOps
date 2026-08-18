@@ -116,6 +116,13 @@ export interface PayslipIdentityInput {
   userName: string;
   /** PAN decrypted by the caller (it is a KMS-envelope column). */
   decryptedPan: string | null;
+  /**
+   * Account number already decrypted by the caller, mirroring `decryptedPan`.
+   * REQUIRED for a correct mask: `bank_account_number` is stored as a `v2:`
+   * envelope, so masking the stored column directly would mask CIPHERTEXT and
+   * print something like `*****ab3f` on a payslip.
+   */
+  decryptedBankAccount?: string | null;
 }
 
 function regimeLabel(v: string | null | undefined): string {
@@ -163,7 +170,7 @@ export function buildPayslipView(args: {
         pan: identity.decryptedPan ?? identity.employee.pan ?? "—",
         uan: identity.employee.uan ?? "—",
         esiIpNumber: identity.employee.esiIpNumber ?? "—",
-        bankAccountMasked: maskBank(identity.employee.bankAccountNumber ?? undefined),
+        bankAccountMasked: maskBank(identity.decryptedBankAccount ?? undefined),
         taxRegimeLabel: regimeLabel(slip.taxRegimeUsed),
       }
     : {

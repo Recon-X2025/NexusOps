@@ -152,11 +152,12 @@ secretary for the first cycle.** They are not part of the monthly payroll run.
 of duties: whoever approves the HR step cannot approve the Finance step, and whoever approved
 either cannot approve the CFO step.
 
-- The **default chain is 3 steps** (HR → Finance → CFO), which means you need **three distinct
-  user accounts** with the right permissions before your first run. Not three names on one
-  login — three separate accounts.
-- If your organisation genuinely has only two approvers, switch the chain to **2 steps**
-  (HR → Finance) under **Payroll → Runs → Payroll approval chain**. Admin or owner only.
+- The **default chain is 2 steps** (HR → Finance), which means you need **two distinct user
+  accounts** with the right permissions before your first run. Not two names on one login —
+  two separate accounts.
+- If you want a CFO gate as well, switch the chain to **3 steps** (HR → Finance → CFO) under
+  **Payroll → Runs → Payroll approval chain**. Admin or owner only. A 3-step chain needs
+  **three** distinct accounts, because nobody may approve two steps.
 - **Change it before you create the run.** The length is stamped onto the run when it is
   created, so switching mid-cycle does not alter a run already in flight — deliberately, so
   nobody can shorten the chain on a run that is already part-approved.

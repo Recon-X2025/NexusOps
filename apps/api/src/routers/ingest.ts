@@ -28,6 +28,7 @@ import { computeInvoiceFromLines } from "../lib/invoice-lines";
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
 import { panColumnsTolerant, employeePanField } from "../lib/pan";
+import { bankAccountColumns } from "../lib/bank-account";
 import { currentFY } from "./accounting";
 import { SalaryStructureFormSchema } from "./payroll";
 
@@ -800,7 +801,8 @@ export const ingestRouter = router({
                                 ...panCols,
                                 uan: cleanStr(raw.uan),
                                 esiIpNumber: cleanStr(raw.esiIpNumber),
-                                bankAccountNumber: cleanStr(raw.bankAccountNumber),
+                                // Encrypted at rest, same as PAN above. IFSC stays plaintext.
+                                ...(await bankAccountColumns(cleanStr(raw.bankAccountNumber))),
                                 bankIfsc: cleanStr(raw.bankIfsc),
                                 bankName: cleanStr(raw.bankName),
                                 bankAccountName: cleanStr(raw.bankAccountName),

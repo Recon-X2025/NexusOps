@@ -1899,9 +1899,10 @@ export const payrollRouter = router({
 
       // Pull all payslips for the run, joined to the employee for bank/IFSC.
       const slipRows = await db
-        .select({ slip: payslips, emp: employees })
+        .select({ slip: payslips, emp: employees, userRow: users })
         .from(payslips)
         .innerJoin(employees, eq(payslips.employeeId, employees.id))
+        .innerJoin(users, eq(employees.userId, users.id))
         .where(and(eq(payslips.payrollRunId, run.id), eq(payslips.orgId, org!.id)));
       if (slipRows.length === 0) {
         throw new TRPCError({
@@ -1911,20 +1912,50 @@ export const payrollRouter = router({
       }
 
       const { generateBankFile } = await import("../lib/india/bank-file-generator.js");
+      const { decryptBankAccount } = await import("../lib/bank-account.js");
 
       const valueDate =
         (input.valueDate ?? new Date()).toISOString().slice(0, 10);
 
-      const bankRows = slipRows.map(({ slip, emp }: { slip: typeof payslips.$inferSelect; emp: typeof employees.$inferSelect }) => ({
+      /*
+       * BENEFICIARY NAME — the account holder, never the job designation.
+       *
+       * This read `emp.title ?? emp.employeeId ?? "Employee"`. `employees.title`
+       * sits between `department` and `jobGrade`: it is the DESIGNATION. So a
+       * payment instruction named the beneficiary "Senior Engineer", or fell back
+       * to the staff code "EMP-0001", or to the literal string "Employee". Banks
+       * match beneficiary name against the account holder for NEFT and validate it
+       * for NACH, so those files invite rejection or mispayment.
+       *
+       * Order, and why:
+       *   1. `bankAccountName` — the account holder as recorded against THIS
+       *      account. It is the only field that is definitionally the right answer,
+       *      and it is already captured by `hr.employees.create/update` and the CSV
+       *      importer.
+       *   2. `users.name` — the person's real name. This follows the payslip PDF
+       *      precedent (`payroll-payslip-pdf.ts:61`) because it is a human name
+       *      rather than a role, which is the property that matters here. It is a
+       *      FALLBACK, not a peer: a platform display name ("Ravi K") is not
+       *      guaranteed to match what the bank holds, so a recorded account name
+       *      always wins.
+       *   3. Nothing. No literal placeholder. A row with no usable name is skipped
+       *      by `validate()` with a named reason and is excluded from the file —
+       *      a payment instruction naming "Employee" is worse than one row fewer.
+       */
+      // The account number is stored KMS-envelope-encrypted, so this is the one
+      // place that decrypts it — a bank file is the only legitimate consumer of the
+      // plaintext. `decryptBankAccount` passes a legacy pre-encryption plaintext row
+      // through unchanged, so no backfill is required.
+      const bankRows = await Promise.all(slipRows.map(async ({ slip, emp, userRow }: { slip: typeof payslips.$inferSelect; emp: typeof employees.$inferSelect; userRow: typeof users.$inferSelect }) => ({
         employeeId: emp.employeeId ?? String(emp.id).slice(0, 12),
-        employeeName: emp.title ?? emp.employeeId ?? "Employee",
-        bankAccountNumber: emp.bankAccountNumber ?? "",
+        employeeName: (emp.bankAccountName ?? "").trim() || (userRow.name ?? "").trim(),
+        bankAccountNumber: (await decryptBankAccount(emp.bankAccountNumber)) ?? "",
         bankIfsc: emp.bankIfsc ?? "",
         bankName: emp.bankName ?? "",
         amount: Number(slip.netPay || 0),
         valueDate,
         narration: `Payroll ${slip.month}/${slip.year}`,
-      }));
+      })));
 
       const result = generateBankFile({
         format: input.format,
@@ -1935,6 +1966,28 @@ export const payrollRouter = router({
         ...(input.utilityName ? { utilityName: input.utilityName } : {}),
         fileSlug: `payroll-${run.year}-${String(run.month).padStart(2, "0")}`,
       });
+
+      /*
+       * A file that pays nobody is not a file.
+       *
+       * With every employee skipped the generator still returns a well-formed
+       * header-only body, and this returned it as a success with `recordCount: 0`
+       * — a customer could download something that looks like a payment file and
+       * instructs no payment. A write that degrades to nothing must say so, so
+       * this is an error carrying the reasons, which are per-employee and
+       * actionable ("No bank account number on file", "Invalid IFSC: 'X'").
+       */
+      if (result.recordCount === 0) {
+        const reasons = result.skipped
+          .map((sk: { employeeId: string; reason: string }) => `${sk.employeeId}: ${sk.reason}`)
+          .join("; ");
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            `No employee in this run has usable bank details, so the file would instruct no payment. ` +
+            `${result.skipped.length} employee(s) excluded — ${reasons}`,
+        });
+      }
 
       return {
         filename: result.filename,

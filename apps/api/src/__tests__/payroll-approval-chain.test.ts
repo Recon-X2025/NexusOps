@@ -110,9 +110,23 @@ describe("payroll approval chain length", () => {
   });
 
   describe("the setting", () => {
-    it("defaults to THREE so an existing tenant is unaffected", async () => {
+    /**
+     * CHANGED 2026-08-18: the default moved from 3 to 2.
+     *
+     * The old assertion was NOT wrong — it correctly pinned the default of the
+     * day, and it is what caught this change. The default itself was changed by
+     * decision: segregation of duties refuses the Finance step to whoever
+     * approved HR and the CFO step to whoever approved either, so a 3-step chain
+     * needs THREE distinct approver accounts before a first run can complete.
+     * Pilot tenants of 30-80 people often do not have three people who should be
+     * approving payroll, and a default they cannot satisfy blocks the run rather
+     * than protecting it. Two steps still guarantee nobody approves their own
+     * work. Nothing is written at org creation, so this is a pure constant change
+     * with no migration and no divergence for tenants that set a value.
+     */
+    it("defaults to TWO for a tenant that has never set it", async () => {
       const admin = adminRouter.createCaller(createMockContext(hrUser, orgId));
-      expect((await admin.payrollPolicy.get()).approvalChainLength).toBe(3);
+      expect((await admin.payrollPolicy.get()).approvalChainLength).toBe(2);
     });
 
     it("accepts 2 and 3", async () => {
@@ -126,8 +140,9 @@ describe("payroll approval chain length", () => {
       const admin = adminRouter.createCaller(createMockContext(hrUser, orgId));
       await expect(admin.payrollPolicy.update({ approvalChainLength: 1 } as never)).rejects.toThrow();
       await expect(admin.payrollPolicy.update({ approvalChainLength: 4 } as never)).rejects.toThrow();
-      // Still the previous value — a rejected write changes nothing.
-      expect((await admin.payrollPolicy.get()).approvalChainLength).toBe(3);
+      // Still the previous value — a rejected write changes nothing. This org has
+      // never had a value written, so that is the default (2 since 2026-08-18).
+      expect((await admin.payrollPolicy.get()).approvalChainLength).toBe(2);
     });
 
     it("a new run is STAMPED with the org setting at creation", async () => {

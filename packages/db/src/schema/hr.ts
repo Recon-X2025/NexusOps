@@ -312,7 +312,13 @@ export const employees = pgTable(
     aadhaarVerification: idVerificationStatusEnum("aadhaar_verification").notNull().default("unverified"),
     panVerification: idVerificationStatusEnum("pan_verification").notNull().default("unverified"),
     bankVerification: idVerificationStatusEnum("bank_verification").notNull().default("unverified"),
+    /**
+     * KMS-envelope-encrypted (`v2:` blob), never plaintext — see `lib/bank-account.ts`.
+     * Read through `decryptBankAccount`, which passes legacy plaintext through.
+     */
     bankAccountNumber: text("bank_account_number"),
+    /** Last-four visual mask, safe to display without a decrypt. */
+    bankAccountMaskedDisplay: text("bank_account_masked_display"),
     bankIfsc: text("bank_ifsc"),
     bankName: text("bank_name"),
     bankAccountName: text("bank_account_name"),
