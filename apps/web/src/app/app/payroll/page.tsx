@@ -83,6 +83,26 @@ interface StructureFormState {
   effectiveTo: string; // yyyy-mm-dd or ""
 }
 
+/**
+ * A new salary structure is effective from the FIRST OF THE CURRENT MONTH, not today.
+ *
+ * The payroll run resolves a structure with `effectiveFrom <= period`, where
+ * `period` is the 1st of the pay month (`hr.ts` passes
+ * `new Date(year, month - 1, 1)` into `resolveSalaryStructureForPeriod`). So a
+ * structure dated any day after the 1st is NOT in force for that month, and the
+ * employee is silently excluded from the run.
+ *
+ * Defaulting to `new Date()` meant a tenant onboarding on the 25th created
+ * structures effective the 25th, and their run for that month paid NOBODY. A
+ * live walk hit exactly that. Mid-month is the exception in payroll — the rule is
+ * "this salary applies for this month" — so the default now expresses the rule
+ * and a genuine mid-month change is a deliberate edit.
+ */
+function firstOfCurrentMonth(): string {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+}
+
 function emptyStructureForm(): StructureFormState {
   return {
     structureName: "",
@@ -90,7 +110,7 @@ function emptyStructureForm(): StructureFormState {
     daPercent: "0",
     hraPercentOfBasic: "50",
     ltaAnnual: "0",
-    effectiveFrom: new Date().toISOString().slice(0, 10),
+    effectiveFrom: firstOfCurrentMonth(),
     effectiveTo: "",
   };
 }
@@ -125,7 +145,7 @@ function structureToForm(s: Record<string, any>): StructureFormState {
     daPercent: String(s.daPercent ?? "0"),
     hraPercentOfBasic: String(s.hraPercentOfBasic ?? "50"),
     ltaAnnual: String(s.ltaAnnual ?? "0"),
-    effectiveFrom: toDate(s.effectiveFrom) || new Date().toISOString().slice(0, 10),
+    effectiveFrom: toDate(s.effectiveFrom) || firstOfCurrentMonth(),
     effectiveTo: toDate(s.effectiveTo),
   };
 }
@@ -138,7 +158,7 @@ function inr(v: string | number | null | undefined): string {
 
 export default function PayrollPage() {
   const utils = trpc.useUtils();
-  const { mergeTrpcQueryOpts, can } = useRBAC();
+  const { mergeTrpcQueryOpts, can, isAdmin } = useRBAC();
 
   // Finance/CFO approvers hold `financial.write` (the authority the payroll
   // approval action requires) but not `payroll.read`. Admit them to VIEW the run
@@ -148,6 +168,35 @@ export default function PayrollPage() {
   // (below) so the hook count never changes between renders (rules of hooks).
   const canViewPayroll = can("payroll", "read") || can("financial", "write");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
+  /*
+   * Payroll approval chain — 2 or 3 steps, never 1.
+   *
+   * The setting has existed since the approval-chain round and is stamped onto
+   * `payroll_runs.approval_chain_length` AT CREATION, so a mid-cycle change
+   * cannot alter a run already in flight. It had no screen, only
+   * `admin.payrollPolicy.*`, which means no tenant could actually reach it — a
+   * capability a customer cannot reach is not shipped. Admin/owner only, matching
+   * the `adminProcedure` gate on the server.
+   *
+   * `alwaysFresh`: this value changes how the NEXT run is built, so the control
+   * must never render a pre-write answer (app default is staleTime 10s).
+   */
+  const alwaysFresh = { staleTime: 0, refetchOnMount: "always" as const };
+  const payrollPolicy = trpc.admin.payrollPolicy.get.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("admin.payrollPolicy.get", { ...alwaysFresh, enabled: isAdmin() }),
+  );
+  const updatePayrollPolicy = trpc.admin.payrollPolicy.update.useMutation({
+    onSuccess: (r: any) => {
+      void payrollPolicy.refetch();
+      toast.success(
+        `Approval chain set to ${r?.approvalChainLength ?? ""} steps. Runs already created keep the length they were stamped with.`,
+        { duration: 8_000 },
+      );
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not update the approval chain"),
+  });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
   const [createYear, setCreateYear] = useState(new Date().getFullYear());
@@ -338,6 +387,34 @@ export default function PayrollPage() {
           </button>
         ))}
       </div>
+
+      {activeTab === "runs" && isAdmin() && (
+        <div
+          data-testid="approval-chain-setting"
+          className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+        >
+          <div className="flex-1 min-w-[260px]">
+            <p className="text-body-sm font-semibold text-foreground">Payroll approval chain</p>
+            <p className="text-[11px] text-muted-foreground">
+              How many approvals a run needs before statutory generation and the bank file unlock.
+              Segregation of duties applies at either length — one person can never approve two
+              steps. Runs already created keep the length they were stamped with.
+            </p>
+          </div>
+          <select
+            data-testid="approval-chain-select"
+            className="border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+            value={payrollPolicy.data?.approvalChainLength ?? 3}
+            disabled={updatePayrollPolicy.isPending || payrollPolicy.isLoading}
+            onChange={(e) =>
+              updatePayrollPolicy.mutate({ approvalChainLength: Number(e.target.value) as 2 | 3 })
+            }
+          >
+            <option value={2}>2 steps — HR then Finance</option>
+            <option value={3}>3 steps — HR, Finance, then CFO</option>
+          </select>
+        </div>
+      )}
 
       {activeTab === "runs" && (
         <div className="flex gap-6">

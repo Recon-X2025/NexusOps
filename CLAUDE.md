@@ -125,6 +125,33 @@ generator (`packages/db/src/seed-demo.ts`) and its `db:seed:company` / `db:seed:
 scripts no longer exist; the demo company must not be re-introduced. The base seeds
 (`db:seed`, `db:seed:modules`, `db:seed:smb`) remain.
 
+## Standing decisions — payroll operability
+
+- **Any date that feeds a payroll PERIOD defaults to the PERIOD START, never to `today`.**
+  `resolveSalaryStructureForPeriod` selects on `effectiveFrom <= period`, and the run passes
+  `new Date(year, month - 1, 1)` — the 1st of the pay month. A salary structure dated any day
+  after the 1st is therefore NOT in force for that month and the employee is silently excluded
+  from the run. The New Structure form defaulted to `new Date()`, so a tenant onboarding on the
+  25th created structures effective the 25th and its run for that month paid NOBODY. A live walk
+  hit exactly that. Mid-month is the exception in payroll; the default must express the rule.
+- **The payroll approval chain needs as many DISTINCT accounts as it has steps.** Segregation of
+  duties is enforced per step: `payroll.ts` refuses FINANCE when the actor approved HR, and CFO
+  when the actor approved either. The default chain is 3 steps, so a tenant needs **three**
+  separate approver logins before its first run — not three roles on one login. Tenants with two
+  approvers must switch to the 2-step chain BEFORE creating the run, because the length is
+  stamped onto `payroll_runs.approval_chain_length` at creation.
+- **Payslip access is SELF-SERVICE BY DESIGN — do not widen it.** The payslip PDF route filters
+  `eq(employees.userId, userId)` (`http/payroll-payslip-pdf.ts:42`), so only the employee the
+  payslip belongs to can retrieve it. This has been written up as a defect ("HR cannot view what
+  it issued") and was ruled **working as intended** by the owner on 2026-08-18: a payslip is
+  personal salary data. Do NOT route it through `assertSelfOrPermitted` with an HR grant. HR
+  retains visibility of every computed figure on the payroll run itself — the restriction is on
+  the individually-addressed document, not on the numbers. The operational consequence is that
+  every employee needs a working login before payday (`docs/MANUAL_SET.md` §13).
+- **A capability a tenant cannot reach is not shipped.** The chain length existed as
+  `admin.payrollPolicy.*` with no caller for several rounds; the bank-file generator still has
+  none. When an engine lands without a screen, record it as a GAP, not as done.
+
 ## Money paths (verify invariants when touching these)
 
 - **Journal entries**: `accounting.journal.create` — debits must equal credits (tolerance 0.001), enforced in `apps/api/src/routers/accounting.ts`.

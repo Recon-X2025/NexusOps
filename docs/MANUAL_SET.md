@@ -146,9 +146,94 @@ secretary for the first cycle.** They are not part of the monthly payroll run.
 
 ---
 
+## 10. Approver accounts — set these up BEFORE your first run
+
+**Every payroll run needs approvals from DIFFERENT people.** The system enforces segregation
+of duties: whoever approves the HR step cannot approve the Finance step, and whoever approved
+either cannot approve the CFO step.
+
+- The **default chain is 3 steps** (HR → Finance → CFO), which means you need **three distinct
+  user accounts** with the right permissions before your first run. Not three names on one
+  login — three separate accounts.
+- If your organisation genuinely has only two approvers, switch the chain to **2 steps**
+  (HR → Finance) under **Payroll → Runs → Payroll approval chain**. Admin or owner only.
+- **Change it before you create the run.** The length is stamped onto the run when it is
+  created, so switching mid-cycle does not alter a run already in flight — deliberately, so
+  nobody can shorten the chain on a run that is already part-approved.
+
+A run that reaches the approval stage without enough distinct approvers cannot be completed,
+and statutory generation and the bank file stay locked behind it.
+
+---
+
+## 11. Leaver documents — send them before access is revoked
+
+A departing employee's login is disabled automatically by a nightly job, **one handover day
+after their last working day**: access is retained through the end date and through the day
+after, then revoked.
+
+**Send the leaver their documents — payslips, settlement statement, any letters — by email
+before that.** Once the login is disabled they cannot retrieve anything themselves, and there
+is no self-service route back in.
+
+---
+
+## 12. The bank payment file — request it for this cycle
+
+The system computes net pay per employee and can generate a bank payment file in the major
+formats (HDFC NEFT, ICICI, SBI CMP, Axis, and the NPCI NACH-Credit canonical record), using a
+debit account **you supply** — it is not a placeholder or a fixed account.
+
+**There is no screen for it yet.** For the first cycle, ask your CoheronConnect contact to
+generate the file for your completed run, and tell them which format your bank expects and
+which account to debit. The figures come from the same computed payslips you have already
+approved.
+
+---
+
+## 13. Payslips are self-service — employees download their own
+
+**This is deliberate, not a limitation.** A payslip is personal salary data, so it is
+retrievable only by the employee it belongs to, from their own login in the employee portal.
+HR and payroll staff do not open other people's payslips.
+
+What this means in practice:
+
+- **Employees need working logins before payday.** Every employee already has exactly one
+  account, but confirm they can sign in — a payslip nobody can reach is the same as no payslip.
+- **If HR needs a copy** — for a bank, a visa letter, or a query — ask the employee to forward
+  theirs. That keeps the access trail with the person whose data it is.
+- **HR can still see the numbers.** The payroll run shows every employee's computed gross,
+  deductions and net; it is the PDF addressed to an individual that stays with them.
+
+---
+
+## 14. Bulk employee import — the CSV needs a header row
+
+The importer matches columns **by header name**, not by position, so **column order does not
+matter**. Two things do:
+
+- **The file must have a header row.** Without one the first employee is read as the column
+  names and the import will not recognise any column.
+- **There is no downloadable template yet.** The columns are: `name`, `email`,
+  `structureName`, `state`, `taxRegime`. `structureName` must match a salary structure that
+  already exists, and `state` must be one of the states in the professional-tax list — rows
+  failing either are skipped with the reason named, and the rest still import.
+
+Create your salary structures first, then import employees against them.
+
+---
+
 ## In short
 
 The first cycle can run payroll, deduct statutory amounts for most states, produce correct
 payslips, and settle a leaver — all inside the system. The manual set above is the short,
 known list of exceptions. Do each of them the usual way, keep your own records, and later
 releases will bring them into the product.
+
+**Three of these need action BEFORE your first run, not during it:** set up enough distinct
+approver accounts (§10), create salary structures before importing employees (§14), and agree
+with your CoheronConnect contact how the bank payment file will be produced (§12).
+
+_Last reviewed 2026-08-17 against the live build. §10-§14 were added after a payroll-readiness
+walk; §1-§9 were carried forward unchanged and were not re-verified in that pass._

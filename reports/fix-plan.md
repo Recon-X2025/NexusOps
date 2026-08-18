@@ -6,6 +6,85 @@ No code has been changed by this document — it is the plan, not the work._
 
 ---
 
+## ⭐ STATE REFRESH — 2026-08-17 (evening) — PAYROLL READINESS (read this first)
+
+**NOT COMMITTED.** Working tree holds three files: `apps/web/src/app/app/payroll/page.tsx`
+(two fixes) and `docs/MANUAL_SET.md`. Live and deployed remains `f797cd1`.
+
+Seven pilot companies (30-80 employees) onboard 25 August and run their first real payroll in
+early September. The engine was never in question. What was unverified is everything a customer
+must do BEFORE and AFTER the computation — and that is where the damage was.
+
+### FIXED — EFFECTIVE-DATE-DEFAULT (the round's headline; would have stopped all seven)
+`resolveSalaryStructureForPeriod` selects on `effectiveFrom <= period`
+(`lib/india/salary-structure-resolver.ts:53`), and the run passes `new Date(year, month - 1, 1)`
+— the **1st of the pay month** (`routers/hr.ts:1717`). The New Structure form defaulted
+`effectiveFrom` to `new Date()` (`app/payroll/page.tsx:93`). So a tenant onboarding on the 25th
+created every structure effective the 25th, no structure was in force for August, the resolver
+returned null for every employee, and **the run paid NOBODY**. A live walk on 15 August hit
+exactly this and the error message named both employees and the fix — good quality, wrong
+default.
+
+Changed to the **first of the current month** via a `firstOfCurrentMonth()` helper, applied to
+both the new-structure default and the edit fallback. Chosen because it matches the resolver's
+period semantics exactly and states what payroll means — "this salary applies for this month".
+Mid-month is the exception; a genuine mid-month change is now a deliberate edit.
+**Cycle-one impact: certain, at every tenant.**
+
+### FIXED — APPROVAL-CHAIN-SCREEN (a capability no tenant could reach)
+`admin.payrollPolicy.get/update` has existed since the approval-chain round (`routers/admin.ts:277`)
+and the ONLY web references were entries in `trpc-procedure-rbac.generated.ts` — no caller. A
+tenant with two approvers could not switch off the 3-step default. Built: an admin-gated control
+on **Payroll → Runs** (`staleTime: 0` + `refetchOnMount: "always"`), stating that segregation
+applies at either length and that runs already created keep their stamped length.
+**Cycle-one impact: certain for any tenant without a CFO.**
+
+### ESTABLISHED, NOT FIXED — ranked
+1. **BANK-FILE-NO-UI (top of the board).** The generator is REAL and customer-configurable:
+   `debitAccount` is a required input (`routers/payroll.ts:1878`), and five formats exist
+   (HDFC NEFT, ICICI, SBI CMP, Axis, NPCI NACH-Credit). **Nothing in `apps/web` calls
+   `generateBankFile`.** A payroll that computes correctly and cannot be paid out is not a
+   payroll. Sizing: a screen over an existing procedure, ~1 day. **This is the next thing to build.**
+   NOTE: a prior audit called the debit account a placeholder — that is NOT the case; the gap is
+   reachability, not correctness.
+2. ~~**PAYSLIP-HR-ACCESS**~~ — **CLOSED as WORKING AS INTENDED (owner decision, 2026-08-18).**
+   The PDF route filters `eq(employees.userId, userId)` (`http/payroll-payslip-pdf.ts:42`), so a
+   payslip is retrievable only by the employee it belongs to. This was written up as a gap; the
+   owner has ruled it is the intended design — a payslip is personal salary data and HR does not
+   open other people's. **Do NOT "fix" this by adding an HR grant.** The consequence to manage is
+   operational, not technical: every employee needs a working login before payday, which is now
+   stated in `docs/MANUAL_SET.md` §13. HR still sees every computed figure on the run itself; it
+   is only the individually-addressed PDF that stays with its owner.
+3. **IMPORT-TEMPLATE.** The CSV importer matches columns by header NAME
+   (`components/csv-import-modal.tsx:87`), so **column order does not matter** — but a file with
+   no header row consumes employee 1 as the headers, and there is **no downloadable template**.
+   Sizing: a static template + a header-missing guard, ~2 hours.
+4. **STRUCTURE-BULK-REASSIGN.** Structures are assigned in bulk only at intake, via the CSV
+   importer resolving `structureName` (`routers/ingest.ts:710,787`). Changing an existing
+   employee's structure is one at a time (`routers/hr.ts:563`). Not fatal for cycle one, because
+   intake IS the CSV path.
+
+### CONFIRMED HOLDING
+- **ECR wage base.** `epfWages = n(slip.pfWageBase)` (`lib/india/ecr-format.ts:113`) — the
+  resolved Labour-Codes wage base, not raw basic. The earlier correction stands.
+- **Segregation of duties, and it is STRONGER than previously recorded.** `routers/payroll.ts:792`
+  refuses FINANCE when the actor approved HR; `:800` refuses CFO when the actor approved either.
+  So the default 3-step chain needs **THREE distinct approver accounts**, not two.
+- **Offboarding revocation.** Access is retained through `endDate` and `endDate+1`, then revoked
+  (`lib/offboarding-revoke.ts:32`) — so leaver documents must be sent before that.
+
+### MANUAL_SET.md updated
+Added §10 approver accounts (three distinct, before the first run), §11 leaver documents before
+revocation, §12 bank file by request this cycle, §13 HR cannot open payslips, §14 CSV needs a
+header row and has no template. A dated line now states plainly that **§1-§9 were carried forward
+unchanged and NOT re-verified** in this pass — better than implying the whole file was audited.
+
+### NOT DONE
+No spec for the approval-chain control. `pnpm build` 11/11 and `lint:cold` 9/9 passed; the full
+API + E2E chain was still running when the round closed, so its counts are unconfirmed here.
+
+---
+
 ## ⭐ STATE REFRESH — 2026-08-17 (read this first)
 
 **NOT DEPLOYED.** Commit `ebfc9e0` is **local only**, 1 ahead of `origin/main` (`5892f3e`). Pushing

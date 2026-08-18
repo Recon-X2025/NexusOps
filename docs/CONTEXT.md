@@ -134,6 +134,46 @@ half-yearly PT flags rather than computes (see the wage-floor and C2-STRUCT note
 - **Confirm the head** from the last entry in `packages/db/drizzle/meta/_journal.json`;
   count = head-number + 1 files (`0000`…`0082`).
 
+## 2026-08-17 (evening) — PAYROLL READINESS: the default that would have paid nobody
+
+_Per-item detail in `reports/fix-plan.md` → the 2026-08-17 (evening) STATE REFRESH. Conventions
+promoted to `CLAUDE.md` → "Standing decisions — payroll operability". Customer-facing changes in
+`docs/MANUAL_SET.md` §10-§14. **Working tree, NOT committed.**_
+
+Seven pilot companies onboard **25 August** and run their first real payroll in early September.
+The engine was never the risk — PF, ESI, professional tax across 36 states, TDS both regimes,
+gratuity, all test-backed. The risk was everything either side of the computation.
+
+**The finding that mattered.** A new salary structure's effective date defaulted to `new Date()`
+— today. The run resolves a structure with `effectiveFrom <= period` where period is the **1st of
+the pay month**. So every tenant onboarding on the 25th would have created structures effective
+the 25th, no structure would be in force for August, and **the August run would have paid
+nobody**. A live walk on 15 August hit precisely this. Now defaults to the first of the current
+month: mid-month is the exception in payroll, so the default should express the rule.
+
+**The capability nobody could reach.** The payroll approval chain has been configurable to 2 or 3
+steps for several rounds, stamped per run at creation — with no screen. The only web references to
+`admin.payrollPolicy.*` were entries in the generated RBAC map. A tenant without a CFO could not
+switch off the 3-step default. Now an admin-gated control on Payroll → Runs.
+
+**What is now the top of the board: the bank file has no UI.** The generator is real and takes a
+customer-supplied debit account across five bank formats — and nothing in `apps/web` calls it. A
+payroll that computes correctly and cannot be paid out is not a payroll. Roughly a day; it is a
+screen over an existing procedure. A prior audit called the debit account a placeholder; that is
+wrong — the gap is reachability, not correctness.
+
+**Two things customers had not been told, both now in MANUAL_SET.** Segregation of duties is
+stricter than recorded: `payroll.ts` refuses the Finance step to whoever approved HR, and the CFO
+step to whoever approved either — so the default 3-step chain needs **three distinct approver
+accounts** before a first run, not two. And a leaver's login is revoked one handover day after
+their last working day, so their documents must be emailed before that.
+
+**Method note.** Three rounds running, reading a procedure has not been the same as running it —
+two accounting procedures discarded date inputs they declared, a "Download PDF" button called
+`downloadCSV`, and the Setup Wizard wrote a state code that normalised to null. This round the
+effective-date defect was only provable by tracing the default through the resolver to the run's
+call site. Trace to the call site.
+
 ## 2026-08-17 — Quote & tax-invoice DOCUMENTS + GST state correctness (`ebfc9e0`, **committed, NOT pushed**)
 
 _Migrations **`0092`** (depreciation period key), **`0093`**/**`0094`** (payroll arrears, employee
