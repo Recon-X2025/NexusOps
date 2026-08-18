@@ -221,6 +221,37 @@ export function assertKmsConfigured(): void {
           "or set ALLOW_LOCAL_KMS_IN_PROD=true to accept APP_SECRET-derived key wrapping.",
       );
     }
+    /*
+     * APP_SECRET must be PRESENT, checked here rather than at first use.
+     *
+     * The local provider's constructor only stores a key id; APP_SECRET is read
+     * in `kek()`, a per-call method reached from `generateDataKey()`. So without
+     * this check the API boots clean, /health goes green, and the FIRST WRITE
+     * THAT ENCRYPTS throws — PAN on employee create, and now the bank account
+     * number on all three of its write paths, including the CSV importer every
+     * pilot tenant uses. That failure arrives with no warning and nothing in the
+     * boot log to point at. `migrate && server` in the container CMD means
+     * failing here instead leaves the previous container serving.
+     *
+     * PRESENCE ONLY — the value is never logged, echoed or included in this
+     * message. A secret that appears in a stack trace is a secret in a log
+     * aggregator.
+     *
+     * Gated to the LOCAL provider: KMS_PROVIDER=aws wraps DEKs with a real CMK
+     * and needs no APP_SECRET, so requiring one there would break a correctly
+     * configured deployment. Gated to production for the same reason the check
+     * above is: non-production keeps booting, so local development and the
+     * Playwright harness (whose webServer sets no APP_SECRET) are unaffected.
+     */
+    if (!process.env["APP_SECRET"]) {
+      throw new Error(
+        "APP_SECRET is not set, and KMS_PROVIDER=local derives its key-encryption key from it. " +
+          "Encryption of PAN and employee bank account numbers would fail on the first write " +
+          "while the API otherwise appeared healthy. Set APP_SECRET in .env.production on the " +
+          "deployment host (the api service reads it via env_file), or switch to KMS_PROVIDER=aws " +
+          "with AWS_KMS_KEY_ID.",
+      );
+    }
   }
   // Force construction so an invalid config throws here, at boot.
   getKmsProvider();
