@@ -83,7 +83,7 @@ test.describe("Depreciation — register, run, and the ledger", () => {
     await expect(page.getByText(/Seeded \d+ accounts successfully/i)).toBeVisible({ timeout: 20_000 });
 
     // ── An asset with a cost and an acquisition date ────────────────────────
-    await navigateTo(page, "Hardware Assets", /Hardware Assets/i, /\/app\/ham/);
+    await navigateTo(page, "Asset Management", /Asset Management/i, /\/app\/ham/);
     await page.getByRole("button", { name: /Add Asset/i }).first().click();
     await page.getByPlaceholder("e.g. Dell Latitude 5540").fill(assetName);
     // `assets.create` requires a typeId; the form leaves the select unset, so a

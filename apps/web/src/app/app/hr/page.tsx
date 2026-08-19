@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X, CheckCircle, Upload } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { LEAVE_TYPE_PICKER_OPTIONS, leaveTypeLabel } from "@/lib/leave-labels";
@@ -118,6 +119,9 @@ function settlementClock(endDate: string | Date | null | undefined, ffStatus: st
 
 export default function HRPage() {
   const { can, currentUser, mergeTrpcQueryOpts } = useRBAC();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Directory management capability. The API requires hr:assign to create/update
   // an employee (permissionProcedure("hr","assign")), so the UI gates the
@@ -128,14 +132,41 @@ export default function HRPage() {
   const visibleTabs = HR_TABS.filter((t) => can(t.module, t.action));
 
   const defaultTab = visibleTabs[0]?.key ?? "";
-  const [tab, setTab] = useState(defaultTab);
 
-  // If the active tab is no longer visible after a role switch, reset to first visible
+  // ?tab= deep-link. Same shape as /app/recruitment and /app/secretarial: the URL
+  // seeds the tab, an effect keeps state in step with back/forward, and clicking a
+  // tab writes the URL back so the address bar is always honest.
+  // A ?tab= the user has no permission for is NOT visible in `visibleTabs`, so it
+  // resolves to null and falls back to `defaultTab` — never an empty shell.
+  const urlTab = searchParams.get("tab");
+  const resolvedUrlTab = urlTab && visibleTabs.some((t) => t.key === urlTab) ? urlTab : null;
+  const [tab, _setTab] = useState(resolvedUrlTab ?? defaultTab);
+
+  useEffect(() => {
+    if (resolvedUrlTab && resolvedUrlTab !== tab) {
+      _setTab(resolvedUrlTab);
+    }
+  }, [resolvedUrlTab, tab]);
+
+  // If the active tab is no longer visible after a role switch, reset to first visible.
+  // Uses `_setTab` (state only): this is a corrective reset, not a user navigation, and
+  // writing the URL from an effect whose dep array holds a freshly-built `visibleTabs`
+  // array would replace the URL on every render.
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) {
-      setTab(visibleTabs[0]?.key ?? "");
+      _setTab(visibleTabs[0]?.key ?? "");
     }
   }, [visibleTabs, tab]);
+
+  const setTab = useCallback(
+    (newTab: string) => {
+      _setTab(newTab);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", newTab);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, pathname, router],
+  );
 
 
   const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { refetchOnWindowFocus: false },));

@@ -85,8 +85,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/changes",
         icon: "GitBranch",
         module: "changes",
+        // "Changes" removed — it repeated this item's own href (/app/changes).
+        // Problems and Releases are distinct routes and stay.
         children: [
-          { label: "Changes", href: "/app/changes" },
           { label: "Problems", href: "/app/problems" },
           { label: "Releases", href: "/app/releases" },
         ],
@@ -96,8 +97,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/work-orders",
         icon: "Wrench",
         module: "work_orders",      // was "incidents" — field technicians need work_orders.read
+        // "Work Orders" removed — it repeated this item's own href (/app/work-orders).
+        // Parts & Inventory and On-Call are distinct routes and stay.
         children: [
-          { label: "Work Orders", href: "/app/work-orders" },
           { label: "Parts & Inventory", href: "/app/work-orders/parts" },
           { label: "On-Call", href: "/app/on-call" },
         ],
@@ -107,8 +109,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/events",
         icon: "Activity",
         module: "events",
+        // "Event Management" removed — it repeated this item's own href (/app/events).
+        // CMDB is a distinct route and stays.
         children: [
-          { label: "Event Management", href: "/app/events" },
           { label: "CMDB", href: "/app/cmdb" },
         ],
       },
@@ -117,8 +120,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/ham",
         icon: "HardDrive",
         module: "ham",
+        // "Hardware Assets" removed — it repeated this item's own href (/app/ham).
+        // Software Assets is a distinct route and stays.
         children: [
-          { label: "Hardware Assets", href: "/app/ham" },
           { label: "Software Assets", href: "/app/sam" },
         ],
       },
@@ -147,11 +151,10 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/dpdp",
         icon: "ShieldCheck",
         module: "compliance",
-        children: [
-          { label: "Data Subject Requests", href: "/app/dpdp" },
-          { label: "Consent Ledger", href: "/app/dpdp?tab=consent" },
-          { label: "Breach Register", href: "/app/dpdp?tab=breach" },
-        ],
+        // All three children removed: "Data Subject Requests" repeated this item's own
+        // href, and the other two were ?tab= into the same host page. The three tabs on
+        // /app/dpdp are the sub-navigation. Verified by running that /app/dpdp,
+        // ?tab=consent and ?tab=breach each still land on their tab, so bookmarks hold.
       },
       // ESG Reporting removed from nav — the page is fabricated data behind
       // FEATURE_ESG (off by default). Restore this entry when it reads real data.
@@ -161,8 +164,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: "CheckSquare",
         badge: "approvals_pending",
         module: "approvals",
+        // "Approval Queue" removed — it repeated this item's own href (/app/approvals).
+        // Flow Designer is a distinct route and stays.
         children: [
-          { label: "Approval Queue", href: "/app/approvals" },
           { label: "Flow Designer", href: "/app/flows" },
         ],
       },
@@ -183,11 +187,16 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/hr",
         icon: "UserCheck",
         module: "hr",
+        // "HR Cases" (bare /app/hr — the parent's own href) and "Leave Requests"
+        // (/app/hr?tab=leave) were removed: both only re-entered this item's own
+        // host page. HR Cases and Leave Management are tabs ON /app/hr, which is
+        // where the sub-navigation belongs. The ?tab= URLs still resolve for any
+        // bookmark — /app/hr now honours the param (see app/hr/page.tsx).
+        // Everything below is a DISTINCT route with its own component and its own
+        // procedures, so it stays.
         children: [
-          { label: "HR Cases", href: "/app/hr" },
           { label: "Employee Portal", href: "/app/employee-portal" },
           { label: "Employee Center", href: "/app/employee-center" },
-          { label: "Leave Requests", href: "/app/hr?tab=leave" },
           { label: "Attendance", href: "/app/attendance" },
           { label: "My Expense Claims", href: "/app/hr/expenses" },
           { label: "Holiday Calendar", href: "/app/holidays" },
@@ -205,14 +214,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/recruitment",
         icon: "UserPlus",
         module: "recruitment",
-        children: [
-          { label: "Dashboard", href: "/app/recruitment" },
-          { label: "Job Requisitions", href: "/app/recruitment?tab=requisitions" },
-          { label: "Candidate Pipeline", href: "/app/recruitment?tab=pipeline" },
-          { label: "Candidates", href: "/app/recruitment?tab=candidates" },
-          { label: "Interviews", href: "/app/recruitment?tab=interviews" },
-          { label: "Offers", href: "/app/recruitment?tab=offers" },
-        ],
+        // All six children were removed: every one of them re-entered this item's
+        // own host page (bare /app/recruitment, or ?tab= on it). The six tabs on
+        // /app/recruitment are the sub-navigation. Two of the removed labels also
+        // disagreed with the tab they reached ("Job Requisitions" vs the tab
+        // "Requisitions", "Candidate Pipeline" vs "Pipeline"); removing the entries
+        // resolves the mismatch at source. The ?tab= URLs still resolve.
       },
       {
         label: "People & Workforce Analytics",
@@ -225,12 +232,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/performance",
         icon: "Target",
         module: "hr",
-        children: [
-          { label: "Review Cycles", href: "/app/performance?tab=cycles" },
-          { label: "My Reviews", href: "/app/performance?tab=my-reviews" },
-          { label: "Goals & OKRs", href: "/app/performance?tab=goals" },
-          { label: "Team Overview", href: "/app/performance?tab=team" },
-        ],
+        // All four children were removed: every one was a ?tab= into this item's own
+        // host page. The four tabs on /app/performance are the sub-navigation and
+        // their labels already match what these entries said. The ?tab= URLs still
+        // resolve. NOTE: the removed "Goals & OKRs" child is a DIFFERENT goal store
+        // from the "OKRs & Goals" entry under HR Service Delivery (/app/okr) — see
+        // the label-collision note in the round report; deliberately not renamed.
       },
     ],
   },
@@ -250,11 +257,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/catalog",
         icon: "LayoutGrid",
         module: "catalog",
-        children: [
-          { label: "Browse Catalog", href: "/app/catalog" },
-          { label: "My Requests", href: "/app/catalog?tab=my-requests" },
-          { label: "Catalog Admin", href: "/app/catalog?tab=admin" },
-        ],
+        // All three children were removed: bare /app/catalog duplicated this item's
+        // own href, and the other two were ?tab= into the same host page. The tabs on
+        // /app/catalog are the sub-navigation. The ?tab= URLs still resolve.
       },
       { label: "Surveys", href: "/app/surveys", icon: "ClipboardList", module: "analytics" }, // was reports.read; surveys router uses analytics module
     ],
@@ -274,8 +279,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/procurement",
         icon: "ShoppingCart",
         module: "financial",
+        // "Procurement" (bare /app/procurement) removed — it duplicated this item's
+        // own href. Every remaining child is a distinct route.
         children: [
-          { label: "Procurement", href: "/app/procurement" },
           { label: "Financial Management", href: "/app/financial" },
           { label: "Chart of Accounts", href: "/app/finance/accounting/coa" },
           { label: "Journal Entries", href: "/app/finance/accounting/journal" },
@@ -319,15 +325,16 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/secretarial",
         icon: "Briefcase",
         module: "secretarial",               // was "policy" — now correctly gated
-        children: [
-          { label: "Company Overview", href: "/app/secretarial?tab=overview" },
-          { label: "Board & Meetings", href: "/app/secretarial?tab=board" },
-          { label: "MCA / ROC Filings", href: "/app/secretarial?tab=filings" },
-          { label: "Share Capital & ESOP", href: "/app/secretarial?tab=share" },
-          // "Statutory Registers" removed — the href resolved to a tab that does not
-          // exist and has no API behind it. Restore when the registers tab is built.
-          { label: "Compliance Calendar", href: "/app/secretarial?tab=calendar" },
-        ],
+        // All five children removed: every one was a ?tab= into this item's own host
+        // page. The six tabs on /app/secretarial are the sub-navigation, and all six
+        // ?tab= URLs were verified by running to still land on their tab.
+        // Three of the removed labels also disagreed with the tab they reached
+        // ("Company Overview" vs the tab "Overview", "Board & Meetings" vs "Board &
+        // Directors"), and "Share Capital & ESOP" named two separate tabs while
+        // linking only to `share` — the page has distinct `share` and `esop` tabs, and
+        // `esop` had no sidebar entry at all. Removing the entries resolves all of it
+        // at source. ("Statutory Registers" was removed earlier — that tab was never
+        // built; restore an entry only if the registers tab lands.)
       },
     ],
   },

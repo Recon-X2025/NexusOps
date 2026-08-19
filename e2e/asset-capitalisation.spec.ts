@@ -77,7 +77,7 @@ test.describe("Asset capitalisation", () => {
       : 0;
 
     // ── Create an asset with a cost ─────────────────────────────────────────
-    await navigateTo(page, "Hardware Assets", /Hardware Assets/i, /\/app\/ham/);
+    await navigateTo(page, "Asset Management", /Asset Management/i, /\/app\/ham/);
     await page.getByRole("button", { name: /Add Asset/i }).first().click();
     await page.getByPlaceholder("e.g. Dell Latitude 5540").fill(assetName);
 
