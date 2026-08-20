@@ -1,14 +1,175 @@
-# CONTEXT — session hand-off
+# CONTEXT — what a new session must know
 
-_Updated 2026-08-14. This file is a fresh session's ENTIRE starting picture, so
-it is written to be read cold. **`reports/fix-plan.md` is the source of truth**
-for per-item detail and CA rulings; this file is the map and the priorities.
-Do not trust a SHA, migration head, or "done" claim here without checking it
-against `git` / `gh` / `packages/db/drizzle/meta/_journal.json` and the code —
-several claims in these docs have gone stale before and were only caught by
-reading the code._
+_Rewritten 2026-08-20. **Every number below was counted from the system on that date**,
+not carried forward from a previous document. Two prior handovers were wrong by a factor
+of three on screen count and wrong about which modules were cut, and plans were built on
+both. Verify before you extend: `git`, `packages/db/drizzle/meta/_journal.json`, and the
+code itself are the sources. Operating RULES live in `CLAUDE.md`; the work queue and open
+risks live in `reports/fix-plan.md`._
 
 ---
+
+## Where the repository stands
+
+- **HEAD: `f8dd2db`** — "feat(crm): scope activities to their record, close two contract
+  holes, start stage history, add a current-state management view".
+- **`origin/main` is level with local `main`** (ahead=0, behind=0). That commit was pushed,
+  so CI ran and its terminal `Deploy to Vultr` job is what determines what is live.
+  **Check it before claiming a deploy state:** `gh run list --branch main --limit 1`, then
+  `gh run view <id> --json jobs`. This document deliberately does not record a live SHA —
+  that is exactly the field that went stale twice.
+- **The tree is UNCOMMITTED and carries several rounds of work.** See the CHANGELOG below
+  for what is in it; the owner commits the CRM phases together.
+- **Files in the tree that belong to other sessions** and must not be touched:
+  `apps/web/package.json`, `apps/web/src/lib/sidebar-config.ts`, `.claude/launch.json`,
+  `docs/audits/sweep47_manifest_2026-08-18.md`, and ten `e2e/sweep47-*.spec.ts`.
+
+## The real numbers (counted 2026-08-20)
+
+| Thing | Value | How it was counted |
+|---|---|---|
+| Route files | **134** (122 under `/app`) | `find apps/web/src/app -name page.tsx | wc -l` |
+| Navigation entries | **79** distinct hrefs | `grep -o 'href: "..."' sidebar-config.ts | sort -u` |
+| Top-level nav groups | **10** | Platform, IT Services, People & Workplace, Customer & Sales, Finance & Procurement, Legal & Governance, Strategy Center, Knowledge, Settings, Setup & Onboarding |
+| Database tables | **238** base tables | `information_schema.tables` on a freshly migrated DB |
+| Migrations | **100**, head `0099_breezy_william_stryker` | journal entries = `.sql` files = rows applied on a reset DB |
+| Tables with **no** `org_id` | **40** | the class every isolation leak lives in |
+| Tables with `FORCE ROW LEVEL SECURITY` | **198** | was 197 before `0099` added one |
+| API suite | **234 files / 2085 tests, all passing** | most recent full run |
+| E2E | **29 failed / 7 skipped / 148 passed = 184** | ~26 failures are untracked `sweep47-*` specs; 2 are `rbac.spec.ts:105`/`:115` |
+
+**A previous handover claimed 47 screens. It was wrong by a factor of three.** Do not
+carry a count forward from prose.
+
+## Which modules are live, hidden, or gone
+
+- **ITSM STAYS.** The whole IT Services group is present and populated. A prior handover
+  listed it as out of scope; that was wrong.
+- **Legal STAYS.** "Legal & Governance" is a top-level nav group. Also wrongly listed as cut.
+- **Facilities is DELETED** — 0 routes, 0 nav entries. Verified.
+- **ESG is PARKED by owner decision** — the route file still exists, but the nav entry is
+  commented out in `sidebar-config.ts` with the note that the page is fabricated data behind
+  `FEATURE_ESG` (off by default). Not deleted, not reachable.
+
+## What the product can and cannot do today
+
+**Payroll computes.** PF, ESI, PT (36 states, data-driven), TDS (both regimes), gratuity and
+leave encashment are production-grade and test-backed, wired into a 14-step run with
+server-enforced segregation of duties.
+
+**But payday does not complete inside the product.** Verified 2026-08-20:
+
+- The bank-file generator is real, and `payroll.exportBankFile` (`routers/payroll.ts:1865`)
+  is a live tRPC procedure that calls it — **but no screen in `apps/web` calls that
+  procedure.** Grep returns zero web callers.
+- **No employee record holds bank details.** `count(*) FILTER (WHERE bank_account_number IS
+  NOT NULL)` over `employees` returns **0 of 37** on the dev database.
+- _(Correction to earlier documents: they said the bank file has "no HTTP route". It has a
+  tRPC procedure. The gap is the UI and the missing data, not the API.)_
+
+**What the file is, when it exists:** a **payment instruction file a human uploads to their
+bank's portal**. The product does not move money, never contacts a bank, and **no generated
+file has ever been tested against a real bank portal.**
+
+**Payslips are self-service by design** — the PDF route filters on the employee's own user
+id. HR sees every computed figure on the run itself, but not the individually addressed
+document. Ruled working-as-intended by the owner; do not "fix" it.
+
+**Statutory outputs exist as records, not as files a user can download.** ESI, PT, 24Q and
+the CSV exports have no UI control.
+
+## Working here
+
+- Dev DB on port **5434**, test DB `coheronconnect_test` on **5433**. The dev DB is not
+  auto-migrated and nothing checks it — confirm it is at the journal head at session start.
+- Another session may hold ports 3000/3001. Confirm the PID and its `DATABASE_URL` first.
+  `preview_start` has repeatedly reported "reused" on a dead server — verify with
+  `curl localhost:3001/health`.
+- Login for local work: `admin@coheron.com` / `demo1234!`.
+
+---
+
+## CHANGELOG — what is in the uncommitted tree
+
+Migrations added: **`0098`** (CRM activity indexes on `account_id`/`contact_id`) and
+**`0099`** (`crm_deal_stage_history`, RLS-walled).
+
+1. **Nav cleanup** *(committed, `826648f`)* — collapsed self-referential sidebar entries;
+   `/app/hr` honours `?tab=`.
+2. **CRM Phase 1** — `activities.list` accepts `accountId`/`contactId` (zod was silently
+   stripping them, so every account page showed org-wide activity); lead conversion carries
+   history onto the new deal via `deal_id` while leaving `lead_id` intact; indexes (`0098`).
+3. **CRM Phase 2** — contacts nested on the account page; `billingAddress` made reachable
+   (the column existed, no input accepted it, so quote PDFs printed an empty buyer address);
+   quotes panel on the deal page; one activity timeline on all four records; `dealId` made
+   required on both quote-create paths; lead conversion always produces an account;
+   `crm_deal_stage_history` written from **both** transition sites (`0099`).
+4. **CRM Phase 3** — a current-state management view on the Analytics tab, replacing panels
+   that read columns which do not exist (`d.source`) and a weighted bar keyed to a hardcoded
+   ₹500,000. Aggregated in SQL, org-scoped, emptiness stated in words.
+5. **CSM cleanup** — removed the duplicate Accounts and Contacts tabs from `/app/csm` (same
+   `crm_accounts`/`crm_contacts` as CRM) and the two tiles fed by non-existent
+   `a.health`/`a.mrr`; closed the CSV importer's account-less contact path by requiring and
+   resolving an account name per row.
+6. **CRM consolidation** — eight tabs to five, with Contacts and Quotes as sub-views so
+   nothing became unreachable; `?tab=` honoured for the first time (it never was), retired
+   keys redirecting; intake forms moved to the record they belong to; import lifted to
+   module level.
+7. **Lead integrity** — a converted lead could be silently un-converted by an edit, which
+   broke conversion idempotency and allowed a **duplicate deal**; fixed on the canonical
+   procedure and the deprecated twin; damaged dev record repaired.
+8. **Qualification removed from the deal pipeline** — a lead status, not a deal stage.
+   Deactivated in the defaults, the seed, the board and the deal page.
+
+---
+
+# HISTORY
+
+_Everything below predates the 2026-08-20 rewrite and is retained for decision history.
+**Treat every SHA, migration head, count and "done" claim in it as unverified** — several
+were stale when this rewrite was made._
+
+## ⚠️ READ FIRST — where payroll actually stands (2026-08-18)
+
+**Live at the time of writing: `826648f`** (`/api/health`, 2026-08-19). `19c28f3`
+— bank-account encryption, the beneficiary-name fix and the APP_SECRET boot
+guard — deployed cleanly before it, all five CI jobs green.
+
+**That the container came up on `19c28f3` is the PROOF that `APP_SECRET` is present
+in `.env.production` on the Vultr host.** The new boot guard fails the container
+without it, so a healthy deploy is the evidence; this was previously an open
+question that could not be answered from the repository.
+
+**This SHA will go stale — it already did once within a day.** Read
+`/api/health` and the terminal `Deploy to Vultr` job of the latest `main` run.
+Never trust a SHA quoted in prose here.
+
+**Payroll computes. Nobody can be paid from it yet.** Those are two different
+statements and the gap between them is this product's biggest current risk.
+
+What is true:
+- The engine is sound and test-backed — PF, ESI, PT across 36 states, TDS both
+  regimes, gratuity. A 14-step run computes payslips.
+- The bank-file generator is correct across seven formats (HDFC NEFT, ICICI, SBI
+  CMP, Axis, Kotak, NPCI NACH-Credit, generic NEFT), takes a customer-supplied
+  debit account, and skips unpayable rows with named reasons.
+
+What is equally true, and must not be softened:
+- **NO SCREEN CALLS THE BANK-FILE GENERATOR.** `generateBankFile` has exactly one
+  caller — `payroll.exportBankFile` — and **zero references anywhere in
+  `apps/web/src`**. There is no button. A customer cannot produce the file.
+- **NO EMPLOYEE ANYWHERE HAS BANK DETAILS.** Both the dev and test databases
+  report `with_acct=0`, `with_ifsc=0`, `with_acct_name=0` across 36 and 25
+  employees. The columns exist and are entirely empty. Every bank file ever
+  produced here ran on rows a test constructed.
+- **NO FILE HAS EVER BEEN TESTED AGAINST A REAL BANK PORTAL.** Format
+  correctness is asserted against our own reading of each bank's layout, not
+  against a bank accepting an upload.
+
+**What this product does, stated plainly:** it produces a payment INSTRUCTION
+FILE that a human uploads to their bank's portal. **It does not move money, holds
+no banking integration, and never contacts a bank.** Anyone describing it
+otherwise is describing something that does not exist.
 
 ## What CoheronConnect is
 

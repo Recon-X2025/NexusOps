@@ -1,419 +1,327 @@
 # CLAUDE.md
 
-Guidance for Claude (and other AI agents) working in this repository.
+Operating rules for Claude (and other AI agents) working in this repository.
+
+**This file is RULES, not status.** It contains nothing that changes per commit — no SHAs,
+no migration head, no "current state", no percentages. Those live at their source
+(`git`, `packages/db/drizzle/meta/_journal.json`, `docs/CONTEXT.md`), and they have
+drifted here twice before. If you find per-commit state in this file, it is a bug in
+this file.
+
+---
 
 ## Project
 
-**CoheronConnect** (repo: NexusOps) — a multi-tenant Enterprise Operations Platform.
+**CoheronConnect** (repo: NexusOps) — a multi-tenant India Enterprise Operations Platform.
 Production: `connect.coheron.tech`. Remote: `github.com/Recon-X2025/NexusOps.git`.
 
-Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`.
+pnpm + Turborepo monorepo, Node `>=20`.
 
-- `apps/web` — Next.js **16** (webpack) + React 19 frontend (port 3000)
-- `apps/api` — Fastify 5 + tRPC 11 backend (the bulk of business logic + tests); **tsup → `dist/`** (port 3001)
-- `apps/worker` — Temporal 1.11 background workflows (task queue `coheronconnect-workflow`)
-- `apps/mac` — Next.js 15 **super-admin / platform-monitoring console** (port 3004)
-- `apps/mobile` (RN + Expo), `apps/docs` (Nextra, port 3003) — secondary surfaces
-- `packages/db` — Drizzle ORM schema + migrations (PostgreSQL); **built with tsup to `dist/`**
-- `packages/payroll-math` — pure India payroll/tax/GST money-math (tsup → `dist/`; used by `db` + `api`)
-- `packages/types`, `packages/validators`, `packages/ui`, `packages/metrics`, `packages/config`, `packages/cli`
+- `apps/web` — Next.js 16 (webpack) + React 19 (port 3000)
+- `apps/api` — Fastify 5 + tRPC 11; the bulk of business logic and tests; tsup → `dist/` (port 3001)
+- `apps/worker` — Temporal background workflows
+- `apps/mac` — super-admin / platform-monitoring console (port 3004)
+- `apps/mobile` (parked), `apps/docs` (port 3003)
+- `packages/db` — Drizzle schema + migrations (PostgreSQL), built to `dist/`
+- `packages/payroll-math` — pure India payroll/tax/GST money-math
+- `packages/types`, `validators`, `ui`, `metrics`, `config`, `cli`
 
-> For an end-to-end current-state map (apps, routers, HTTP surfaces, automation loops, DB, defects),
-> see **`BUILD.md`**.
+For current state — what is live, what is uncommitted, what works — read `docs/CONTEXT.md`.
+For the work queue and open risks, `reports/fix-plan.md`.
 
-## Critical build/test facts
+---
 
-- **Before every merge, run `pnpm lint:cold` from the repo root** (= `turbo run lint --force`).
-  This is the single pre-merge gate: it typechecks **every** workspace (api, web, mac, worker, and the
-  packages) in one command, so it catches the same class of failure CI's "Lint & Type Check"
-  job does. **Use `lint:cold`, NOT plain `pnpm lint`, for the gate:** `turbo run lint` is cache-aware, so
-  a warm `.turbo` returns a full cache hit (~60ms) that runs no typecheck at all — "cold 9/9" only means
-  something when the cache is bypassed. (`--force` also guards against a stale cache masking a real failure.) CI typechecks **both** `apps/api` **and** `apps/web` (`cd apps/web && npx tsc
-  --noEmit`) — a green `apps/api` typecheck alone is **not** sufficient and will let a web
-  type error through to CI, where it blocks Build+Deploy (both gated behind lint passing).
-  The full CI pipeline is: Lint & Type Check → Unit & Integration Tests (`pnpm test`) →
-  E2E Playwright → Build Docker Images (main only) → Deploy to Vultr (main only).
-- **`packages/db` is consumed via its compiled `dist/`.** After editing schema/types in `packages/db`, run `pnpm --filter @coheronconnect/db build` before `apps/api` typechecks will see the changes.
-- **Tests run against a real Postgres** (Docker), not mocks. The test DB is `coheronconnect_test` on **port 5433**.
-  - Start it: `pnpm docker:test:up`
-  - Run the API suite directly: from `apps/api`,
-    `DATABASE_URL="postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test" npx vitest run`
-  - `pnpm test` runs `turbo run test`; gate tests live in `apps/api/src/__tests__/`.
-- **vitest config** (`apps/api/vitest.config.ts`): `fileParallelism: false`, `pool: 'forks'`, `singleFork: true`, shared DB. Tests must be self-isolating (seed a fresh org per test/suite, clean up after) to avoid cross-test pollution.
-- **Coverage**: `@vitest/coverage-v8` version must match the installed `vitest` minor exactly (currently `2.1.9`). Coverage output (incl. `coverage/coverage-summary.json`) is gitignored.
+## THE REPORTING STANDARD
 
-## Database / migrations (Drizzle)
+This is the most important section in the file. The recent rounds have been reliable
+because of it.
 
-- FK `onDelete` rule policy (enforced repo-wide):
-  - `orgId → organizations` = **CASCADE**
-  - child → parent = **CASCADE**
-  - nullable actor reference = **SET NULL**
-  - NOT NULL actor reference = **RESTRICT**
-  - lookup / reference table = **RESTRICT**
-- Drizzle diffs against **its own snapshot**, not the live DB. If a prior migration silently failed, drizzle cannot self-heal — you must hand-write a corrective migration + add the journal entry + create the snapshot.
-- Migration journal gate: `pnpm check:migrations` (`scripts/verify-migration-journal.mjs`) only checks each `.sql` has a matching tag in `_journal.json`; **no hash check**.
-- Generate: `pnpm db:generate` (in `packages/db`). Apply: `pnpm db:migrate`.
-- Always validate new migrations against a throwaway copy of a real DB, not just typechecking. See `docs/DATA_MODEL.md` for the data-model reference (tenancy classes + FK ownership).
-- **Migration head — source of truth is the last entry in
-  `packages/db/drizzle/meta/_journal.json`** (and the highest-numbered `.sql` in
-  `packages/db/drizzle/`). Do not trust a head number hardcoded in prose here or in any
-  doc; check the journal. The count is `head-number + 1` files (`0000`…`NNNN`).
-  What the notable migrations do (stable regardless of the current head):
-  `0031_workable_spot` (team's super-admin / org-profile expansion) + `0032` (consolidated
-  `mfa_enrollments`, `vulnerability_sla_events` + vuln SLA columns, `dpdp_notification_artifacts`
-  + DPDP regime/erasure columns) landed on branch `merge/team-super-admin`. Migs `0041`–`0052`
-  are the G1–G17 India-market gap-closure run (CRM lossless-convert/scoring/CPQ-tax, OKR rollup,
-  SAM recon, expiry alerts, EPFO/NIC/MCA21 portal push, RoPA, KMS envelope encryption, and `0052`
-  Postgres RLS). Migs `0053`–`0055` add shift_schedules (`0053`), Labour-Codes-2025
-  statutory-ceiling schema + platform-default seed (`0054`, self-contained schema+seed), and ESI
-  challan records + `statutory_return_status` (`0055`). Migs `0056`–`0059` add ESI employee/employer
-  amount columns on `payroll_runs`/`payslips` (`0056`), an `invoices.gstin_id` FK into
-  `gstin_registry` (`0057`), `roles.is_archived` (`0058`), and `sla_definitions`
-  display/category/metric/schedule fields (`0059`). `0060_pretty_junta` adds
-  `organizations.dpdp_contact_email` (the tenant DPDP-notice target, fix A3/A4); `0061_walled_challans`
-  extends the RLS wall (`FORCE ROW LEVEL SECURITY` + `tenant_isolation` policy) to `shift_schedules`,
-  `esi_challan_records`, `pt_challan_records` — the three tenant tables added after `0052` that the
-  wall had missed (fix A11). Migs `0062`–`0074` (the current run): `0062` audit-chain WORM anchors
-  (`audit_chain_anchors` table + `audit_chain_status` type, R-5 — the +1 that took base tables 236→237),
-  `0063` payslip YTD columns (`ytd_net` etc.), `0064` `statutory_metric_key` type + `statutory_ceilings`
-  income-tax config (C5), `0065` `salary_structures.family_id` (structure versioning), `0066` `gender`
-  type + `employees.gender`/`esi_ip_number` (C2/C6), `0067` `employees.previous_employer_income/tds`
-  (PT4/P-15), `0068` `employees.rent_paid_annual` (HRA), `0069` `organizations.annual_aggregate_turnover`
-  (C7-1 AATO), `0070` `organizations.b2cl_threshold` (C7-2), `0071` `invoices.original_invoice_id`
-  (C7-3 credit/debit-note FK), `0072` `invoices.is_financial_note` (C7-3 part 5), `0073`
-  `employees.esi_member`/`esi_member_period_start` (C3 six-month rule), `0074`
-  `organizations.esi_establishment_number` (C6 payslip identity). `0075_clever_sleepwalker` adds the
-  `professional_tax_slabs` table (data-driven PT: 36 states seeded, provenance + levies fact, RLS-walled)
-  — the +1 that took base tables 237→238. `0076_lean_puppet_master` persists the PF wage base +
-  employer EPS/EPF split on `payslips`, adds `organizations.pt_registration_number`, and a unique index
-  on `tds_challan_records(org,month,year)` — columns + index only, no new table. The current run
-  `0077`–`0079` makes the India wage config expressible: `0077_mean_wong` (`employees.voluntary_pf_rate`,
-  `payslips.da`, `salary_structures.da_percent`), `0078_slimy_nocturne` (`organizations.pf_contribution_rate`
-  + the four `employees.para266_*` fields), `0079_peaceful_caretaker` (`pf_reduced_rate_reason` enum type +
-  `organizations.pf_reduced_rate_reason`) — additive columns and one enum, no new table. `0080_worried_firestar`
-  (C1-CORE) adds `organizations.entity_type` (an 8-value `entity_type` enum) + the `tax_declarations` table
-  (per-employee/per-FY investment declarations: 80C/80D/80CCD(1B)/80TTA/24b + a `declaration_provenance` enum,
-  cascade FKs, unique `(employee_id, fiscal_year)`, **RLS-walled** — ENABLE+FORCE+`tenant_isolation` in the
-  same migration, per the `0052`/`0061` convention) — the +1 that took base tables 238→239. `0081_illegal_stick`
-  adds no table; `0082_chilly_husk` (FULL-AND-FINAL) adds the RLS-walled **`final_settlements`** table (+1).
-  The leave/exit run `0083`–`0085`: `0083_wooden_doctor_spectrum` adds no table (leave-policy columns);
-  `0084_bright_roland_deschain` adds the **`leave_exit_rules`** + **`leave_state_baselines`** tables (RLS-walled,
-  +2 — took base tables 240→242); `0085_cloudy_jack_murdock` adds no table.
-  The CRM run `0086`–`0089` adds no table: `0086` identifier uniqueness (nine unique indexes), `0087`
-  payroll approval-chain length, `0088_concerned_guardsmen` lead BANT columns + `crm_activities.leadId`,
-  `0089_furry_tattoo` `crm_pipeline_stages.probability` (**additive column + a hand-written per-key
-  backfill** — see the backfill convention below).
-  **Do not trust a head number quoted here — read it from `packages/db/drizzle/meta/_journal.json`. A
-  hardcoded "live head is X" is exactly the per-commit state that does not belong in this file.**
-  **`0052` is
-  hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
-  `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
-  to `app_runtime` via `SET LOCAL ROLE` — the app DB user is a superuser/BYPASSRLS and would otherwise
-  bypass it). See `apps/api/src/lib/trpc.ts` (`rlsTenant` middleware) + `docs/GAP_ANALYSIS.md`.
-- `packages/db` carries a `mongodb ^6.12` dependency for the **hybrid/mongo `DATABASE_PROVIDER` mode**
-  (`postgres | hybrid | mongo`, resolved in `packages/db/src/database-provider.ts`). No schema module
-  references it, but it is **not dead code** — `packages/db/src/mongo-client.ts` is wired into `apps/api`:
-  startup connects when `providerRequiresMongo(dbProvider)` (`apps/api/src/index.ts:186-191`), shutdown
-  calls `closeMongo()` (`index.ts:735-742`), and `middleware/auth.ts` threads `mongoDb` into the request
-  context (`getMongoDb`/`isMongoReady`). Dormant under the default `postgres` provider (no `MONGODB_URI`),
-  so the connect paths no-op — but removing it breaks the API build. Do **not** strip it.
+- **A claim is UNVERIFIED unless you can paste the artifact that produced it.** Reading
+  code, tracing a call chain, and matching a form to a schema are all UNVERIFIED — say so
+  in those words.
+- **No percentages. No "complete", "close", or "working"** for anything unverified. A
+  prior audit rated a module 75% and CLOSE; clicking it found the edit dialog silently
+  saved nothing.
+- **Every report carries a NOT VERIFIED section. An empty one is itself a claim** — and
+  usually a false one.
+- **Do not stop when you have understood the code. Stop when you have RUN it** — or when
+  something blocked you, and then name exactly what blocked you.
+- **PARK AND CONTINUE.** A blocker on one item has no bearing on the next. Record the
+  exact command that failed and move on. Finish the round.
+- **Reach features BY CLICKING.** Router tests passed while two rounds' work was
+  unreachable in the product.
+- **A detector that finds nothing is usually a broken detector.** A form sweep found 5
+  openers, then 30, then 38 as its selector was corrected. Distrust a clean result.
+- **A guard failing after a change may be correctly detecting the change.** Establish
+  which before editing either side. Say which in the report.
+- **Report NOT-FOUND rather than trusting a stated `file:line`.** Search for the symptom.
+  Line numbers in any document — including this one — may have moved.
 
-## Demo data seed
+---
 
-The 100-employee / 24-month `coheron-demo` company seed has been **removed**. The
-generator (`packages/db/src/seed-demo.ts`) and its `db:seed:company` / `db:seed:demo`
-scripts no longer exist; the demo company must not be re-introduced. The base seeds
-(`db:seed`, `db:seed:modules`, `db:seed:smb`) remain.
+## Build / test rules
 
-## Standing decisions — payroll operability
+- **Run BOTH `pnpm build` and `pnpm lint:cold`.** `lint:cold` (= `turbo run lint --force`)
+  typechecks every workspace and catches errors `build` misses. Use `lint:cold`, NOT plain
+  `pnpm lint` — `turbo run lint` is cache-aware and a warm `.turbo` returns a full cache
+  hit that runs no typecheck at all. "9/9 cold" only means something when `Cached: 0`.
+  CI typechecks **both** `apps/api` and `apps/web`; a green api typecheck alone is not
+  sufficient.
+- **`packages/db` is consumed via its compiled `dist/`.** After editing schema or types
+  there, run `pnpm --filter @coheronconnect/db build` before `apps/api` will see it.
+  Likewise rebuild `apps/api` before `apps/web` typechecks against new procedure types.
+- **Tests run against a real Postgres**, not mocks. Test DB `coheronconnect_test` on port
+  **5433** (`pnpm docker:test:up`); dev DB on port **5434**.
+- **NEVER run vitest concurrently with the E2E chain.** They share one Postgres.
+- **Kill ports 3000/3001 before E2E.** `playwright.config.ts` sets
+  `reuseExistingServer: !CI` (two webServer entries), so a stale API will happily serve
+  against a dropped database.
+- **`preview_start` has repeatedly reported "reused" on a DEAD server.** Verify with
+  `curl -s localhost:3001/health` before trusting it; if dead, `preview_stop` then start.
+- **`apps/api/src/index.ts:3` runs `loadEnv({ path: "../../.env" })`**, so `env -u VAR`
+  is undone by dotenv. A boot guard tested that way looks inert when it is fine.
+  **Suspect the harness before filing a defect.**
+- **tsx watch does not always pick up API edits.** If a procedure's new field is missing
+  from a live response, restart the API before concluding the code is wrong.
+- vitest config: `fileParallelism: false`, `pool: 'forks'`, `singleFork: true`, shared DB.
+  Tests must be self-isolating — seed a fresh org per suite, clean up after. A spec that
+  leaves a row behind can break a later spec that reaches for "the newest" record.
 
-- **Any date that feeds a payroll PERIOD defaults to the PERIOD START, never to `today`.**
-  `resolveSalaryStructureForPeriod` selects on `effectiveFrom <= period`, and the run passes
-  `new Date(year, month - 1, 1)` — the 1st of the pay month. A salary structure dated any day
-  after the 1st is therefore NOT in force for that month and the employee is silently excluded
-  from the run. The New Structure form defaulted to `new Date()`, so a tenant onboarding on the
-  25th created structures effective the 25th and its run for that month paid NOBODY. A live walk
-  hit exactly that. Mid-month is the exception in payroll; the default must express the rule.
-- **The payroll approval chain needs as many DISTINCT accounts as it has steps.** Segregation of
-  duties is enforced per step: `payroll.ts` refuses FINANCE when the actor approved HR, and CFO
-  when the actor approved either. The default chain is 3 steps, so a tenant needs **three**
-  separate approver logins before its first run — not three roles on one login. Tenants with two
-  approvers must switch to the 2-step chain BEFORE creating the run, because the length is
-  stamped onto `payroll_runs.approval_chain_length` at creation.
-- **Payslip access is SELF-SERVICE BY DESIGN — do not widen it.** The payslip PDF route filters
-  `eq(employees.userId, userId)` (`http/payroll-payslip-pdf.ts:42`), so only the employee the
-  payslip belongs to can retrieve it. This has been written up as a defect ("HR cannot view what
-  it issued") and was ruled **working as intended** by the owner on 2026-08-18: a payslip is
-  personal salary data. Do NOT route it through `assertSelfOrPermitted` with an HR grant. HR
-  retains visibility of every computed figure on the payroll run itself — the restriction is on
-  the individually-addressed document, not on the numbers. The operational consequence is that
-  every employee needs a working login before payday (`docs/MANUAL_SET.md` §13).
-- **A capability a tenant cannot reach is not shipped.** The chain length existed as
-  `admin.payrollPolicy.*` with no caller for several rounds; the bank-file generator still has
-  none. When an engine lands without a screen, record it as a GAP, not as done.
+### Scale the gates to the change
 
-## Money paths (verify invariants when touching these)
+A full E2E run costs 30–50 minutes and the full API suite ~20. Run them **once**, at the
+end, after every known-breaking fix is already applied. Check machine load first — a run
+started on a saturated box produces diffuse timeout failures that mean nothing. For a
+change that touches neither routes nor schema, targeted specs plus the module's blast
+radius is the honest gate.
 
-- **Journal entries**: `accounting.journal.create` — debits must equal credits (tolerance 0.001), enforced in `apps/api/src/routers/accounting.ts`.
-- **Payroll**: `computeEmployeePayslip()` in `apps/api/src/lib/payroll-cycle.ts` — `netPay = max(0, grossEarnings − totalDeductions)`.
-- **GST**: `computeGST()` in `apps/api/src/lib/india/gst-engine.ts` — intra-state = CGST+SGST (50/50), inter-state = IGST.
-- **TDS / income tax**: `computeTax()` in `apps/api/src/lib/india-tax-engine.ts`.
-- **3-way match**: `apps/api/src/lib/invoice-po-match.ts` — invoice ≈ PO ≈ GRN within tolerance.
-- **EPFO ECR**: `buildEcrLine()` in `apps/api/src/lib/india/ecr-format.ts` is the ONLY ECR member-line
-  builder — `hr.payroll.generateECR` and `india-compliance.filing.submit` both go through it. **The
-  reported wage must be the wage the contribution was computed on**: `epfWages` reads the PERSISTED
-  `payslips.pf_wage_base` (the Labour-Codes 50%-clamp result), never `slip.basic`. Raw basic and the
-  resolved base are different numbers, so reporting basic makes the file claim a wage the dues do not
-  correspond to — and EPFO's revamped ECR validates exactly that and rejects the upload. The ₹15,000
-  ceiling belongs on the wage base UPSTREAM (`computePF`) and on EPS/EDLI only; the reported EPF wage is
-  never re-capped, because a Para 26(6) member files the full uncapped wage. Guard: employer share
-  ≤ 12% of `epfWages` + ₹1. Upper bound ONLY — the employee figure includes VPF and has no usable
-  ceiling, while the EPS cap and the 10% reduced rate legitimately push the employer ratio DOWN (a
-  Para 26(6) line runs ~9.9%), so a floor produces false rejections.
+---
 
-## Standing decisions — India payroll
+## Database / migrations
 
-- **PF composition, VPF, and Para 26(6) are CONFIGURATION, not customer questions** (decided
-  2026-08-10). Do **not** treat any of them as a fact to gather from a customer before building —
-  they are inputs the product must support. Specifically:
-  - **Wage composition (Basic alone vs Basic+DA):** a **DA component must exist** so a customer
-    electing Basic+DA can express it; PF/ESI/gratuity/leave-encashment bases then read Basic+DA.
-    (SHIPPED 2026-08-11 as WAGE-DA / C4: the DA component exists and those bases read Basic+DA — see
-    the Base Pay composition decision below.)
-  - **Voluntary PF (VPF, above 12%):** a per-employee input added on top of the 12%, employee side
-    only, capped so 12%+VPF ≤ 100% of the wage base; the employer never matches it.
-  - **Para 26(6) (contribution on the uncapped base above ₹15,000):** computes on the uncapped base
-    **only where an EPFO approval reference is recorded** — no reference, no uncapping.
-  This retires the old "three customer questions" gating: C4 and WAGE-DA are **builds**, not
-  gated-on-a-customer-letter items (see `reports/fix-plan.md` → C4-CONFIG-DECISION).
+- **Assert the migration count MOVED on a reset DB, and paste both numbers.** drizzle has
+  reported "migrations applied successfully" while applying nothing.
+- **The migration head is the last entry in `packages/db/drizzle/meta/_journal.json`.**
+  Never trust a head number quoted in prose, including in this file.
+- Drizzle diffs against **its own snapshot**, not the live DB. If a prior migration
+  silently failed, drizzle cannot self-heal — hand-write a corrective migration, add the
+  journal entry, create the snapshot.
+- `pnpm check:migrations` only checks each `.sql` has a matching journal tag. **No hash
+  check.**
+- **Drizzle does not model RLS.** `CREATE POLICY` / `ENABLE|FORCE ROW LEVEL SECURITY`
+  must be hand-appended to the generated `.sql`. Copy the stanza verbatim from
+  `0061_walled_challans.sql`. RLS only bites because the request path drops to the
+  non-privileged `app_runtime` role via `SET LOCAL ROLE` (`lib/trpc.ts`, `rlsTenant`);
+  the app DB user would otherwise bypass it.
+- **A new tenant table carries `org_id` AND its RLS policy in the same migration.** The
+  tables with no `org_id` are the class every isolation leak lives in.
+- **A migration that adds a unique index must detect duplicates first and RAISE**, naming
+  table/value/org/row-count — never delete, merge or renumber. See `0086_aromatic_swarm.sql`.
+- **A migration adding a column with per-row-appropriate values needs a hand-written
+  backfill.** Drizzle emits one `ADD COLUMN … DEFAULT x`, which fills every row with the
+  same value. See `0089_furry_tattoo.sql`.
+- **A backfill is only half the job — the SEED is what every fresh database gets.** When a
+  migration backfills, grep `packages/db/src/seed*.ts` for inserts into the same table in
+  the same change.
+- **Removing a value from a Postgres enum requires a migration and is not cheap.** To
+  retire a configurable option, prefer the config table's own `active` flag.
+- FK `onDelete` policy: `orgId → organizations` CASCADE; child → parent CASCADE; nullable
+  actor SET NULL; NOT NULL actor RESTRICT; lookup table RESTRICT.
+- **The dev DB is not auto-migrated and nothing checks it.** Confirm it is at the journal
+  head at the start of a session; it was once found 14 migrations behind and login 500'd.
+  Prod self-migrates on container boot.
 
-- **Base Pay composition + LTA (decided 2026-08-11; full reasoning in `docs/COMPONENT_BASE_MATRIX.md`).**
-  The salary-structure `CTC` field holds **gross, not cost-to-company**, and is relabelled **Base Pay**
-  (label only; the column/identifier stays `ctc`). Nine decisions, all built in the Base Pay unit:
-  1. **Basic % + DA % = 50** — DA is the input, Basic is derived `50 − DA` (read-only), enforced in the
-     **server validator**, not only the form.
-  2. **Every named component (Basic, DA, HRA, LTA) sits INSIDE Base Pay** and is carved out of the
-     special-allowance residual; **only bonus sits on top**. Special allowance is the balancing figure.
-  3. **LTA is carved from the residual** (was additive, inflating gross); gross stays Base Pay/12.
-  4. **Bonus is two objects** — a target tagged at offer time + a discretionary year-end payout — neither
-     a recurring structure component; the Bonus field is off the structure form (column kept) and returns
-     with the variable-pay / offer-letter build. Bonus enters **taxable income only** (a future code change).
-  5. **Medical & Conveyance removed** from the form (columns kept) — inert (read nowhere; payslip hardcodes 0).
-  6. **Gratuity and leave-encashment bases are Basic + DA** — both previously omitted DA (the DA-consumer
-     class; `payroll-run-aggregates` already handles DA correctly).
-  7. **LTA tax** — three separate premises, held apart (do not merge):
-     - **Owner ruling (standing decision):** new regime — no exemption, no declaration shown; old regime —
-       exclude on declaration until claimed, and if unclaimed **include and tax in March**.
-     - **CA ruling (recorded, but about investment declarations — NOT LTA):** provisional declaration in
-       April, physical proofs by January; if proofs are not submitted, zero the declared values and spread
-       the resulting extra tax over **February and March**. The CA has said nothing about LTA; that LTA
-       follows this same mechanism is our inference, not the CA's word.
-     - **Open (CA letter B8(c), unsent):** whether LTA follows the declaration mechanism at all, and whether
-       the exemption is capped at actual eligible travel cost and limited to two journeys in a four-year block.
-     `computeTax` already taxes LTA fully, so no first-cycle under-deduction regardless.
-  8. **True CTC / the offer letter is deferred** (post-go-live) — Base Pay stays gross for the pilot;
-     retirals (employer PF, EDLI, admin, gratuity) are added only in the later offer-letter build.
-  9. **No bulk import for salary structures** (STRUCTURE-BULK) — hand-created during onboarding week; a
-     throughput risk, not a correctness one.
+---
 
-## Standing decisions — identifiers, approvals, identity
+## Recurring defect patterns — check these before assuming one write site
 
-These are conventions, not per-commit state. They were established by code audit; follow them.
+- **DEPRECATED TWINS.** Many procedures have a canonical version and a flat deprecated
+  twin (`crm.movePipeline` vs `crm.deals.movePipeline`; `crm.updateLead` vs
+  `crm.leads.update`). **A guard added to one and not the other leaves the defect fully
+  reachable.** This has bitten repeatedly — most recently the deprecated `updateLead` had
+  no guard at all while the canonical one did. The deprecated inputs were also frozen when
+  written, so **zod silently strips every field added since**: the mutation succeeds, the
+  toast says success, the data is gone. Do not delete the twins; extract the rule into one
+  shared helper and call it from both. Guard: `crm-deprecated-mutation-sweep.test.ts`.
+- **A config flag that exists is not a config flag that is used.** `active` on
+  `crm_pipeline_stages` was honoured by the stage pickers and by nothing else — both the
+  kanban board and the deal detail page had hardcoded ladders. **Verify the consumer, not
+  just the flag.**
+- **Identifiers.** Every user-facing record identifier is unique per org and allocated
+  atomically from `org_counters` (`lib/auto-number.ts`). **Never mint one with
+  `Math.random()` or `count(*)+1`** — both shipped and both produced duplicates.
+  **Never synthesise a display identifier from a UUID substring**; two distinct records
+  render identically.
+- **Guards validate the TRANSITION, not the stored row**, so a new rule ships without a
+  backfill and historical rows are never re-validated.
+- **Idempotency must key on the durable fact, not on a mutable status.** Lead conversion
+  keyed on `status === "converted" AND convertedDealId`; an edit that moved the status out
+  of `converted` broke the AND and let a second conversion raise a duplicate deal.
+- **Tightening an input breaks existing callers**, including tests and any external API
+  client. Grep the suite before tightening, and say plainly in the commit that it is a
+  contract change. **A test that fails afterwards is usually an outdated SETUP call, not a
+  broken assertion.**
+- **A check that appears to exist may not run.** A duplicate route in a shared registry
+  made 699 tests collect-fail silently; every green CI run was green without them.
+  Verify a gate *executes*, not merely that it is configured.
+- **A mass failure with a uniform signature is ONE cause, not many.** Fifty-five modules
+  do not break identically at the same moment.
+- **Establish reachability before severity, and severity before priority.** A whole build
+  pass was once spent on a defect no product path could trigger.
+- **Trace a finding to cause before recording it as a fault.** An artefact of a cause you
+  have already identified is not a new finding.
 
-- **Every user-facing record identifier is unique PER ORG and allocated from `org_counters`.**
-  `getNextSeq` / `getNextNumber` (`apps/api/src/lib/auto-number.ts`) do an atomic
-  `INSERT … ON CONFLICT DO UPDATE … RETURNING`. **Never mint an identifier with `Math.random()` or
-  `count(*)+1`** — both shipped and both produced duplicates (expense reports drew from 9000 values a
-  year; four tables raced). Migration `0086` added nine unique indexes; a racing generator behind a
-  unique index is a user-facing 500, so the generator and the index must land together.
-  Third-party/free-text references (`bank_transactions.reference`, `fema_return_records.reference`,
-  `inventory_transactions.reference`, `journal_entries.reference`) are deliberately NOT constrained —
-  they may legitimately repeat.
-  Still open: `work_order_tasks.number` (`count(*)+1`, scoped per work order, so `org_counters` does not
-  fit as-is).
-- **A migration that adds a unique index must detect duplicates first and RAISE naming
-  table/value/org/row-count** — never delete, merge or renumber. See `0086_aromatic_swarm.sql` for the
-  pattern. The api container's `migrate && index` CMD means a raise stops the deploy and leaves the
-  previous container serving, which is the desired behaviour.
-- **Payroll approval chain is 2 or 3 steps, never 1.** Configured by the tenant's own owner/admin via
-  `admin.payrollPolicy.*`, stored in the typed `OrgSettings` JSONB (the convention for tenant config that
-  drives behaviour — NOT `system_properties`). **Stamped onto `payroll_runs.approval_chain_length` at
-  creation and read from the run**, so a mid-cycle change cannot alter a run in flight. Segregation of
-  duties (no one person approves two steps) is unchanged at either length and must stay.
-  **On a 2-step chain the FINANCE approval lands on `CFO_APPROVED`** — `generateStatutory`, bank-file
-  generation and the payroll UI all gate on that state, so introducing a separate terminal status would
-  silently strip 2-step tenants of statutory generation. The stored names (`cfo_approved`,
-  `approvedByCfoId`) stay as they are at both lengths.
-- **Identity: every employee already has exactly one login.** `employees.user_id` is NOT NULL and
-  uniquely indexed, and all three creation paths (`hr.employees.create`, the second creator in `hr.ts`,
-  `ingest.importEmployees`) create the user when none is supplied. "Employee with no login" is NOT a
-  reachable state. The reverse IS reachable and is still unhandled: a login with no employee record gets
-  a bare 404 from `hr.leave.create` (it throws NOT_FOUND when `employees.userId = user.id` misses).
-  `hr.triggerOnboarding` creates no employee — it is a checklist over one that already exists.
-- **Offboarding revokes access on a DATE, not on the event.** A daily BullMQ job in
-  `hrPeriodicWorkflow.ts` disables logins at end of day on the day AFTER `employees.end_date` (last
-  working day + one handover day), using the Admin Console's own mechanism (`users.status = "disabled"` +
-  an audit row) — do not add a second disable path. Note `seed-smb-analytics` gives resigned/terminated
-  employees past end dates, so a seeded environment will see logins disabled on the first nightly run.
-- **State vocabulary: `professional_tax_slabs.state_name` is canonical.** The PT lookup keys overrides on
-  `normalizePtStateKey(stateName)`, so a value absent from that table cannot resolve a slab. The employee
-  dropdown (`apps/web/src/lib/india-states.ts`) must match it, and a guard test
-  (`state-list-slab-parity.test.ts`) fails if they drift. `normalizePtStateKey` treats `&` and `and` as
-  equivalent. `GSTIN_STATE_CODES` in payroll-math deliberately does NOT match — it is the IRP's
-  vocabulary and employee state never feeds the GST path.
-  **Corollary for anything on the GST path (customer/vendor state, place of supply):** source the
-  option list from `GSTIN_STATE_CODES` and store the **two-digit code**, never a PT-vocabulary name.
-  The two lists disagree on three union territories ("Jammu & Kashmir" vs "Jammu and Kashmir"), and
-  `normaliseStateToCode` does a lowercased EXACT match with no `&`/`and` handling, so a PT name
-  resolves to `null` → unknown buyer state → a silently wrong intra-state split.
-  **ISO 3166-2:IN codes ("KA", "MH") are a THIRD vocabulary and resolve to `null` as well.** The
-  Setup Wizard asked for one ("Primary State Code", placeholder `MH`, default `KA`) and wrote it
-  into `gstin_registry.state_code`, so the SUPPLIER had no resolvable state at all, `computeGST`
-  compared `""` against the buyer's `"29"`, and every sale billed inter-state IGST — the right total,
-  the wrong split, on documents customers claim input credit against. `organizations.primaryStateCode`
-  legitimately holds the ISO code for its own consumer; the GST registry must not be fed from it.
-- **The GSTIN is the authority on its own state — DERIVE it, never ask for it separately.** The
-  first two characters of a GSTIN *are* its state code, so a second field can only ever disagree.
-  `accounting.gstin.create` derives `stateCode`/`stateName` via `validateGSTIN` and REJECTS a supplied
-  code that contradicts the GSTIN; `orgWizardWrite` derives it too and stores `""` rather than
-  substituting the ISO code, because an empty state is an honest unknown while `"KA"` looks set and
-  resolves to nothing. `validateGSTIN` covers all **39** GST jurisdictions (01–24, 26–38 — 25 merged
-  into 26 in 2020 — plus 97 Other Territory and 99 Centre Jurisdiction), so deriving is complete for
-  every state and union territory rather than a hand-maintained list. Guard:
-  `gstin-state-derivation.test.ts` walks the whole table.
+---
+
+## Security rules that are easy to get wrong
+
+- **`hr:read` is NOT "is this person HR" — every employee holds it.** The `requester`
+  role, which every plain employee carries, is granted `hr: ["read"]`. Gating a
+  self-or-role check on `hr:read` grants the whole company. **The real test is `hr:write`.**
+- **One ownership helper: `assertSelfOrPermitted(ctx, employeeId, grants[])`**
+  (`lib/self-or-permitted.ts`). Do not write a second. Where a user may SEE their own
+  figures but not ACT on them, express that by NOT calling the helper on the acting
+  procedure.
+- **A missing rule in `trpc-procedure-rbac.generated.ts` falls back to PERMISSIVE**, but
+  that gate is CLIENT-SIDE ONLY — the server still enforces `permissionProcedure`. A
+  procedure absent from the map is a defence-in-depth gap, not data exposure. **Establish
+  which before calling it a breach**, and read handler BODIES, not signatures. The map
+  does not cover nested sub-routers imported from other files.
+- **A green `/api/health` proves NOTHING about encryption readiness.** The local KMS
+  provider's constructor only stores a key id; `APP_SECRET` is read in `kek()`, a per-call
+  method (`apps/api/src/services/kms.ts`). The API boots clean without it and fails at the
+  first encrypt.
+- **In `apps/api/src/routers/hr.ts`, `bankAccountColumns(...)` must stay LAST, after
+  `...rest`.** It overwrites the plaintext `bankAccountNumber` that spreads in from the
+  input. Reorder it and plaintext account numbers are stored silently **while every
+  existing test still passes**, because the tests assert the column holds ciphertext —
+  which it would, until that line moves.
+- **The Fastify HTTP routes bypass `rlsTenant` entirely** and are app-filter-only.
+- **The RLS policy fails OPEN when `app.org_id` is unset.**
+
+---
+
+## Money paths — verify the invariant when touching these
+
+- **Journal entries**: debits must equal credits (tolerance 0.001) — `routers/accounting.ts`.
+- **Payroll**: `netPay = max(0, grossEarnings − totalDeductions)` — `lib/payroll-cycle.ts`.
+- **GST**: intra-state = CGST+SGST (50/50), inter-state = IGST — `lib/india/gst-engine.ts`.
+- **TDS / income tax**: `computeTax()` — `lib/india-tax-engine.ts`.
+- **3-way match**: invoice ≈ PO ≈ GRN within tolerance — `lib/invoice-po-match.ts`.
+- **EPFO ECR**: `buildEcrLine()` is the ONLY member-line builder. **The reported wage must
+  be the wage the contribution was computed on** — `epfWages` reads the persisted
+  `payslips.pf_wage_base`, never `slip.basic`. The ₹15,000 ceiling belongs on the wage base
+  upstream and on EPS/EDLI only. Guard is an UPPER bound (employer ≤ 12% + ₹1); a floor
+  produces false rejections because EPS caps and the 10% reduced rate legitimately push the
+  ratio down.
+
+---
+
+## Standing decisions — do not relitigate
+
+**Payroll operability**
+- **Any date feeding a payroll PERIOD defaults to the PERIOD START, never `today`.** A
+  structure dated after the 1st is not in force for that month and the employee is silently
+  excluded. A tenant onboarding on the 25th once ran a payroll that paid nobody.
+- **The approval chain is 2 or 3 steps, never 1, and needs that many DISTINCT accounts.**
+  Segregation of duties is per step. The length is stamped onto
+  `payroll_runs.approval_chain_length` at creation, so a mid-cycle change cannot alter a run
+  in flight. **On a 2-step chain the FINANCE approval lands on `CFO_APPROVED`** — statutory
+  generation and the bank file gate on that state.
+- **Payslip access is SELF-SERVICE BY DESIGN.** The PDF route filters
+  `eq(employees.userId, userId)`. Ruled working-as-intended by the owner: a payslip is
+  personal salary data. Do NOT route it through an HR grant. HR retains visibility of every
+  computed figure on the run itself.
+- **A capability a tenant cannot reach is not shipped.** When an engine lands without a
+  screen, record it as a GAP, not as done.
+
+**India payroll**
+- **PF composition, VPF and Para 26(6) are CONFIGURATION, not customer questions.** A DA
+  component exists; PF/ESI/gratuity/leave-encashment bases read Basic+DA. VPF is
+  employee-side only, capped so 12%+VPF ≤ 100% of the wage base; the employer never matches
+  it. Para 26(6) uncaps only where an EPFO approval reference is recorded.
+- **The salary-structure `CTC` field holds GROSS and is labelled Base Pay** (column stays
+  `ctc`). Basic % + DA % = 50, DA is the input and Basic is derived, enforced in the SERVER
+  validator. Every named component sits INSIDE Base Pay; only bonus sits on top. Special
+  allowance is the balancing figure.
+
+**Identity**
+- **Every employee already has exactly one login.** `employees.user_id` is NOT NULL and
+  uniquely indexed. "Employee with no login" is not a reachable state. The reverse IS
+  reachable and unhandled: a login with no employee record gets a bare 404 from
+  `hr.leave.create`.
+- **Offboarding revokes access on a DATE, not on the event** — a daily job disables logins
+  at end of day after `employees.end_date`. Do not add a second disable path.
+
+**State vocabulary — three incompatible lists**
+- **`professional_tax_slabs.state_name` is canonical for EMPLOYEE state.** The employee
+  dropdown must match it; a guard test fails if they drift.
+- **Anything on the GST path uses `GSTIN_STATE_CODES` and stores the two-digit CODE.**
+  `normaliseStateToCode` does a lowercased EXACT match with no `&`/`and` handling, so a PT
+  name resolves to `null` → unknown buyer state → a silently wrong intra-state split.
+- **ISO 3166-2:IN codes ("KA", "MH") are a THIRD vocabulary and resolve to `null`.** The
+  Setup Wizard once wrote one into `gstin_registry.state_code`, so the supplier had no
+  resolvable state and every sale billed inter-state IGST — right total, wrong split, on
+  documents customers claim input credit against.
+- **The GSTIN is the authority on its own state — DERIVE it, never ask separately.** The
+  first two characters *are* the state code. `validateGSTIN` covers all 39 jurisdictions.
+- **Normalise BOTH party states to a code before any intra-vs-inter compare**, via
+  `normaliseGstStateOrWarn`. An ABSENT state logs nothing and defaults to intra-state, so
+  any surface where it matters must say so in the UI.
+
+---
 
 ## Generated documents (quotation, tax invoice, payslip, Form 16)
 
-- **ONE PDF mechanism: PDFKit, server-side, returning a `Buffer`**, served by a Fastify route and a
-  same-origin Next proxy (`services/{payslip,form16,quote,invoice}-pdf.ts` →
-  `http/*-pdf.ts` → `apps/web/src/app/api/**/route.ts`). Do not introduce a second approach —
-  no headless browser, no client-side renderer.
-- **"Rs.", never "₹", and ASCII only.** PDFKit's standard 14 fonts are WinAnsi-encoded and have no
-  U+20B9; the glyph renders as a missing character. The same applies to the em-dash (U+2014), which
-  silently prints as blank space. `pdf-rupee-glyph.test.ts` scans the whole source, comments included.
-  Money formatting lives once in `services/pdf-money.ts` (en-IN, two decimals, `-0` guard, full
-  figures — never an abbreviated "250K"), mirroring `formatStatementInr` in `apps/web`.
-- **The printed totals are the STORED totals.** A document renders the columns the engine wrote; it
-  does not re-compute tax. A rate-wise breakup derived for presentation is RECONCILED against the
-  stored aggregate first, and dropped if it differs by a paisa. A document that contradicts the
-  ledger is worse than one carrying less detail.
-- **A document REFUSES rather than mislead.** A quote whose buyer state is unknown, or an invoice
-  that is payable (the vendor's document, not ours), lacks a supplier GSTIN or place of supply, or
-  has no line items, answers **409 naming the field to fix** — it does not render. A warning banner
-  can be cropped or forwarded away; a document that was never generated cannot be sent. Both refusal
-  rules live in one exported helper per document so the screen and the route cannot disagree.
-- **Generate, do not file.** Document rendering never contacts a government portal. E-invoicing owns
-  that round-trip already (`coheronconnect-irn-generation` → `startIrnWorker` → `clearTaxGstAdapter`
-  → ClearTax), persisting `eInvoiceIrn`/`eInvoiceAckNumber`/`eInvoiceSignedQrCode`. The invoice PDF
-  PRINTS those columns and says plainly when they are empty. Do not add a second filing path.
-- **A tax invoice is issued only for `invoice_flow = "receivable"`.** A payable is the vendor's
-  statutory document being recorded; rendering "our" tax invoice for it fabricates someone else's
-  document under our letterhead. Rule 46 of the CGST Rules 2017 is the content standard — HSN,
-  description and quantity per line are mandatory, which is why the AR form defaults to Line items
-  and AP does not.
-- **Normalise BOTH party states to a code before any intra-vs-inter-state compare.** `computeGST`
-  decides by a raw case-insensitive string compare, and the two sides arrive in different forms: the
-  org side is a code (`"29"`) from `gstin_registry`, while counterparty state columns
-  (`crm_accounts.state_code`, vendor/customer state) are free text that may hold a NAME. `"29" ≠
-  "karnataka"`, so a local sale bills as inter-state IGST — right total, wrong split, on a document
-  that looks correct. Always go through `normaliseGstStateOrWarn` (`lib/india/gst-engine.ts`), which
-  also LOGS `GST_STATE_UNRESOLVED` for a present-but-unrecognised state. **An ABSENT state logs
-  nothing** — it is a legitimate unknown that defaults to intra-state, so any surface where it matters
-  must say so in the UI; no warning will appear anywhere else. (Fixed on the quote path in Round 11;
-  `financial.ts`, `procurement.ts` and `ingest.ts` already did this.)
+- **ONE PDF mechanism: PDFKit, server-side, returning a `Buffer`**, served by a Fastify
+  route and a same-origin Next proxy. Do not introduce a second approach.
+- **"Rs.", never "₹", and ASCII only.** PDFKit's standard-14 fonts are WinAnsi-encoded and
+  have no U+20B9; the em-dash prints as blank space. `pdf-rupee-glyph.test.ts` scans the
+  whole source, comments included. This rule is PDF-only — the browser renders ₹ fine, and
+  web surfaces use it.
+- **The printed totals are the STORED totals.** A document renders what the engine wrote;
+  it does not re-compute tax. A breakup derived for presentation is reconciled against the
+  stored aggregate first, and dropped if it differs by a paisa.
+- **A document REFUSES rather than mislead.** Unknown buyer state, missing supplier GSTIN
+  or place of supply, no line items, or a payable → **409 naming the field to fix**. A
+  warning banner can be cropped or forwarded away; a document never generated cannot be
+  sent. Both refusal rules live in one exported helper per document.
+- **A tax invoice is issued only for `invoice_flow = "receivable"`.** Rendering "our" tax
+  invoice for a payable fabricates someone else's document under our letterhead.
+- **Generate, do not file.** Document rendering never contacts a government portal.
+  E-invoicing owns that round-trip already.
 
-- **Call the CANONICAL tRPC procedure, never the `@deprecated` flat twin.** `crm/index.ts` keeps
-  legacy flat procedures (`crm.createLead`, `crm.updateAccount`, `crm.listAccounts`, …) beside the
-  canonical sub-routers (`crm.leads.create`, `crm.accounts.update`, `crm.accounts.list`, …). The
-  deprecated inputs were frozen when they were written, so **zod silently strips every field added
-  since** — the mutation succeeds, the toast says success, and the data is gone. This has bitten three
-  times (lead update, lead create, account create). It is invisible to router tests, which call the
-  canonical procedure directly, so the guard is `crm-deprecated-mutation-sweep.test.ts`, which asserts
-  what the deprecated inputs drop. The same trap exists on **queries**: a deprecated `list*` may be a
-  plain select while the canonical one computes an aggregate, so a column silently renders blank
-  (`accounts.list` openOpps/totalRevenue, `leads.list` lastActivityAt). **Do not delete the deprecated
-  procedures** — other callers may exist. Before adding a field to any form, check which procedure the
-  caller targets.
-- **A guard that exists on a canonical procedure must exist on its deprecated twin, from ONE shared
-  helper.** `crm/index.ts` keeps flat copies of procedures whose bodies were copy-pasted, so a rule added
-  to only one side leaves the other as an open hole — and the two then drift silently. Extract the rule
-  (`assertDealCloseTransition`, `assertActivityHasAssociation`, `assertQuoteHasValue`) and call it from
-  both. The same applies to any picklist or vocabulary a rule depends on: put it in one shared module
-  rather than a copy per screen (`apps/web/src/lib/crm-lost-reasons.ts` is the pattern).
+---
 
-- **Tightening an input can break existing callers, including tests and any external API client.**
-  `activities.create` accepted an activity attached to nothing; `movePipeline` accepted closed_lost with
-  no reason. Adding the requirement is correct, but it turns previously-valid calls into 400s. Before
-  tightening: grep the test suite for callers, and say plainly in the commit that it is a contract
-  change, not a UI change. **A test that fails afterwards is usually an outdated SETUP call, not a
-  broken assertion** — establish which before editing either (see the TESTS-ENCODE-DEFECTS rule).
+## Conventions
 
-- **Validate the TRANSITION, not the stored row.** The closed-won guard (value + expected close) and the
-  lost-reason requirement fire only inside `movePipeline`, so rows written before they existed are never
-  re-validated and nothing is rewritten. This is how a new rule ships without a backfill and without
-  breaking historical data. A row only has to satisfy the rule if it is moved again.
+- Make only the changes requested. No unrequested refactors, no premature abstraction.
+- Read files before editing; never propose changes to unread code.
+- **NEVER state that a file is committed, that a commit exists, or that a change is
+  deployed without verifying it first.** Run `git log`/`status`/`show` and quote the output.
+  A commit hash you have not read is a fabrication.
+- Don't commit unless explicitly asked. Prefer staging specific files over `git add -A`.
+- Never commit secrets (`.env*`, credentials).
+- **Other sessions may be editing this tree.** Confirm which process holds a port and
+  which `DATABASE_URL` it has before using it. Leave files you were told not to touch
+  alone, and verify at the end that their diffstat is unchanged.
+- zsh quirks: multi-line SQL piped through commands breaks; `cd` with unquoted paths can
+  error "too many arguments"; `!` triggers history expansion in `node -e`. Write a temp
+  file and quote paths.
 
-- **CRM deal stage config lives on `crm_pipeline_stages`** — label, colour, rank, active AND the stage's
-  default close probability, per tenant, layered over the fixed `deal_stage` enum. Do not create a second
-  config home for anything stage-shaped. The probability is a **default the New Deal form pre-fills and
-  the rep can override**, never a lock: `movePipeline` must NOT rewrite `crm_deals.probability` on a
-  stage change, because that would move the forecast underneath the rep without them touching anything
-  (`weightedValue` = value × probability then stays correct, since neither input changed). Factory
-  defaults in `DEFAULT_PIPELINE_STAGES` (`routers/crm/deals.ts`) and the backfill in migration `0089`
-  MUST stay in step; a test pins them together.
+## Deploy
 
-- **A backfill is only half the job — the SEED is what every fresh database gets.** A migration backfill
-  touches rows that exist *when it runs*; on a new database the table is empty at migration time, so
-  `packages/db/src/seed.ts` is the real source of initial values. `0089` backfilled
-  `crm_pipeline_stages.probability` correctly for existing tenants and the seed still inserted rows
-  without it, leaving every fresh environment flat at 10. **When a migration backfills, grep the seeds for
-  inserts into the same table in the same change.**
-- **A long-lived local test DB masks seed and missing-refetch defects; CI's fresh DB does not.** Both
-  defects above passed locally and failed in CI: leftover rows satisfied `.first()`-style assertions that
-  the code under test should have produced itself. **Reproduce e2e failures against a RESET database
-  (`pnpm docker:test:reset`) before concluding a CI-only failure is a flake or an environment quirk.**
-  Related: CI's Playwright runs with retries, so a genuinely broken spec fails three attempts there while
-  the known `rbac` hydration failures clear on retry — a CI E2E failure is therefore *more* trustworthy
-  than a local one, not less.
-- **A mutation must refetch every list its procedure writes.** `crm.leads.convert` creates an account, a
-  contact AND a deal in one transaction; the caller refetched only leads and accounts, so the new deal did
-  not appear on the Pipeline. Check what the procedure actually writes, not what the screen is called.
-
-- **A migration adding a column with per-row-appropriate values needs a hand-written backfill.** Drizzle
-  generates a single `ADD COLUMN … DEFAULT x`, which fills every existing row with the same value —
-  for `crm_pipeline_stages.probability` that would have left every tenant flat at 10 across all seven
-  stages, which is *worse* than no default because it looks configured. Edit the generated `.sql` to add
-  the per-key `UPDATE`s (the snapshot stays valid; `pnpm check:migrations` still passes). Same shape as
-  `0089_furry_tattoo.sql`.
-
-- **`trpc-procedure-rbac.generated.ts` does not cover nested sub-routers imported from other files.**
-  Its generator walks router files and does not follow `crm/index.ts`'s imported sub-routers, so **no
-  `crm.<sub>.<proc>` path is in the map at all**. A `mergeTrpcQueryOpts` key with no rule falls back to
-  "any authenticated user", which is looser than the `permissionProcedure` gate the screen had. Pass
-  the flat path as the lookup key to preserve the intended gate (the key is an RBAC lookup, not the
-  procedure being called), and do not regenerate the map as a side effect of unrelated work — it has
-  accumulated drift and will silently change gating elsewhere (e.g. `hr.leave.create`).
-- **`hr:read` is NOT "is this person HR" — every employee holds it.** `requester`, the role every plain
-  employee carries, is granted `hr: ["read"]` (`rbac-matrix.ts`). So gating a self-or-role check on
-  `hr:read` grants the whole company, which is the opposite of the intent. **The real "is this person HR"
-  test is `hr:write`** — which is exactly why Round 4's `assertSelfOrHrWriter` uses it. A settlement gate
-  written as `hr:read` would have exposed every employee's final settlement to everyone; a test caught it.
-- **One ownership helper: `assertSelfOrPermitted(ctx, employeeId, grants[])`** (`lib/self-or-permitted.ts`).
-  "Your own record, OR someone holding one of these grants." `assertSelfOrHrWriter` is expressed in terms
-  of it. Do not write a second ownership check — divergent duplicates are this codebase's recurring defect.
-  **Where a procedure lets you SEE your own figures but not ACT on them, express that by NOT calling the
-  helper**, not by a flag: `settlement.get`/`preview` are self-or-role, `settlement.settle` is role-only,
-  because settling is the act of paying someone out.
-- **A missing rule in `trpc-procedure-rbac.generated.ts` falls back to PERMISSIVE**
-  (`rbacAllow = isAuthenticated`, `rbac-context.tsx:204`). That gate is CLIENT-SIDE ONLY — the server
-  still enforces `permissionProcedure`. A procedure absent from the map is a UI/defence-in-depth gap, not
-  data exposure. **Establish which before calling it a breach:** all 16 procedures found "unmapped" in
-  Aug 2026 were already enforced server-side. **And read handler BODIES, not signatures** — one of them
-  was `protectedProcedure` with an in-body `checkDbUserPermission` throw.
-- **Do not invent a displayed identifier by splitting or truncating a real field.** The Admin Console's
-  USERNAME column was `email.split("@")[0]`, so two distinct accounts rendered identically. Several
-  screens still do this with `id.slice(…)` fallbacks (invoice, GRC, vendor, CRM, security) — a missing
-  number is a data problem, not a display one.
+- **A push to `main` deploys.** CI runs Lint → Test → E2E → Build → **Deploy to Vultr**.
+  "What is live" = the terminal `Deploy to Vultr` job of the latest `main` CI run
+  (`gh run view <id> --json jobs`), not CI "success" alone.
+- `deploy-vultr.yml` is a separate MANUAL fallback. Do not read live state off it.
+- Migrations auto-apply on the deployed stack via the api container's own
+  `CMD node dist/migrate.mjs && node dist/index.mjs`; the `&&` stops the server booting if
+  a migration fails. The live compose files are `docker-compose.vultr-test.yml` +
+  `.vultr.images.yml` — **not** `docker-compose.prod.yml`.
+- **Always take a backup/snapshot before deploying.** Snapshots and deploy triggers need
+  the user's cloud credentials — Claude cannot perform them. Treat pushing `main` as a
+  deploy trigger: get the user's go, and say plainly that you cannot take the snapshot.
 
 ## Common commands
 
@@ -422,284 +330,23 @@ These are conventions, not per-commit state. They were established by code audit
 | Install | `pnpm install` |
 | Dev (all) | `pnpm dev` |
 | Build all | `pnpm build` |
-| Lint | `pnpm lint` |
+| Pre-merge gate | `pnpm lint:cold` |
 | Full test suite | `pnpm test` |
-| E2E (Playwright) | `pnpm test:e2e` |
-| Test DB up / down / reset | `pnpm docker:test:up` / `:down` / `:reset` |
+| E2E | `pnpm test:e2e` |
+| Test DB up/down/reset | `pnpm docker:test:up` / `:down` / `:reset` |
 | Migration journal check | `pnpm check:migrations` |
-| DB generate / migrate / studio | `pnpm db:generate` / `db:migrate` / `db:studio` |
+| DB generate/migrate/studio | `pnpm db:generate` / `db:migrate` / `db:studio` |
 
-## Deploy
+## Demo data seed
 
-- **The primary deploy is automatic and rides CI — a push to `main` deploys.** `ci.yml`
-  on a `main` push runs Lint → Test → E2E → **Build** (`build` needs `[lint, test, e2e]`;
-  publishes GHCR images web+api tagged `latest` / `main` / 7-char SHA) → **`Deploy to
-  Vultr`** (the terminal `deploy` job, `needs: [build]`, runs `scripts/push-to-vultr.sh`;
-  auto-skips if `VULTR_HOST` / `VULTR_SSH_PRIVATE_KEY` are absent). **"What is live" = the
-  `Deploy to Vultr` JOB inside the latest `main` CI run** (`gh run view <ci-run-id> --json
-  jobs`) — *not* CI "success" alone, and *not* the standalone workflow below.
-- **`deploy-vultr.yml` is a separate MANUAL `workflow_dispatch` fallback** (also rsync +
-  `scripts/push-to-vultr.sh`), idle since 2026-07-15. Do **not** read the live deploy
-  state off it — the automatic CI `deploy` job is the real route. (Mistaking the two led
-  a session to wrongly conclude "not deployed since Jul 15"; it was, via CI.)
-- Migrations auto-apply on the deployed Vultr stack **via the api container itself** — its image `CMD` is
-  `node dist/migrate.mjs && node dist/index.mjs` (`apps/api/Dockerfile:62`), so drizzle-orm's programmatic
-  `migrate()` (`apps/api/src/migrate.ts`, folder `packages/db/drizzle`) applies pending migrations **before**
-  the server starts, and the `&&` stops the server booting if a migration fails. **The Vultr deploy uses
-  `docker-compose.vultr-test.yml` + `docker-compose.vultr.images.yml`, NOT `docker-compose.prod.yml`** —
-  `prod.yml` defines a separate `migrator` service (`node -e require('./dist/migrate.js')` +
-  `service_completed_successfully`), but that compose file is **not** the live path, so do not read it as a
-  description of production (same trap as the orphaned MinIO definition).
-- **Deploy reliability (cause established 2026-08-12).** The "Postgres unhealthy after `compose down`/`up`"
-  deploy failures — three occurrences, plus a host-unreachable incident and a mid-layer `pull` failure that were
-  recorded separately — were **one cause: the root filesystem filled** because Docker images from every past
-  deploy were never pruned (the old `docker image prune -f` is dangling-only and never removes tagged images).
-  A full disk means Postgres can't write → can't answer `pg_isready` → never goes healthy; login writes to disk
-  too, which is why a valid root login and `ssh-keyscan` were also refused. The deploy now: (1) recreates only
-  the app tier, leaving Postgres/Redis/Meilisearch running (`vultr-remote-deploy.sh` Change B); (2) **pre-flight
-  prunes** old images when free space on the docker device drops below 10GB and **retention-prunes**
-  (`-af --until=168h`, a week kept for rollback) after a confirmed-good deploy (Changes D/E); (3) **caps
-  container logs** (`docker-compose.vultr-test.yml` per-service `logging:`, 250MB each, Postgres 500MB). Every
-  deploy writes `df` to `/var/log/coheron/` so free space is never invisible again (the Vultr graphs have **no
-  disk-space panel**). Full detail: `reports/fix-plan.md` → `OUTAGE-2026-08-10` (CLOSED) + `PRUNE-PREFLIGHT`.
-- **Always take a backup/snapshot before deploying.** Snapshots and deploy triggers require the user's cloud credentials — Claude cannot perform them. Because a `main` push auto-deploys, **treat pushing `main` as a deploy trigger** (get the user's go + snapshot first).
+The 100-employee `coheron-demo` seed has been **removed** and must not be reintroduced.
+The base seeds (`db:seed`, `db:seed:modules`, `db:seed:smb`) remain. Note `db:seed:modules`
+aborts on `surveys_org_number_idx` and `db:seed:smb` on `hr_cases_org_number_idx` when
+re-run against an already-seeded DB.
 
-## Conventions & guardrails
+## `packages/db` mongo dependency — do not strip
 
-- Make only the changes requested; avoid over-engineering, premature abstraction, and unrequested refactors.
-- Read files before editing; never propose changes to unread code.
-- NEVER state that a file is committed, that a commit exists, or that a change is deployed without verifying it first. Run `git log`, `git status` or `git show` and quote the actual output. A commit hash you have not read is a fabrication. This applies to every claim about repository state. If you have not checked it in this session, say so rather than asserting it. This extends the "read before you claim" rule from comments and documents to the repository itself.
-- Don't commit unless explicitly asked. Prefer staging specific files over `git add -A`.
-- Never commit secrets (`.env*`, credentials). Coverage artifacts are gitignored.
-- zsh quirks observed here: multi-line SQL piped through commands breaks; `cd` with unquoted paths can error "too many arguments"; `!` triggers history expansion in `node -e`. Workaround: write a temp `.cjs` file and quote paths.
-- **Operational — the dev DB is not auto-migrated.** A fresh local session must confirm the dev
-  database is at the journal head (`packages/db/drizzle/meta/_journal.json`) and run `pnpm db:migrate`
-  if not. Nothing brings a local DB to head and nothing checks; it was found **14 migrations behind**
-  on 2026-08-09 (login 500'd on a missing column). Prod is safe — the deployed api container self-migrates
-  on boot (`node dist/migrate.mjs` before the server; see the Deploy section). (Closed item; see
-  `reports/fix-plan.md` "DEV-DB-14-BEHIND".)
-
-### Operating rules for investigation & recording (learned 2026-08-09)
-
-These govern how findings are established and written down. They exist because a whole build pass was
-spent on a defect **no product path can trigger** — its severity was *asserted* from reasoning about how
-Indian employers hire (new hires sit on probation → would go unpaid) rather than *established* from the
-code, where no path writes that status (see `reports/fix-plan.md` "CORRECTION OF RECORD — reachability
-before severity").
-
-- **Trace a finding to cause before recording it as a fault.** An artefact of a cause you have already
-  identified is not a new finding — fold it into the one it belongs to. (Multiple such near-misses on
-  2026-08-09 were caught only by tracing first.)
-- **Establish reachability before severity, and severity before priority.** A defect no code path can
-  produce is not the top of the board, however plausible the real-world story.
-- **Nothing enters a prompt as a premise unless it was read in code, cited with `file:line`.** Otherwise
-  it is a question, not framing.
-- **A finding updates its own item; it does not restart the queue.**
-- **Verify everything; do not triage by apparent importance** — importance is an output of verification,
-  not an input to it.
-- **Where a claim was not verified, say so** rather than filling the gap.
-- **A test that fails after a fix may have been asserting the defect.** Establish which before changing
-  either. Three instances in two days (silent-regime-default import test; a metro test that set `isMetroCity`
-  and expected it to thread; leave fixtures created without a salary structure). See `reports/fix-plan.md`
-  → `TESTS-ENCODE-DEFECTS`.
-- **A check that appears to exist may not run.** `.turbo` made "cold lint" warm; a duplicate route in the
-  shared `ALL_ROUTES` made 699 `tests/full-qa` tests collect-fail silently, so every green CI run was green
-  without them. **Verify that a gate executes, not merely that it is configured** (2026-08-14).
-- **A mass failure with a uniform signature is one cause, not many.** Fifty-five modules do not break
-  identically at the same moment — the full-qa "55 module list APIs fail" was one `apiCall` tRPC-encoding
-  bug, not 55 broken modules. **Establish the cause before recording the count** (2026-08-14).
-
-## Gap analysis (where the product actually stands)
-
-> **Accuracy note (current branch `merge/team-super-admin`):** several items the audits below
-> flagged as gaps have since **shipped and are wired/running** — verify against `BUILD.md` before
-> treating any line here as an open to-do. Specifically:
-> - **Tamper-evident audit log — DONE.** Hash chain (`seq`/`prevHash`/`entryHash`) is implemented in
->   `packages/db/src/schema/auth.ts:285-318`, verified via `verifyAuditChain`. (Was gap priority #9.)
-> - **CVSS→SLA + vulnerability escalation — DONE.** `vulnerabilities.slaBreached`/`escalationLevel` +
->   `vulnerabilitySlaEvents` + the `coheronconnect-vuln-sla` BullMQ loop (`workflows/vulnerabilitySlaWorkflow.ts`).
-> - **DPDP automation — PARTIAL, no longer "near-blank".** Temporal `dpdpSweepWorkflow` runs on a schedule
->   (default 1h) and POSTs to `/internal/dpdp/sweep` (consent expiry / breach / DSR dispatch).
-> - **ITSM loops (on-call escalation, event correlation), workflow-trigger + outbound webhook dispatcher —
->   WIRED** as BullMQ sweeps (see `BUILD.md §4`).
-> - **Super-admin / platform-monitoring role — SHIPPED** (`apps/mac` + `/api/super-admin/*` + `superAdminAuditLogs`);
->   the "Latest session state" note below saying it doesn't exist yet is superseded.
-> Still genuinely open per the audits: balance sheet, depreciation engine, gratuity/leave accrual,
-> SAM reconciliation, lead scoring/lossless conversion, SMS delivery. (Note: the old "GSTR-1 18%
-> hardcode" is NOT a rate hardcode — `accounting.ts:744-797` groups by the real per-line rate with a
-> header-derived fallback; the residual is that the per-line path reads `invoiceLineItems`, which has
-> no production write path, so real invoices take the header fallback. See `docs/quality-bar.md` #10.)
-
-**The authoritative, living gap tracker is `docs/GAP_ANALYSIS.md`** — its shipped/gap claims were
-last verified at an earlier migration head and may need re-verification (for the live head read
-`packages/db/drizzle/meta/_journal.json`). It lists what's shipped (REAL) vs the
-open gaps (PARTIAL/STUB/MISSING) with `file:line` evidence, India go-live sequencing, and an
-owner/target column to fill in. **Update it in place as items ship.**
-
-The older dated audits that fed it are retained for decision-history only in `docs/archive/`:
-the 2026-07-03 platform gap set (`PLATFORM_GAP_*_2026-07-03.md` + GRC/Legal companions), the
-2026-06-30 competitive analysis (`COMPETITIVE_GAP_ANALYSIS_2026-06-30.md`), and the vendor
-benchmarks (HubSpot/ServiceNow/Workday/Microsoft/Reliance/Amazon). Non-technical DOCX exports
-live in `docs-word/` (generated by `scripts/gen-gap-docx.py`).
-
-**The one thing to remember:** the data models are right; the **computation and the
-automation loops** are what's missing. You can almost always *store* the right thing
-but frequently can't *compute the intelligence* on it (depreciation, balance sheet,
-lead/health score, SAM reconciliation) or *close the loop* (triggers never fire,
-outbound webhooks never dispatch, escalation timers never run). Cross-cluster average
-maturity **≈ 50/100**. India payroll/tax is the standout (production-grade, ~80%);
-**DPDP privacy is the largest regulatory hole** (near-blank).
-
-Cluster maturity (2026-07-03): People ~68 · Platform ~60 · ITSM ~55 · Governance ~55 ·
-GRC ~55 · CRM ~45 · Finance ~42 · IT Asset ~42 · Legal ~40.
-
-Recurring anti-patterns to hunt for: (1) correct schema, missing computation;
-(2) stored-but-never-evaluated enums/config; (3) open loops (capture without
-consequence); (4) mock/placeholder in the last mile (MCA21 filing, procurement accrual
-to placeholder account UUIDs); (5) lossy transitions (lead→deal drops account/contact);
-(6) records without reflexes (DSR clocks, breach notice, approval SLAs).
-
-**Top cross-cluster priorities** (regulatory/financial risk × build leverage):
-1. DPDP consent + DSR + breach automation (biggest India-first exposure).
-2. Workflow trigger layer + outbound webhook dispatcher (closes the automation loop).
-3. Balance sheet + fix the GSTR-1 18% rate hardcoding + real accrual accounts.
-4. Gratuity + leave accrual/carry-forward (the two statutory payroll holes).
-5. Depreciation engine (unblocks book value *and* the finance balance sheet).
-6. SAM installed-vs-entitled reconciliation (M365 true-up audit risk).
-7. Fire the ITSM loops (event correlation, on-call escalation, deploy→incident MTTR).
-8. Lead scoring + lossless conversion + CPQ tax/GST.
-9. Tamper-evident audit log (hash chain / WORM).
-10. Regulatory refresh (Labour Codes Nov-2025, new Income Tax Act Apr-2026).
-
-Cheap wins first: GSTR-1 rate fix, asset↔contract linking, CMDB cycle detection,
-expiry alerting, remove DocuSign stub, tamper-evident audit, OKR cascade, CVSS→SLA.
-Effort estimate: regulatory + financial floor (defensible ~65) ≈ 11–16 eng-weeks;
-whole platform to category-competitive across all 9 audits ≈ 40–58 eng-weeks.
-
-## Roadmap reference
-
-The authoritative roadmaps are now **three verified, market-split docs** (each grounded
-in a `file:line` code audit at an earlier migration head — see each doc's own
-"Verification basis" line; for the live head read `packages/db/drizzle/meta/_journal.json`):
-- **`docs/INDIA_ROADMAP.md`** — India go-live + the 5 security items (DPDP, Vuln-SLA,
-  MFA, KMS, RLS). Consolidates the old India/security/GA plans.
-- **`docs/US_ROADMAP.md`** — US market (country/regime model, US COA, QuickBooks, CCPA).
-- **`docs/AI_ROADMAP.md`** — common AI maturity stages (Records→Understanding→
-  Recommendation→Execution→Autonomous) + composite-scoring/weightage decisions.
-
-The old plans (`PRODUCTION_READINESS_PLAN_2026-04-26.md`,
-`SECURITY_COMPLIANCE_ROADMAP_2026-07-13.md`, `INDIA_GOLIVE_*_2026-07-13.md`,
-`US_MARKET_BUILD_PLAN_2026-07-12.md`) are **superseded** and moved to `docs/archive/`
-(retained for decision-history only). The April plan's WS-1…WS-6 / Phase 0–6 framing
-below is historical; treat the three roadmaps above as current.
-
-Phases 0–3 are complete:
-- Phase 0–2 — foundations, data model, FK `onDelete` policy (`docs/DATA_MODEL.md`) ✅
-- **Phase 3 (automated tests / "hire inspectors") — complete** ✅
-  - Stage A — coverage baseline + tooling ✅
-  - Stage B — deletion-cascade FK behavior tests ✅ (`apps/api/src/__tests__/deletion-cascade.test.ts`)
-  - Stage C — money-path invariant tests ✅ (`apps/api/src/__tests__/money-invariants.test.ts`)
-  - Stage D — critical-path E2E hardening + flake audit ✅
-  - Stage E — coverage-floor gate + `docs/TESTING.md` ✅
-
-**Phase 4 (feature completion) is next** — close the WS-1…WS-5 gaps identified in
-the 2026-06-29 build-state audit (see plan §13). Phase 5 = durability/depth,
-Phase 6 = GA hardening.
-
-## Latest session state
-
-_Snapshot — dated content below. For the live migration head always read
-`packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
-do not trust a commit SHA or head number quoted here._
-
-**The live deploy SHA / CI run / migration head are deliberately NOT recorded here** — this block
-twice carried a stale SHA, which is exactly why per-commit state does not belong in CLAUDE.md. Read
-each at its source, never from a value quoted in this file:
-- **What is live** — the "Last validated deployment (exit point)" line in `docs/CONTEXT.md` (the
-  terminal `Deploy to Vultr` job of the latest `main` CI run: `gh run view <id> --json jobs`).
-- **Migration head** — the last entry in `packages/db/drizzle/meta/_journal.json`.
-- **Branch / HEAD / ahead-behind** — `git status` / `git rev-list --left-right --count origin/main...HEAD`.
-- **Per-item done/pending/blocked, dated shipped records, and incidents** — `reports/fix-plan.md`.
-- **Recent work + its evidence** (payroll-readiness, data-driven PT, the statutory-filing loop, the Base Pay
-  composition unit, and the deploy-reliability work — the **2026-08-10 outage is CLOSED**, cause established
-  12 Aug as a full root filesystem from un-pruned Docker images, fixed by the DEPLOY-HARDENING + PRUNE-PREFLIGHT
-  units; first unattended first-attempt deploy followed) — the dated sections of `docs/CONTEXT.md` and
-  `reports/fix-plan.md`.
-
-A deploy-state refresh is a docs-only LOCAL commit kept unpushed (rule 6); it rides the next code
-change, so local `main` can read one commit ahead of origin (deliberate, not drift).
-
-> **Structural note on this block (anti-drift).** The SHAs, migration head, and "238 base tables" above
-> are a **snapshot to verify, not a source of truth** — this file drifted to a stale live SHA more than
-> once (e.g. `docs/CONTEXT.md`'s top LIVE line held `3b7b83f` while origin was `62b0349`, 2026-08-09).
-> **Per-commit state should not be copied into CLAUDE.md at all.** It belongs at the source: the live
-> deploy in `docs/CONTEXT.md`'s "Last validated deployment (exit point)" line, the migration head in
-> `packages/db/drizzle/meta/_journal.json`, branch/HEAD in `git`, and runtime findings in `docs/audits/`.
-> Treat everything in "Latest session state" as needing re-verification; over time it should shrink to a
-> pointer. Conventions and the operating rules above, by contrast, do not go stale and belong here.
-
-Shipped 2026-08-09 (each deployed): **probation/on_leave** payroll run-selection fix + incomplete-row
-flag correction (`cbed818`, CI `31295210801`); then **three independent statutory fixes** (`62b0349`,
-CI `31298132260`) — the **50% PF wage-base downward clamp** (was a one-directional floor; a Basic-heavy
-core above half now clamps down to exactly half), a **per-employee leaver flag** (unpaid leavers named,
-not silently dropped), and **payslip-write resilience** (one structure-without-state employee no longer
-aborts the whole transaction — it is skipped, named, and everyone else is written).
-
-Shipped 2026-08-08 (each deployed; full per-item detail in `reports/fix-plan.md`): **C6** payslip
-mandatory statutory fields (`d979038`, mig `0074`; fixed the ESI-hardcoded-₹0 reconciliation defect,
-tenant identity now renders); **PAN** encrypted-at-rest (`5710dc2`) + a **destructive edit-dialog
-double-encryption fix** (`2bb3bac`) + a read-only prod audit that **ran CLEAN** (0 plaintext, 0
-double-encrypted — **PAN backfill is UNNECESSARY, do not build it**); **employee bulk importer**
-(`0c77dbd`, `ingest.importEmployees`) with an atomic delete-proof EMP-NNNN allocator shared across all
-three creation sites; **A12-D** LOP split-logic tax projection (`db529c0`); **taxRegime required column
-on import** (`3d416c7`, closes TAX-REGIME-DEFAULT for the importer; `hr.employees.create` still defaults
-silently, by decision); **dead-link sweep + route-integrity guard** (`3b7b83f`); and **doc corrections**
-(`7a76624`) — the **50% wage floor IS wired** (the old "not wired" warning was wrong) and the PAN-audit
-reconciliation. `apps/mobile` remains **parked**.
-
-Read-only sweeps this run recorded (NOT built): **INERT-ALLOWANCES** (three salary-structure allowance
-columns read nowhere; possible underpayment vs the additive `ltaAnnual`), the **onboarding-wizard map**
-(the wizard creates no employees; a seven-item gap to a correct payroll; the "Onboarding process"
-labelled trap), and the **document/storage sweep** — "no file upload anywhere" is **FALSE** (a real S3
-service + `documents` schema + ~6 wired paths exist), but the deployed stack (`docker-compose.vultr-test.yml`)
-ships **no object-storage backend**, so uploads fail in prod; a Vultr bucket is provisioned but not yet
-wired. **Scope reclassified 2026-08-12: this gap is document-ATTACHMENT only, NOT payroll output.** The
-payslip PDF is **render-on-the-fly** (`http/payroll-payslip-pdf.ts` builds it from the stored payslip row +
-shared view and streams it — no storage), so **the first cycle can hand employees payslips regardless.** What
-still needs storage is file *attachments* (employee documents, onboarding uploads) — whose fake controls are
-now disabled honestly (SURFACES → DOC-FACADE). See `docs/CONTEXT.md` + `reports/fix-plan.md` for detail.
-
-Older history (2026-08-02 and before, retained for decision-history):
-Prior snapshot: `main` was in sync with `origin/main` @ **`2baaa25`** (migration head
-`0059_volatile_midnight`). CI + Vultr deploy were **green** for that HEAD.
-- **MFA confirmEnroll fixed and shipped (`f365314` + `2baaa25`).** Root cause was in
-  `appendAuditEntry` (`apps/api/src/lib/audit-hash.ts`): the hash-chain head-read used
-  `ORDER BY seq DESC LIMIT 1` with no NULL filter. Postgres sorts NULLs **first** in DESC order, and
-  some paths (e.g. `command_center.view`) write audit rows directly with `seq = NULL`, so the
-  head-read returned a NULL-seq row → `prevSeq = 0` → `seq = 1` → a permanent `23505` collision with
-  the real chain head. That bubbled through `retryMutation`, which re-ran the non-idempotent
-  `confirmEnroll` handler; its second attempt found no pending enrollment → 400 "No pending MFA
-  enrollment", deterministically breaking `e2e/mfa.spec.ts:131`. **Fix:** restrict the head-read to
-  chained rows via `isNotNull(auditLogs.seq)`; a per-org `pg_advisory_xact_lock` + bounded 23505 retry
-  were also added as concurrency defense-in-depth, plus a 16-way race regression test in
-  `audit-hash-chain.test.ts`. Follow-up `2baaa25` gave the `dms-workers.test.ts` in-memory mock DB a
-  no-op `execute()` so it matches the real DB surface (the advisory lock calls `tx.execute`).
-  Verified: `mfa.spec.ts` green, audit-hash-chain 5/5, **full API suite 130 files / 1290 tests pass**.
-- The earlier cleanup increment (removed stray `0053_rls_fail_closed.sql` dup of `0052` RLS + its
-  `gen_mig.js`, and six scratch files) landed in `f365314`. `pnpm check:migrations` is green (60/60).
-- **Uncommitted working tree (not yet committed):** deletes four leftover scratch files
-  (`scratch.ts`, `scratch_check_leave.ts`, `scratch_claims.ts`, `financial_diff.txt`) and removes the
-  now-dangling `check-db` script from `packages/db/package.json` that pointed at deleted `scratch.ts`.
-  These should stay deleted (do not recreate). Pushing auto-deploys to Vultr — needs user approval.
-- Doc migration-head references reconciled to `0059`. **The DB had 236 tables _at head `0059`_**
-  (verified then: 236 `pgTable` definitions). _Historical figure — the live count is **237** from mig
-  `0062`'s `audit_chain_anchors` table onward; see the current snapshot above._
-- Dev DB is on **port 5434**; test DB `coheronconnect_test` on **port 5433**.
-- **Profile fields — FIXED (no longer a defect).** `users` now has `phone`/`jobTitle`/`location`/`bio`
-  nullable text columns (`packages/db/src/schema/auth.ts:96-100`); `auth.updateProfile` persists them
-  and the login response returns them. (The old "silently discarded" note is superseded.)
-- **Gap tracking:** the live tracker is `docs/GAP_ANALYSIS.md` (its shipped/gap claims were last
-  verified at an earlier head; for the live head read `packages/db/drizzle/meta/_journal.json`). The dated audits that fed it
-  (2026-07-03 platform gap set, 2026-06-30
-  competitive analysis, vendor benchmarks) and the older `SESSION_HANDOVER_2026-06-30.md` now live
-  in `docs/archive/` for decision-history only.
+`packages/db` carries `mongodb` for the `hybrid`/`mongo` `DATABASE_PROVIDER` modes. No
+schema module references it, but it is **not dead code**: `mongo-client.ts` is wired into
+`apps/api` startup, shutdown and request context. Dormant under the default `postgres`
+provider — but removing it breaks the API build.

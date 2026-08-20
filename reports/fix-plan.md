@@ -1,15 +1,180 @@
-# Fix Plan — Bucket A, then Bucket B
+# Fix Plan — the queue and the open risks
 
-_Written 2026-07-31. Execution plan for the findings triaged into buckets A and B
-in `reports/triage.md`, driven by the root causes in `reports/audit-summary.md`.
-No code has been changed by this document — it is the plan, not the work._
+_Queue rewritten 2026-08-20. Everything under **HISTORY** below predates it and is retained
+for per-item detail and CA rulings — but **treat its SHAs, "done" claims and counts as
+unverified**. Operating rules live in `CLAUDE.md`; current state and the numbers live in
+`docs/CONTEXT.md`._
+
+---
+
+## THE QUEUE — in priority order
+
+Ordering rationale: **tenant isolation first** (it is the only class here that can leak one
+customer's data to another), then **the things that make payday not complete**, then
+**correctness of documents a customer receives**, then **reachability gaps**, then
+**decisions only the owner can make**.
+
+### 1. Tenant isolation — the nine leaks
+
+An audit of **897 procedures** found **831 isolated, 9 leaked, 57 parked**. All nine leaks
+are in the **40 tables that carry no `org_id`**, where RLS cannot help — there is no column
+for a policy to filter on. Phase 0 proved RLS catches a deliberately sabotaged app filter on
+the other **198** walled tables, so the wall works where it exists.
+
+**The agreed sequence — do not reorder it:**
+
+1. **Unpark the 57 and wire a document fixture FIRST.** The parked set cannot be judged
+   without one, and file/object access is the least-tested surface.
+2. **The structural fix** — add `org_id` + RLS to the child tables in the no-`org_id` class.
+3. **The nine handlers** — fix the app-layer filters.
+4. **Re-run the whole audit, expecting zero.**
+
+**Related open risks, all currently unmitigated:**
+
+- **The Fastify HTTP routes bypass `rlsTenant` entirely** and are app-filter-only. The
+  second wall does not exist on that path.
+- **The RLS policy fails OPEN when `app.org_id` is unset.** A code path that forgets to set
+  it gets no isolation rather than an error.
+- **Concurrency is untested** — whether `SET LOCAL` can leak across a pooled connection
+  under load is unknown. Not measured, not modelled.
+- **File/object access is untested** for want of an S3 fixture. `document_acls` and
+  `document_versions` are **both in the no-`org_id` class**.
+
+### 2. Payday does not complete in the product
+
+- **No screen calls the bank-file generator.** `payroll.exportBankFile`
+  (`routers/payroll.ts:1865`) exists and is correct; `apps/web` has zero callers.
+- **No employee holds bank details** — 0 of 37 on dev. Even with a screen there would be
+  nothing to write.
+- **What it produces is a payment INSTRUCTION file** a human uploads to a bank portal. The
+  product does not move money and **no file has been tested against a real bank portal**.
+- **ESI, PT, 24Q and the CSV exports have no HTTP route and no UI control.** They exist as
+  records only.
+
+### 3. Documents a customer or employee receives
+
+- **The browser print path renders the whole application onto paper on 9 of 10 printable
+  surfaces.** *(Carried from an earlier audit — not re-verified in this round.)*
+- **The purchase order prints no tax breakdown and shows a grand total above the sum of its
+  own lines.** *(Carried forward — not re-verified.)*
+- **Payslip and Form 16 disagree for the same employee**, and the disagreement is
+  **unattributable**: every payslip row in the database came from a seed rather than from
+  `computeEmployeePayslip`. Fixing this requires generating payslips through the real engine
+  first. *(Carried forward — not re-verified.)*
+
+### 4. Fields no user can set, and identifiers that are invented
+
+- **`annualRevenue`, `healthScore` and `creditLimit`** are `crm_accounts` columns no user can
+  set. `healthScore` therefore reads a default 70 for every account, and `annualRevenue`
+  renders ₹0.0 Cr. **The account detail page's Edit button has no `onClick`.**
+- **`seniority` and `doNotContact`** are `crm_contacts` columns **no import path can set** —
+  absent from the contact form, from `contacts.create`'s input, and from
+  `ContactIngestSchema`.
+- **`LEADS_LIVE` synthesises a display identifier from a UUID substring**
+  (`LD-${id.substring(0,6)}`). This is the pattern that once rendered two distinct records
+  identically. A missing number is a data problem, not a display one.
+
+### 5. Open owner decisions — do not decide these unilaterally
+
+- **Lead-to-account linkage happens at CONVERSION by string-matching the company name**, not
+  at lead creation. Whether the lead form should carry an account picker is an owner
+  decision.
+- **"State (place of supply)" defaults silently to intra-state on the account form.** This is
+  the exact field class that once billed every sale as inter-state IGST — right total, wrong
+  split, on documents customers claim input credit against. Whether it should be **required**
+  is an owner decision.
+- **Ten untracked `e2e/sweep47-*.spec.ts` specs** from an abandoned session account for
+  **~26 of the ~29 E2E failures**. They are not part of the committed suite. Someone should
+  decide whether they are kept, fixed, or dropped — at present they make the E2E baseline
+  permanently red and train everyone to ignore it.
+
+### 6. Carried consequence of a completed change
+
+- **Qualification is deactivated for NEW orgs and the dev org only.** Every other
+  pre-existing org still has it active in `crm_pipeline_stages` until an admin turns it off
+  or a backfill migration runs. `deal_stage` is a Postgres enum, so the value itself cannot
+  be removed without a migration. Deals sitting at the stage keep their column and ladder
+  entry by design.
+
+---
+
+# HISTORY
+
+_Everything below predates the 2026-08-20 queue rewrite. Retained for per-item detail,
+CA rulings and dated shipped records. **Its SHAs, CI run ids, "done" claims and counts are
+unverified as of the rewrite.**_
+
+---
+
+## ⭐ THE QUEUE — 2026-08-18 (read this first)
+
+**Live `510516d`. `19c28f3` pushed, CI still running when written — verify, do not assume.**
+
+Payroll computes; nobody can be paid from it. Both databases hold **zero** populated bank
+rows, and **no screen calls the bank-file generator**. The ordering below follows from that:
+building the screen first would ship a button producing header-only files for all seven tenants.
+
+### 1. OBJECT STORAGE CONFIG — five env vars, one host session
+`S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` on the
+deployed stack. The service is complete and unused: `putObject`, `signedDownloadUrl`,
+`deleteObject`, a full documents router, retention + virus-scan workflows. **Configuration, not
+a build.** Blocked on the owner — the Vultr credentials are not ours to hold, and nobody but
+the owner can place them.
+
+### 2. THE CUSTOMER MESSAGE — SIX DAYS, and the lead time is NOT ours to control
+Seven tenants onboard **25 August**. They must be told NOW, because nothing we build shortens
+how long a customer takes to collect this:
+  - **Two distinct approver accounts** (default chain is 2 steps; nobody may approve twice).
+  - **Bank details for every employee** — account number, IFSC, and the **account holder name
+    EXACTLY as the bank holds it**. Not the payroll display name. Banks match this field.
+  - **The debit account** the payroll is funded from.
+This is the critical path. Everything below it is worthless without the data.
+
+### 3. INTAKE VALIDATION — before the data arrives, not after
+Validate IFSC format, account-number length and account-holder-name presence at intake, and
+drive `employees.bank_verification` — **an enum that exists today with NOTHING setting it**.
+Catching a malformed IFSC on import beats discovering it in a bank rejection.
+
+### 4. BANK-FILE SCREEN — ~1 day, and ONLY once data exists
+A screen over `exportBankFile`: pick a format, show who is missing details BEFORE generating,
+download. Gate on `payroll:write`. Pointless earlier.
+
+### 5. DRESS REHEARSAL — before 25 August, non-negotiable
+One real payroll, one real file, **uploaded to ONE REAL BANK PORTAL, for ONE employee.** No
+file this product has produced has ever been accepted by a bank. Format correctness is
+asserted against our reading of each layout, not against a bank. Until one upload succeeds,
+"the bank file works" is an untested claim.
+
+### DATED, AFTER GO-LIVE
+- **ECR — 15 September.** First EPFO filing.
+- **GSTR-1 — 11 October.** First live GST return.
+
+### UNSCHEDULED, AND IT SHOULD WORRY US: CREDIT NOTES
+There is **no compliant correction path for a wrong GST invoice.** Credit/debit-note columns
+exist (`original_invoice_id`, `is_financial_note`) and the tax-invoice PDF renders a CREDIT
+NOTE title, but nothing drives the workflow. A wrong invoice issued to a registered buyer
+cannot be corrected the way GST requires — and the window to need this closes **before the
+11 October filing**, not after. Unscheduled is a decision, not an oversight; record it as one.
+
+### OPEN RISKS — carried, not closed
+- **No test pins the APP_SECRET boot guard.** A future edit could delete it with
+  `kms-encryption.test.ts` still green.
+- **Compose `${VAR:-}` can override a good `env_file` value with empty.** `environment:` takes
+  precedence over `env_file:`, so a passthrough that expands empty beats a correct value in
+  `.env.production`. Reasoned from documented behaviour — **NOT tested here**.
+- **Procedure-level format coverage is partial.** All seven formats are asserted at the
+  procedure for the beneficiary name; the other fields are generator-level only.
+- **NACH-credit carries NO beneficiary-name field.** It identifies the payee by account + IFSC
+  alone. **A wrong account number therefore pays a stranger silently** — no name mismatch, no
+  bank rejection, no error anywhere. Of the seven formats this is the one with no second line
+  of defence, which is exactly why item 3 matters.
 
 ---
 
 ## ⭐ STATE REFRESH — 2026-08-17 (evening) — PAYROLL READINESS (read this first)
 
-**NOT COMMITTED.** Working tree holds three files: `apps/web/src/app/app/payroll/page.tsx`
-(two fixes) and `docs/MANUAL_SET.md`. Live and deployed remains `f797cd1`.
+**SUPERSEDED — those files shipped in `510516d`, which is live. See the 2026-08-18 queue
+at the top of this file for current state.**
 
 Seven pilot companies (30-80 employees) onboard 25 August and run their first real payroll in
 early September. The engine was never in question. What was unverified is everything a customer
