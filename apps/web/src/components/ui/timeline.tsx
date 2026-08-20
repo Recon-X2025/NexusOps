@@ -48,6 +48,14 @@ interface TimelineProps {
   className?: string;
   /** Header rendered above the timeline body */
   header?: ReactNode;
+  /**
+   * Rendered between the header and the body, ABOVE the empty state.
+   *
+   * An inline compose form has to show even when there is nothing to compose
+   * against — a record with no activity is exactly when you want to log the
+   * first one — so it cannot live inside the items branch.
+   */
+  beforeItems?: ReactNode;
 }
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
@@ -108,6 +116,7 @@ export function Timeline({
   emptyIcon: EmptyIcon = Activity,
   className,
   header,
+  beforeItems,
 }: TimelineProps) {
   const inner = (() => {
     if (isLoading) {
@@ -155,6 +164,7 @@ export function Timeline({
           {header}
         </div>
       )}
+      {beforeItems}
       {inner}
     </div>
   );

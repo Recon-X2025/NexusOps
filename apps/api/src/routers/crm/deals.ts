@@ -7,7 +7,7 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmDeals, crmQuotes, crmPipelineStages, organizations, dealStageEnum, quoteStatusEnum, eq, and, asc, desc, type DbOrTx } from "@coheronconnect/db";
+import { crmDeals, crmQuotes, crmPipelineStages, organizations, users, dealStageEnum, quoteStatusEnum, eq, and, asc, desc, type DbOrTx } from "@coheronconnect/db";
 import { getNextNumber } from "../../lib/auto-number";
 import {
   getCrmDealApprovalThresholds,
@@ -95,7 +95,21 @@ export const DEFAULT_PIPELINE_STAGES: Array<{
   probability: number;
 }> = [
   { key: "prospect",      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true,  probability: 10 },
-  { key: "qualification", label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true,  probability: 25 },
+  /*
+   * QUALIFICATION IS NOT AN ACTIVE DEAL STAGE. Qualification belongs to the
+   * LEAD — it is a lead status backed by BANT and a score. A lead is qualified,
+   * converts, and the deal it creates lands at Prospect, one stage BEFORE a
+   * column also called Qualification: the work is done, then the pipeline asks
+   * for it again.
+   *
+   * `active: false` rather than deleting the row. `deal_stage` is a Postgres
+   * enum and the value cannot be removed without a migration; more importantly
+   * a deal already sitting at this stage must keep a labelled, ranked, ordered
+   * config row, or it would render with no label and no column. This is the
+   * mechanism the table was built for — closed_won and closed_lost are hidden
+   * the same way — and stage-history rows referencing it stay meaningful.
+   */
+  { key: "qualification", label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: false, probability: 25 },
   { key: "proposal",      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true,  probability: 50 },
   { key: "negotiation",   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true,  probability: 70 },
   { key: "verbal_commit", label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true,  probability: 90 },
@@ -170,16 +184,34 @@ export const crmDealsRouter = router({
       const conditions = [eq(crmDeals.orgId, org!.id)];
       if (input.stage) conditions.push(eq(crmDeals.stage, input.stage));
       if (input.accountId) conditions.push(eq(crmDeals.accountId, input.accountId));
-      return db.select().from(crmDeals).where(and(...conditions)).orderBy(desc(crmDeals.updatedAt)).limit(input.limit);
+      const rows = await db
+        .select({ deal: crmDeals, ownerName: users.name })
+        .from(crmDeals)
+        .leftJoin(users, eq(users.id, crmDeals.ownerId))
+        .where(and(...conditions))
+        .orderBy(desc(crmDeals.updatedAt))
+        .limit(input.limit);
+      return rows.map((r) => ({ ...r.deal, ownerName: r.ownerName ?? null }));
     }),
 
   get: permissionProcedure("accounts", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const [deal] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
+      /*
+       * The owner's NAME travels with the deal. The detail page rendered
+       * `ownerId.slice(0, 8)` — a fragment of a uuid where a person's name
+       * belongs — because the row carried no name to render. LEFT join: owner_id
+       * is nullable (SET NULL when a user is removed), and an unowned deal must
+       * still load.
+       */
+      const [deal] = await db
+        .select({ deal: crmDeals, ownerName: users.name })
+        .from(crmDeals)
+        .leftJoin(users, eq(users.id, crmDeals.ownerId))
+        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
       if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
-      return deal;
+      return { ...deal.deal, ownerName: deal.ownerName ?? null };
     }),
 
   create: permissionProcedure("accounts", "write")

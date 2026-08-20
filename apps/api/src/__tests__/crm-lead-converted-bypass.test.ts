@@ -35,18 +35,28 @@ describe("lead status: the converted bypass", () => {
     } as never)) as { id: string };
   }
 
-  it("crm.leads.update REJECTS status converted, naming leads.convert", async () => {
+  /*
+   * The message no longer names `crm.leads.convert` — a procedure a user cannot
+   * call. The assertion follows the INTENT it always had: the refusal must point
+   * at the correct route (Convert) and say what it needs. Not weakened; the same
+   * guarantee expressed in the language the user actually sees.
+   */
+  it("crm.leads.update REJECTS status converted, pointing at Convert", async () => {
     const lead = await newLead();
     await expect(
       caller.leads.update({ id: lead.id, status: "converted" } as never),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/leads\.convert/i) });
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/use convert on the lead.*estimated value.*expected close/is),
+    });
   });
 
   it("the deprecated crm.updateLead REJECTS it too", async () => {
     const lead = await newLead();
     await expect(
       caller.updateLead({ id: lead.id, status: "converted" } as never),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/leads\.convert/i) });
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/use convert on the lead.*estimated value.*expected close/is),
+    });
   });
 
   it("the lead is left untouched by a rejected update", async () => {

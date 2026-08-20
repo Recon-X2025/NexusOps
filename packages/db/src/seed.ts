@@ -228,7 +228,9 @@ export async function seed() {
   // DEFAULT_PIPELINE_STAGES (apps/api/src/routers/crm/deals.ts) and the 0089 backfill.
   await db.insert(crmPipelineStages).values([
     { orgId, key: "prospect" as const,      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true,  probability: 10 },
-    { orgId, key: "qualification" as const, label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true,  probability: 25 },
+    // Inactive: Qualification is a LEAD status, not a deal stage. See
+    // DEFAULT_PIPELINE_STAGES in apps/api/src/routers/crm/deals.ts.
+    { orgId, key: "qualification" as const, label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: false, probability: 25 },
     { orgId, key: "proposal" as const,      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true,  probability: 50 },
     { orgId, key: "negotiation" as const,   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true,  probability: 70 },
     { orgId, key: "verbal_commit" as const, label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true,  probability: 90 },

@@ -4,18 +4,13 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useRouter } from "next/navigation";
-import { Users, Plus, Search, Star, Phone, Mail, Building2, MessageSquare, ChevronRight, TrendingUp, Award, AlertTriangle } from "lucide-react";
+import { Users, Plus, Search, Star, Mail, MessageSquare, Award, AlertTriangle } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 
 const CSM_TABS = [
   { key: "cases",    label: "Customer Cases",  module: "csm"      as const, action: "read" as const },
-  { key: "accounts", label: "Accounts",        module: "accounts" as const, action: "read" as const },
-  { key: "contacts", label: "Contacts",        module: "accounts" as const, action: "read" as const },
   { key: "sla",      label: "SLA Performance", module: "csm"      as const, action: "read" as const },
 ];
-
-const HEALTH_COLOR = (score: number) =>
-  score >= 80 ? "text-green-700 bg-green-100" : score >= 60 ? "text-yellow-700 bg-yellow-100" : "text-red-700 bg-red-100";
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: "text-red-700 bg-red-100",
@@ -87,10 +82,6 @@ export default function CSMPage() {
 
   const openCases = CASES.filter((c: any) => !["resolved", "closed"].includes(c.state)).length;
   const criticalCases = CASES.filter((c: any) => c.priority === "critical" && !["resolved","closed"].includes(c.state)).length;
-  const avgHealth = ACCOUNTS.length > 0
-    ? Math.round(ACCOUNTS.reduce((s: number, a: any) => s + (a.health ?? 0), 0) / ACCOUNTS.length)
-    : 0;
-  const totalMRR = ACCOUNTS.reduce((s: number, a: any) => s + (a.mrr ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-3">
@@ -98,15 +89,9 @@ export default function CSMPage() {
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-body-sm font-semibold text-foreground">Customer Service Management</h1>
-          <span className="text-[11px] text-muted-foreground/70">Cases · Accounts · Contacts · Customer Health</span>
+          <span className="text-[11px] text-muted-foreground/70">Cases · SLA Performance</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setTab("accounts")}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-          >
-            <TrendingUp className="w-3 h-3" /> Account Health
-          </button>
           <button
             onClick={() => setShowNewCase((v) => !v)}
             className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
@@ -174,12 +159,10 @@ export default function CSMPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {[
           { label: "Open Cases",        value: openCases,      color: "text-blue-700" },
           { label: "Critical Cases",    value: criticalCases,  color: "text-red-700" },
-          { label: "Avg Account Health",value: `${avgHealth}%`, color: avgHealth >= 75 ? "text-green-700" : "text-orange-700" },
-          { label: "Total MRR",         value: `₹${(totalMRR/1000).toFixed(0)}K`, color: "text-foreground/80" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             {(casesQuery.isLoading || accountsQuery.isLoading) ? (
@@ -278,141 +261,6 @@ export default function CSMPage() {
           </>
         )}
 
-        {tab === "accounts" && (
-          <>
-            {accountsQuery.isLoading ? (
-              <div className="animate-pulse p-4 space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex gap-3">
-                    <div className="h-4 bg-muted rounded w-40" />
-                    <div className="h-4 bg-muted rounded w-24" />
-                    <div className="h-4 bg-muted rounded w-20" />
-                    <div className="h-4 bg-muted rounded flex-1" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <table className="ent-table w-full">
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th>Tier</th>
-                    <th>MRR</th>
-                    <th>Health Score</th>
-                    <th>CSM</th>
-                    <th className="text-center">Open Cases</th>
-                    <th className="text-center">NPS</th>
-                    <th>Customer Since</th>
-                    <th className="text-center">Licenses</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ACCOUNTS.map((a: any) => (
-                    <tr key={a.name ?? a.id}>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center">
-                            <Building2 className="w-3.5 h-3.5 text-primary" />
-                          </div>
-                          <span className="font-medium text-foreground">{a.name}</span>
-                        </div>
-                      </td>
-                      <td><span className={`status-badge ${a.tier === "Enterprise" ? "text-purple-700 bg-purple-100" : a.tier === "Professional" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.tier}</span></td>
-                      <td className="font-mono text-[11px] text-foreground/80">₹{(a.mrr ?? 0).toLocaleString()}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div className="w-12 h-1.5 bg-border rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${(a.health ?? 0) >= 80 ? "bg-green-500" : (a.health ?? 0) >= 60 ? "bg-yellow-500" : "bg-red-500"}`}
-                              style={{ width: `${a.health ?? 0}%` }} />
-                          </div>
-                          <span className={`status-badge ${HEALTH_COLOR(a.health ?? 0)}`}>{a.health} — {a.healthLabel}</span>
-                        </div>
-                      </td>
-                      <td className="text-muted-foreground">{a.csm}</td>
-                      <td className="text-center">{(a.openCases ?? 0) > 0 ? <span className="text-orange-700 font-bold">{a.openCases}</span> : <span className="text-green-600">0</span>}</td>
-                      <td className="text-center">
-                        <span className={`font-bold text-[12px] ${(a.nps ?? 0) >= 60 ? "text-green-700" : (a.nps ?? 0) >= 30 ? "text-yellow-600" : "text-red-600"}`}>{a.nps ?? "—"}</span>
-                      </td>
-                      <td className="text-muted-foreground text-[11px]">{a.since}</td>
-                      <td className="text-center text-muted-foreground">{a.licenses ?? "—"}</td>
-                      <td>
-                        <button
-                          onClick={() => router.push(`/app/crm?tab=accounts&id=${a.id ?? ""}`)}
-                          className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
-                        >
-                          View <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {ACCOUNTS.length === 0 && (
-                    <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">
-                        No accounts found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </>
-        )}
-
-        {tab === "contacts" && (
-          <div>
-            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
-              <p className="text-[12px] font-semibold text-foreground/80">
-                CRM & Sales Contacts ({contactsQuery.isLoading ? "…" : Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items.length : Array.isArray(contactsQuery.data) ? contactsQuery.data.length : 0})
-              </p>
-            </div>
-            {contactsQuery.isLoading ? (
-              <div className="flex items-center justify-center h-28 gap-2 text-muted-foreground">
-                <Users className="w-4 h-4 animate-pulse" />
-                <span className="text-caption">Loading contacts…</span>
-              </div>
-            ) : (Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).length === 0 ? (
-              <div className="p-8 text-center">
-                <Users className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-[13px] font-medium text-foreground/70 mb-1">No Contacts Found</p>
-                <p className="text-[12px] text-muted-foreground/60">CRM contacts created in the Sales section will appear here.</p>
-              </div>
-            ) : (
-              <table className="ent-table w-full">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Account</th>
-                    <th>Title</th>
-                    <th>Seniority</th>
-                    <th className="w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).map((c: any) => {
-                    const account = ACCOUNTS.find((a: any) => a.id === c.accountId);
-                    return (
-                    <tr key={c.id}>
-                      <td className="font-medium text-foreground/80">{c.firstName} {c.lastName}</td>
-                      <td className="text-muted-foreground text-[11px]">{c.email ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px]">{c.phone ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px]">{account?.name ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px]">{c.title ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px] capitalize">{c.seniority ? c.seniority.replace(/_/g, " ") : "—"}</td>
-                      <td>
-                        <button className="text-[11px] text-primary hover:underline px-2">
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  )})}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
 
         {tab === "sla" && (
           <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">

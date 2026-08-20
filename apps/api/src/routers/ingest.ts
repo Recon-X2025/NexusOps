@@ -6,6 +6,7 @@ import {
     contracts,
     crmLeads,
     crmContacts,
+    crmAccounts,
     crmDeals,
     vendors,
     invoices,
@@ -20,6 +21,8 @@ import {
     or,
     isNull,
     desc,
+    sql,
+    inArray,
     type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextNumber, getNextEmployeeNumber, syncOrgCounters } from "../lib/auto-number";
@@ -95,6 +98,27 @@ const ContactIngestSchema = z.object({
     email: z.string().optional(),
     phone: z.string().optional(),
     title: z.string().optional(),
+    /*
+     * REQUIRED — the account this person belongs to, BY NAME.
+     *
+     * This schema previously had no account field at all, so every imported
+     * contact was written with `account_id = NULL`. Such a contact appears on
+     * the Contacts tab but on NO account page, because the account screen finds
+     * its people through `contacts.list({ accountId })`, which cannot return a
+     * row whose account is null. The other two write paths already refuse to
+     * produce one — `contacts.create` requires a uuid `accountId`, and
+     * `lead-convert` always resolves an account — so the importer was the last
+     * way in.
+     *
+     * A NAME rather than a uuid: whoever fills in a spreadsheet knows their
+     * customer as "Acme Manufacturing", not as a v4 uuid. Requiring the uuid
+     * would have closed the hole by making the importer unusable, which is not
+     * the same thing as fixing it. The name is resolved against existing
+     * accounts and a row that does not match is REJECTED WITH A REASON — never
+     * imported account-less, and never silently creating a customer record that
+     * nobody asked for.
+     */
+    accountName: z.string().trim().min(1),
 });
 
 const DealIngestSchema = z.object({
@@ -372,16 +396,81 @@ export const ingestRouter = router({
         .mutation(async ({ ctx, input }) => {
             const { db, org } = ctx;
             const results: string[] = [];
+            /**
+             * Per-row rejections, each naming the row number and the reason.
+             *
+             * The statutory generators in this codebase already report per
+             * RECORD rather than failing the batch — a leaver who cannot be
+             * paid is named, and everyone else is still written. Same standard
+             * here: one unmatched account name must not throw away the rest of
+             * the file, and must not be quietly dropped either.
+             */
+            const errors: Array<{ row: number; accountName: string; reason: string }> = [];
 
-            for (const item of input) {
+            /*
+             * Resolve every distinct account name in ONE query rather than one
+             * per row — a 500-row file would otherwise issue 500 selects.
+             * Matching is case-insensitive and trimmed, against ACTIVE accounts
+             * only: importing people onto an archived customer is a mistake
+             * worth naming, not worth guessing at.
+             */
+            const wanted = [...new Set(input.map((i) => i.accountName.trim().toLowerCase()))];
+            const accountRows = wanted.length === 0 ? [] : await db
+                .select({ id: crmAccounts.id, name: crmAccounts.name })
+                .from(crmAccounts)
+                .where(and(
+                    eq(crmAccounts.orgId, org!.id),
+                    eq(crmAccounts.archived, false),
+                    inArray(sql`lower(trim(${crmAccounts.name}))`, wanted),
+                ));
+
+            // An org may hold two active accounts with the same name — there is
+            // no unique index on (org_id, name). That is ambiguous, not a match.
+            const byName = new Map<string, string[]>();
+            for (const a of accountRows) {
+                const k = a.name.trim().toLowerCase();
+                byName.set(k, [...(byName.get(k) ?? []), a.id]);
+            }
+
+            for (const [i, item] of input.entries()) {
+                // Row 1 is the CSV header, so the first data row reads as row 2 —
+                // matching what the import dialog shows the user.
+                const rowNum = i + 2;
+                const key = item.accountName.trim().toLowerCase();
+                const matches = byName.get(key) ?? [];
+
+                if (matches.length === 0) {
+                    errors.push({
+                        row: rowNum,
+                        accountName: item.accountName,
+                        reason: `No active account named "${item.accountName}" exists. Create the account first, or correct the spelling — a contact cannot be imported without one, because it would appear on no account page.`,
+                    });
+                    continue;
+                }
+                if (matches.length > 1) {
+                    errors.push({
+                        row: rowNum,
+                        accountName: item.accountName,
+                        reason: `${matches.length} active accounts are named "${item.accountName}". Rename them or import this contact from the Contacts screen, where the account is chosen by record rather than by name.`,
+                    });
+                    continue;
+                }
+
+                const { accountName: _accountName, ...contactFields } = item;
                 const [row] = await db.insert(crmContacts).values({
                     orgId: org!.id,
-                    ...item,
+                    accountId: matches[0]!,
+                    ...contactFields,
                 }).returning();
                 results.push(row!.id);
             }
 
-            return { imported: results.length, ids: results };
+            return {
+                imported: results.length,
+                ids: results,
+                skipped: errors.length,
+                errors,
+            };
         }),
 
     /**

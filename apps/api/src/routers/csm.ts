@@ -97,6 +97,20 @@ export const csmRouter = router({
       }),
   }),
 
+  /**
+   * NARROWED 2026-08-20. This no longer backs a screen of its own.
+   *
+   * /app/csm's Accounts tab was removed: it read `crm_accounts` — the same rows
+   * CRM's own Accounts tab shows — and of its ten columns only name, tier and id
+   * were backed by real columns. `mrr` is not a column at all, and the page read
+   * `a.health` where the column is `health_score`, so the AVG ACCOUNT HEALTH and
+   * TOTAL MRR tiles both rendered zero over 11 live accounts.
+   *
+   * The procedure is NOT dead and is deliberately kept: the Cases tab resolves a
+   * case's account NAME through it, and the New Case form's account dropdown is
+   * populated from it. Read-only, as it always was — CSM has never had a create
+   * or update path for accounts.
+   */
   accounts: router({
     list: permissionProcedure("csm", "read")
       .input(z.object({
@@ -120,6 +134,14 @@ export const csmRouter = router({
       }),
   }),
 
+  /**
+   * NARROWED 2026-08-20, same round and same reason as `accounts` above: the
+   * /app/csm Contacts tab was removed because it listed `crm_contacts`, which
+   * CRM's own Contacts tab already owns and can edit.
+   *
+   * Still called: the Cases table resolves contact names through it, and the New
+   * Case form's contact dropdown filters it by the selected account.
+   */
   contacts: router({
     list: permissionProcedure("csm", "read")
       .input(z.object({

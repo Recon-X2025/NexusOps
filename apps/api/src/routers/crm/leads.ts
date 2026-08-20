@@ -108,13 +108,43 @@ export const crmLeadsRouter = router({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message:
-            "A lead cannot be marked converted directly. Use crm.leads.convert, which " +
-            "requires an estimated value and an expected close date and creates the " +
+            "A lead cannot be set to Converted from this form. Use Convert on the lead, " +
+            "which needs an estimated value and an expected close date, and creates the " +
             "account, contact and deal together.",
         });
       }
       const { db, org } = ctx;
       const { id, ...patch } = input;
+
+      /*
+       * A CONVERTED LEAD'S STATUS IS NOT EDITABLE.
+       *
+       * The guard above blocked only the move INTO "converted". Moving OUT was
+       * unguarded, so an edit could downgrade a converted lead — and because
+       * conversion idempotency used to require status === "converted", that
+       * downgrade re-armed the convert path and a second deal could be raised
+       * against the same lead.
+       *
+       * The idempotency check now keys on `convertedDealId` alone, so the
+       * duplicate is already impossible. This closes the other half: the record
+       * should not be able to contradict itself in the first place. Everything
+       * else on a converted lead stays editable — only `status` is refused, and
+       * only when it would actually change.
+       */
+      if (patch.status !== undefined) {
+        const [existing] = await db
+          .select({ status: crmLeads.status, convertedDealId: crmLeads.convertedDealId })
+          .from(crmLeads)
+          .where(and(eq(crmLeads.id, id), eq(crmLeads.orgId, org!.id)));
+        if (existing?.convertedDealId && patch.status !== existing.status) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This lead has already been converted, so its status cannot be changed. " +
+              "The deal it created carries the work from here.",
+          });
+        }
+      }
       // G5 — re-score on write so a status/title/source change updates the score.
       return updateScoredLead(db, org!.id, id, patch);
     }),

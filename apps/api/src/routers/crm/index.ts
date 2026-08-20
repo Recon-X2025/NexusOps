@@ -365,14 +365,31 @@ export const crmRouter = router({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message:
-            "A lead cannot be marked converted directly. Use crm.leads.convert, which " +
-            "requires an estimated value and an expected close date and creates the " +
+            "A lead cannot be set to Converted from this form. Use Convert on the lead, " +
+            "which needs an estimated value and an expected close date, and creates the " +
             "account, contact and deal together.",
         });
       }
 
       const { db, org } = ctx;
       const { id, ...patch } = input;
+
+      // Same rule as the canonical procedure: a converted lead's status is not
+      // editable. A guard on one side only leaves the other as an open door.
+      if (patch.status !== undefined) {
+        const [existing] = await db
+          .select({ status: crmLeads.status, convertedDealId: crmLeads.convertedDealId })
+          .from(crmLeads)
+          .where(and(eq(crmLeads.id, id), eq(crmLeads.orgId, org!.id)));
+        if (existing?.convertedDealId && patch.status !== existing.status) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This lead has already been converted, so its status cannot be changed. " +
+              "The deal it created carries the work from here.",
+          });
+        }
+      }
       // G5 — re-score on write so a status/title/source change updates the score.
       return updateScoredLead(db, org!.id, id, patch);
     }),

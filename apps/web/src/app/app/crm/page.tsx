@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   TrendingUp, Users, Building2, Phone, Mail, Calendar, Star,
   Plus, Search, Download, ChevronRight, MoreHorizontal,
@@ -36,6 +37,11 @@ const CONTACT_IMPORT_FIELDS: ImportField[] = [
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "title", label: "Title" },
+  // REQUIRED, and matched by name against existing active accounts. Without it
+  // the importer wrote contacts with no account, which appear on the Contacts
+  // tab but on no account page. The server rejects a row whose name matches no
+  // account (or matches more than one) and says so per row.
+  { key: "accountName", label: "Account Name", required: true },
 ];
 
 const DEAL_IMPORT_FIELDS: ImportField[] = [
@@ -46,16 +52,38 @@ const DEAL_IMPORT_FIELDS: ImportField[] = [
   { key: "expectedClose", label: "Expected Close" },
 ];
 
+/*
+ * FIVE tabs. Was eight.
+ *
+ * Contacts folded into Accounts and Quotes into Pipeline — as SUB-VIEWS, not as
+ * deletions. Each parent tab carries a segmented control, because the merge must
+ * not cost reachability: the Contacts tab was the only list of ALL contacts, and
+ * the Quotes tab the only list of all quotes. A contact whose account you do not
+ * know, and a quote whose deal you do not know (three such quotes exist on the
+ * dev and test databases), would otherwise become unfindable.
+ *
+ * Activities folded away with no sub-view: `assertActivityHasAssociation` means
+ * every activity hangs off a lead, deal, account or contact, and all four now
+ * carry a timeline, so an activity is context on a record rather than a
+ * destination of its own. Measured on the dev org: 1 activity, 0 with no
+ * association.
+ */
 const CRM_TABS = [
   { key: "dashboard", label: "Dashboard", module: "accounts" as const, action: "read" as const },
   { key: "pipeline", label: "Pipeline", module: "accounts" as const, action: "write" as const },
   { key: "accounts", label: "Accounts", module: "accounts" as const, action: "read" as const },
-  { key: "contacts", label: "Contacts", module: "accounts" as const, action: "read" as const },
   { key: "leads", label: "Leads", module: "accounts" as const, action: "read" as const },
-  { key: "activities", label: "Activities", module: "accounts" as const, action: "read" as const },
-  { key: "quotes", label: "Quotes", module: "accounts" as const, action: "write" as const },
-  { key: "analytics", label: "Sales Analytics", module: "analytics" as const, action: "read" as const },
+  { key: "analytics", label: "Analytics", module: "analytics" as const, action: "read" as const },
 ];
+
+/** Retired tab keys -> where that content now lives. Drives ?tab= redirects. */
+const RETIRED_TABS: Record<string, { tab: string; view?: string }> = {
+  contacts: { tab: "accounts", view: "contacts" },
+  quotes: { tab: "pipeline", view: "quotes" },
+  // An activity is reached from the record it concerns; the Dashboard carries
+  // the org-wide recent list, so that is where a bare ?tab=activities lands.
+  activities: { tab: "dashboard" },
+};
 
 type DealStage = "prospect" | "qualification" | "proposal" | "negotiation" | "verbal_commit" | "closed_won" | "closed_lost";
 type LeadStatus = "new" | "contacted" | "qualified" | "nurturing" | "converted" | "dead";
@@ -392,7 +420,9 @@ const TIER_CFG: Record<string, string> = {
 
 const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-yellow-600" : "text-red-600";
 
-const PIPELINE_STAGES: DealStage[] = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"];
+// Qualification omitted: it is a LEAD status, not a deal stage. This is only the
+// pre-load fallback; the live ladder comes from the org's own stage config.
+const PIPELINE_STAGES: DealStage[] = ["prospect", "proposal", "negotiation", "verbal_commit"];
 
 /**
  * Mirrors DEFAULT_PIPELINE_STAGES in apps/api/src/routers/crm/deals.ts and the
@@ -419,6 +449,59 @@ export default function CRMPage() {
   const { can, mergeTrpcQueryOpts, isAdmin } = useRBAC();
   const visibleTabs = CRM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
+  /*
+   * Sub-views inside the merged tabs. "accounts"/"board" are the defaults, so
+   * the merge is invisible to anyone who never used Contacts or Quotes.
+   */
+  const [accountsView, setAccountsView] = useState<"accounts" | "contacts">("accounts");
+  const [pipelineView, setPipelineView] = useState<"board" | "quotes">("board");
+
+  /*
+   * ?tab= — HONOURED, and it was not before.
+   *
+   * The tab lived in plain useState and nothing ever read the query string, so
+   * every ?tab= link silently landed on Dashboard. That included the
+   * "+ Add Contact" link on the account detail page, which has pointed at
+   * /app/crm?tab=contacts since it was added and has never once opened the
+   * contacts list. Verified in the browser before this change: navigating to
+   * /app/crm?tab=contacts left the Dashboard tab active.
+   *
+   * Retired keys redirect to wherever their content moved rather than 404ing or
+   * quietly falling back, so old links and bookmarks keep working.
+   */
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const requested = searchParams.get("tab");
+    if (!requested) return;
+    const retired = RETIRED_TABS[requested];
+    if (retired) {
+      setTab(retired.tab);
+      if (retired.view === "contacts") setAccountsView("contacts");
+      if (retired.view === "quotes") setPipelineView("quotes");
+      return;
+    }
+    if (CRM_TABS.some((t) => t.key === requested)) setTab(requested);
+  }, [searchParams]);
+
+  /*
+   * QUOTE FROM A DEAL. The deal page hands off here with ?newQuote=1&dealId=…,
+   * and the one quote editor opens with that deal already chosen.
+   *
+   * A handoff rather than a second editor on the deal page: the quote dialog is
+   * a line-item editor with server-computed GST, and a duplicate of it would be
+   * the same divergence this codebase keeps paying for. `quotes.create` requires
+   * a dealId (Phase 2), so arriving pre-filled is the only shape that does not
+   * make the user re-pick a deal they just navigated away from.
+   */
+  useEffect(() => {
+    if (searchParams.get("newQuote") !== "1") return;
+    const dealId = searchParams.get("dealId");
+    if (!dealId) return;
+    setTab("pipeline");
+    setPipelineView("quotes");
+    setQuoteForm((f) => ({ ...f, dealId }));
+    setShowNewQuote(true);
+  }, [searchParams]);
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const [editingLead, setEditingLead] = useState<any | null>(null);
   const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string, status: "new" as any,
@@ -473,6 +556,7 @@ export default function CRMPage() {
   });
   const [showLeadQualification, setShowLeadQualification] = useState(false);
   const [importKind, setImportKind] = useState<null | "leads" | "contacts" | "deals">(null);
+  const [showImportPicker, setShowImportPicker] = useState(false);
   const importLeads = trpc.ingest.importLeads.useMutation();
   const importContacts = trpc.ingest.importContacts.useMutation();
   const importDeals = trpc.ingest.importDeals.useMutation();
@@ -781,11 +865,13 @@ export default function CRMPage() {
     (accountId ? accountNameMap.get(accountId) : undefined) ?? null;
 
   // Build live leaderboard from closed_won deals
-  const leaderboardMap = new Map<string, { ownerId: string; won: number; deals: number }>();
+  const leaderboardMap = new Map<string, { ownerId: string; ownerName: string | null; won: number; deals: number }>();
   DEALS_LIVE.filter((d: any) => d.stage === "closed_won").forEach((d: any) => {
     const key = d.ownerId ?? "unknown";
-    const existing = leaderboardMap.get(key) ?? { ownerId: key, won: 0, deals: 0 };
-    leaderboardMap.set(key, { ...existing, won: existing.won + Number(d.value ?? 0), deals: existing.deals + 1 });
+    // `ownerName` rides along from deals.list so the board can name the rep
+    // rather than print a uuid fragment.
+    const existing = leaderboardMap.get(key) ?? { ownerId: key, ownerName: d.ownerName ?? null, won: 0, deals: 0 };
+    leaderboardMap.set(key, { ...existing, ownerName: existing.ownerName ?? d.ownerName ?? null, won: existing.won + Number(d.value ?? 0), deals: existing.deals + 1 });
   });
   const leaderboard = Array.from(leaderboardMap.values()).sort((a, b) => b.won - a.won).slice(0, 5);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -881,11 +967,23 @@ export default function CRMPage() {
                 email: r.email || undefined,
                 phone: r.phone || undefined,
                 title: r.title || undefined,
+                accountName: r.accountName,
               })),
             );
             refetchContacts();
-            toast.success(`${res.imported} contacts imported`);
-            return { imported: res.imported };
+            // Rejected rows are NAMED, not folded into a count. A silent
+            // "3 contacts imported" on a 5-row file hides which two are missing
+            // and why.
+            if (res.skipped > 0) {
+              toast.error(
+                `${res.skipped} row${res.skipped === 1 ? "" : "s"} not imported: ` +
+                  res.errors.map((e) => `row ${e.row} (${e.accountName})`).join(", "),
+                { duration: 10_000 },
+              );
+              res.errors.forEach((e) => console.warn(`[contact import] row ${e.row}: ${e.reason}`));
+            }
+            if (res.imported > 0) toast.success(`${res.imported} contacts imported`);
+            return { imported: res.imported, skipped: res.skipped };
           }}
         />
       )}
@@ -1301,7 +1399,7 @@ export default function CRMPage() {
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-body-sm font-semibold text-foreground">CRM & Sales</h1>
-          <span className="text-[11px] text-muted-foreground/70">Pipeline · Accounts · Contacts · Leads · Quotes</span>
+          <span className="text-[11px] text-muted-foreground/70">Pipeline · Accounts · Leads · Analytics</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1310,6 +1408,45 @@ export default function CRMPage() {
           >
             <Download className="w-3 h-3" /> Export
           </button>
+          {/*
+            * MODULE-LEVEL IMPORT. Was three separate buttons, one buried inside
+            * each of the Deals, People and Leads lists — so importing meant
+            * knowing which tab hid the control for the thing you had a file of.
+            * One entry point; the user picks the entity.
+            *
+            * Only the three `accounts:write` importers belong to this module.
+            * `ingest` also exposes matters, contracts, invoices and structures,
+            * which have NO UI anywhere — reported, not built here.
+            */}
+          <PermissionGate module="accounts" action="write">
+            <div className="relative">
+              <button
+                data-testid="crm-import"
+                onClick={() => setShowImportPicker((v) => !v)}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+              >
+                <Upload className="w-3 h-3" /> Import
+              </button>
+              {showImportPicker && (
+                <div className="absolute right-0 mt-1 z-40 w-44 bg-card border border-border rounded shadow-lg py-1">
+                  {([
+                    ["leads", "Leads"],
+                    ["contacts", "Contacts"],
+                    ["deals", "Deals"],
+                  ] as const).map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      data-testid={`crm-import-${kind}`}
+                      onClick={() => { setImportKind(kind); setShowImportPicker(false); }}
+                      className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/50"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </PermissionGate>
           <PermissionGate module="csm" action="write">
             <button onClick={() => { setShowNewDeal(true); setTab("pipeline"); }} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
               <Plus className="w-3 h-3" /> New Deal
@@ -1348,6 +1485,41 @@ export default function CRMPage() {
       </div>
 
       <div className="bg-card border border-border rounded-b overflow-hidden">
+        {/*
+          * Sub-view switch for the merged tabs. The Contacts and Quotes tabs
+          * were the ONLY complete lists of those entities, so folding them in
+          * without this control would have made a contact whose account you do
+          * not know — and a quote whose deal you do not know — unreachable.
+          */}
+        {(tab === "accounts" || tab === "pipeline") && (
+          <div className="flex items-center gap-1 px-4 pt-3" data-testid="crm-subview-switch">
+            {(tab === "accounts"
+              ? ([["accounts", "Accounts"], ["contacts", "People"]] as const)
+              : ([["board", "Deals"], ["quotes", "Quotes"]] as const)
+            ).map(([key, label]) => {
+              const active = tab === "accounts" ? accountsView === key : pipelineView === key;
+              return (
+                <button
+                  key={key}
+                  data-testid={`crm-subview-${key}`}
+                  onClick={() =>
+                    tab === "accounts"
+                      ? setAccountsView(key as "accounts" | "contacts")
+                      : setPipelineView(key as "board" | "quotes")
+                  }
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground/80 hover:bg-muted/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* DASHBOARD */}
         {tab === "dashboard" && (
           <div className="p-4 grid grid-cols-2 gap-4">
@@ -1448,7 +1620,8 @@ export default function CRMPage() {
                 ) : leaderboard.map((row, i) => (
                   <div key={row.ownerId} className="flex items-center gap-3">
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? "bg-yellow-400 text-white" : "bg-muted text-muted-foreground"}`}>{i + 1}</span>
-                    <span className="text-[12px] text-foreground/80 flex-1 font-mono">{row.ownerId.slice(0, 8)}…</span>
+                    {/* Leaderboard names the rep. Was a uuid fragment. */}
+                    <span className="text-[12px] text-foreground/80 flex-1">{row.ownerName ?? "Unassigned"}</span>
                     <span className="font-mono font-bold text-[12px] text-foreground">₹{(row.won / 1000).toFixed(0)}K</span>
                     <span className="text-[11px] text-muted-foreground/70">{row.deals} deal{row.deals !== 1 ? "s" : ""}</span>
                   </div>
@@ -1459,7 +1632,7 @@ export default function CRMPage() {
         )}
 
         {/* PIPELINE */}
-        {tab === "pipeline" && (
+        {tab === "pipeline" && pipelineView === "board" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">{DEALS_LIVE.filter(d => !["closed_won", "closed_lost"].includes(d.stage ?? "")).length} Active Deals</span>
@@ -1469,16 +1642,28 @@ export default function CRMPage() {
                     <Settings className="w-3 h-3" /> Configure Stages
                   </button>
                 )}
-                <button onClick={() => setImportKind("deals")} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
-                  <Upload className="w-3 h-3" /> Import
-                </button>
                 <button onClick={() => setShowNewDeal(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> Add Deal
                 </button>
               </PermissionGate>
             </div>
             <div className="flex overflow-x-auto p-4 gap-3 min-h-96">
-              {allStagesOrdered.map((stage) => {
+              {/*
+                * The board mapped EVERY stage, so `active: false` was honoured by
+                * the stage pickers and ignored here. A column is shown when the
+                * stage is active, when it is terminal (Closed Won / Closed Lost
+                * have always been columns), or WHEN IT STILL HOLDS DEALS — that
+                * last clause is what stops a deal parked at a retired stage from
+                * becoming unreachable. Qualification, now inactive and empty,
+                * drops out; a Qualification deal would keep its column.
+                */}
+              {allStagesOrdered
+                .filter((stage) =>
+                  pipelineStages.includes(stage) ||
+                  stage.startsWith("closed_") ||
+                  DEALS_LIVE.some((d: any) => d.stage === stage),
+                )
+                .map((stage) => {
                 const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
                 const stageVal = stageDeals.reduce((s, d) => s + d.value, 0);
                 const cfg = stageCfg[stage] ?? { label: stage.replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
@@ -1547,7 +1732,7 @@ export default function CRMPage() {
         )}
 
         {/* ACCOUNTS */}
-        {tab === "accounts" && (
+        {tab === "accounts" && accountsView === "accounts" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">{ACCOUNTS_LIVE.length} {showArchivedAccounts ? "Archived Accounts" : "Accounts"}</span>
@@ -1633,7 +1818,7 @@ export default function CRMPage() {
         )}
 
         {/* CONTACTS */}
-        {tab === "contacts" && (
+        {tab === "accounts" && accountsView === "contacts" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">{((contactsData as any[]) ?? []).length} {showArchivedContacts ? "Archived Contacts" : "Contacts"}</span>
@@ -1647,9 +1832,6 @@ export default function CRMPage() {
                   <option value="archived">Archived</option>
                 </select>
                 <PermissionGate module="accounts" action="write">
-                  <button onClick={() => setImportKind("contacts")} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
-                    <Upload className="w-3 h-3" /> Import
-                  </button>
                   <button onClick={() => setShowNewContact(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Add Contact
                   </button>
@@ -1724,9 +1906,6 @@ export default function CRMPage() {
                   <option value="archived">Archived</option>
                 </select>
                 <PermissionGate module="accounts" action="write">
-                  <button onClick={() => setImportKind("leads")} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
-                    <Upload className="w-3 h-3" /> Import
-                  </button>
                   <button onClick={() => setShowNewLead(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Add Lead
                   </button>
@@ -1822,97 +2001,9 @@ export default function CRMPage() {
           </div>
         )}
 
-        {/* ACTIVITIES */}
-        {tab === "activities" && (
-          <div>
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-muted/30">
-              <span className="text-[12px] font-semibold text-foreground/80">{ACTIVITIES_LIVE.length} {showArchivedActivities ? "Archived Activities" : "Activities"}</span>
-              <div className="flex items-center gap-2 ml-auto">
-                <select
-                  className="text-[11px] px-2 py-1 border border-border rounded bg-background"
-                  value={showArchivedActivities ? "archived" : "active"}
-                  onChange={(e) => setShowArchivedActivities(e.target.value === "archived")}
-                >
-                  <option value="active">Active</option>
-                  <option value="archived">Archived</option>
-                </select>
-                <button onClick={() => setShowNewActivity(true)} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                  <Plus className="w-3 h-3" /> Log Activity
-                </button>
-              </div>
-            </div>
-            <table className="ent-table w-full">
-              <thead>
-                <tr>
-                  <th className="w-4" />
-                  <th>Type</th>
-                  <th>Subject</th>
-                  <th>Account</th>
-                  <th>Contact</th>
-                  <th>Deal</th>
-                  <th>Due / Completed</th>
-                  <th>Outcome / Notes</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ACTIVITIES_LIVE.map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity", icon: "" };
-                  return (
-                    <tr key={a.id} className={a.completed ? "opacity-60" : ""}>
-                      <td className="p-0"><div className={`priority-bar ${a.completed ? "bg-green-500" : "bg-blue-400"}`} /></td>
-                      <td><span className={`status-badge capitalize ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type.replace("_", " ")}</span></td>
-                      <td className="font-medium text-foreground">{a.subject}</td>
-                      <td className="text-primary hover:underline cursor-pointer">{a.account || "—"}</td>
-                      <td className="text-muted-foreground">{a.contact || "—"}</td>
-                      <td className="font-mono text-[11px] text-primary">{a.deal ?? "—"}</td>
-                      <td className="text-[11px] text-muted-foreground">
-                        <div>Due: {a.dueDate}</div>
-                        <div>Completed: {a.completedDate}</div>
-                      </td>
-                      <td className="max-w-xs text-[11px] text-muted-foreground" title={a.description}>{a.outcome ?? a.description ?? "—"}</td>
-                      <td>
-                        <span className={`status-badge ${a.completedAt ? "text-green-700 bg-green-100" : "text-blue-700 bg-blue-100"}`}>
-                          {a.completedAt ? "✓ Done" : "Pending"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => {
-                              setEditingActivity(a);
-                              setEditActivityForm({
-                                type: a.type ?? "call",
-                                subject: a.subject ?? "",
-                                description: a.description ?? "",
-                                dealId: a.dealId ?? "",
-                                accountId: a.accountId ?? "",
-                                contactId: a.contactId ?? "",
-                                outcome: a.outcome ?? "",
-                                scheduledAt: a.scheduledAt ? new Date(a.scheduledAt).toISOString().slice(0, 16) : "",
-                                completedAt: a.completedAt ? new Date(a.completedAt).toISOString().slice(0, 16) : "",
-                              });
-                            }}
-                            className="text-[11px] text-primary hover:underline"
-                          >Edit</button>
-                          {a.archived ? (
-                            <button onClick={() => updateActivity.mutate({ id: a.id, archived: false })} className="text-green-500 hover:text-green-600">Unarchive</button>
-                          ) : (
-                            <button onClick={() => updateActivity.mutate({ id: a.id, archived: true })} className="text-amber-500 hover:text-amber-600">Archive</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
 
         {/* QUOTES */}
-        {tab === "quotes" && (
+        {tab === "pipeline" && pipelineView === "quotes" && (
           <div>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
               <span className="text-[12px] font-semibold text-foreground/80">{QUOTES_LIVE.length} quotes</span>
@@ -2115,7 +2206,23 @@ export default function CRMPage() {
                   onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, status: e.target.value }))}
                   className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card"
                 >
+                  {/*
+                    * "converted" IS an option here, disabled.
+                    *
+                    * It was missing from this list while the select's value is
+                    * seeded from the record, so a converted lead rendered a
+                    * dropdown the browser could not match — it showed the first
+                    * option instead, and the dialog claimed a status the record
+                    * did not hold. Saving then submitted the real "converted"
+                    * from state and was rejected by the server guard, which is
+                    * how a lead came to look as though it had gone backwards.
+                    *
+                    * Disabled rather than absent: it is a legitimate stored
+                    * value that must be DISPLAYED, but conversion happens
+                    * through Convert, never by picking it here.
+                    */}
                   {["new", "contacted", "qualified", "disqualified"].map((s) => <option key={s} value={s}>{s}</option>)}
+                  <option value="converted" disabled>converted (via Convert only)</option>
                 </select>
               </div>
 
@@ -2215,7 +2322,14 @@ export default function CRMPage() {
                 onClick={() => {
                   if (/^[0-9a-f-]{36}$/i.test(editingLead.id)) {
                     updateLeadMutation.mutate({
-                      id: editingLead.id, ...editLeadForm, status: editLeadForm.status as any,
+                      id: editingLead.id, ...editLeadForm,
+                      /*
+                       * A converted lead's status is not sent at all. The server
+                       * refuses to change it, and resubmitting the value the
+                       * dialog happens to be holding is how an edit that meant
+                       * to log an activity ended up arguing about status.
+                       */
+                      status: editingLead.convertedDealId ? undefined : (editLeadForm.status as any),
                       // Trimming carried from the deleted dialog — a trailing space in a
                       // name or email is never intended.
                       firstName: editLeadForm.firstName.trim(),

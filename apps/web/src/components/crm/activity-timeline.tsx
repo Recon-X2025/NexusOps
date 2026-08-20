@@ -21,7 +21,9 @@
  * rather than implying something failed to load.
  */
 
+import { useState } from "react";
 import { Activity } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Timeline, type TimelineItem } from "@/components/ui/timeline";
 
@@ -82,6 +84,27 @@ export function CrmActivityTimeline({
    */
   const q = trpc.crm.activities.list.useQuery({ ...scope, limit: 50 });
 
+  /*
+   * LOG FROM THE RECORD. `assertActivityHasAssociation` requires an activity to
+   * hang off at least one of lead/deal/account/contact, so the association is
+   * taken from the record being viewed rather than asked for — the same `scope`
+   * that filters the list above populates the write. The Activities tab that
+   * used to own this had no record context at all, which is how the Dashboard's
+   * quick-log came to mint rows attached to nothing.
+   */
+  const [logging, setLogging] = useState(false);
+  const [form, setForm] = useState({ type: "call", subject: "", description: "" });
+  const utils = trpc.useUtils();
+  const create = trpc.crm.activities.create.useMutation({
+    onSuccess: () => {
+      toast.success("Activity logged");
+      setLogging(false);
+      setForm({ type: "call", subject: "", description: "" });
+      utils.crm.activities.list.invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const rows = q.data ?? [];
   const items: TimelineItem[] = (max ? rows.slice(0, max) : rows).map((a: any) => ({
     id: a.id,
@@ -106,8 +129,65 @@ export function CrmActivityTimeline({
           <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">
             {title}
           </h3>
-          {headerAction}
+          <div className="flex items-center gap-2">
+            {headerAction}
+            <button
+              data-testid="timeline-log-activity"
+              onClick={() => setLogging((v) => !v)}
+              className="text-caption text-primary font-bold hover:underline"
+            >
+              {logging ? "Cancel" : "+ Log Activity"}
+            </button>
+          </div>
         </div>
+      }
+      beforeItems={
+        logging ? (
+          <div className="px-5 py-4 border-b border-border space-y-2" data-testid="timeline-log-form">
+            <div className="flex gap-2">
+              <select
+                data-testid="log-activity-type"
+                value={form.type}
+                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+                className="border border-border rounded px-2 py-1 text-[12px] bg-background"
+              >
+                {["call", "email", "meeting", "demo", "follow_up", "note"].map((t) => (
+                  <option key={t} value={t}>{t.replace("_", " ")}</option>
+                ))}
+              </select>
+              <input
+                data-testid="log-activity-subject"
+                placeholder="Subject"
+                value={form.subject}
+                onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                className="flex-1 border border-border rounded px-2 py-1 text-[12px] bg-background"
+              />
+            </div>
+            <textarea
+              rows={2}
+              placeholder="What happened?"
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="w-full border border-border rounded px-2 py-1 text-[12px] bg-background resize-y"
+            />
+            <div className="flex justify-end">
+              <button
+                data-testid="log-activity-save"
+                disabled={create.isPending || !form.subject.trim()}
+                onClick={() => create.mutate({
+                  type: form.type as never,
+                  subject: form.subject.trim(),
+                  description: form.description.trim() || undefined,
+                  // The association IS the record being viewed.
+                  ...scope,
+                })}
+                className="px-3 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >
+                {create.isPending ? "Saving…" : "Log"}
+              </button>
+            </div>
+          </div>
+        ) : null
       }
     />
   );

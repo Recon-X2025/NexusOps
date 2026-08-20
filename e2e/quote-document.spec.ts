@@ -49,7 +49,23 @@ async function gotoCrmTab(page: Page, tab: string) {
     .first()
     .click();
   await page.waitForURL(/\/app\/crm/, { timeout: 20_000 });
-  await page.getByRole("button", { name: tab, exact: true }).first().click();
+  /*
+   * The CRM tab strip collapsed from eight tabs to five. Contacts folded into
+   * Accounts and Quotes into Pipeline, each as a SUB-VIEW behind its parent tab,
+   * so reaching them is now two clicks rather than one. The content, and every
+   * assertion below, is unchanged — only the route to it moved.
+   */
+  const MERGED: Record<string, { parent: string; view: string }> = {
+    Quotes: { parent: "Pipeline", view: "crm-subview-quotes" },
+    Contacts: { parent: "Accounts", view: "crm-subview-contacts" },
+  };
+  const merged = MERGED[tab];
+  if (merged) {
+    await page.getByRole("button", { name: merged.parent, exact: true }).first().click();
+    await page.getByTestId(merged.view).click();
+  } else {
+    await page.getByRole("button", { name: tab, exact: true }).first().click();
+  }
   await page.waitForLoadState("networkidle");
 }
 

@@ -159,9 +159,17 @@ test.describe("CRM pipeline", () => {
     await page.getByTestId("deal-stage").selectOption("negotiation");
     await expect(page.getByTestId("deal-probability")).toHaveValue("70");
 
-    // A typed value is the rep's, and a later stage change must NOT overwrite it.
+    /*
+     * A typed value is the rep's, and a later stage change must NOT overwrite it.
+     *
+     * The first hop used to be "qualification". That stage is no longer offered:
+     * Qualification is a LEAD status, not a deal stage, and it is inactive in the
+     * default pipeline as of this round. The assertion is unchanged — a typed 42
+     * must survive TWO stage changes — only the stage it hops through moved to
+     * one the ladder still has.
+     */
     await page.getByTestId("deal-probability").fill("42");
-    await page.getByTestId("deal-stage").selectOption("qualification");
+    await page.getByTestId("deal-stage").selectOption("verbal_commit");
     await expect(page.getByTestId("deal-probability")).toHaveValue("42");
     await page.getByTestId("deal-stage").selectOption("negotiation");
     await expect(page.getByTestId("deal-probability")).toHaveValue("42");

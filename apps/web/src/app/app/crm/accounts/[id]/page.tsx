@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -23,6 +24,18 @@ export default function AccountDetailPage() {
     const qAccount = trpc.crm.accounts.get.useQuery({ id });
     const qContacts = trpc.crm.contacts.list.useQuery({ accountId: id });
     const qDeals = trpc.crm.deals.list.useQuery({ accountId: id });
+    const [showNewContact, setShowNewContact] = useState(false);
+    const [contactForm, setContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "" });
+    const createContact = trpc.crm.contacts.create.useMutation({
+        onSuccess: () => {
+            toast.success("Contact added");
+            setShowNewContact(false);
+            setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "" });
+            qContacts.refetch();
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
     const deleteAccount = trpc.crm.accounts.delete.useMutation({
         onSuccess: () => {
             toast.success("Account deleted");
@@ -169,12 +182,25 @@ export default function AccountDetailPage() {
                                             </div>
                                         ))}
 
-                                        {/* Was a dead button. Contact creation lives on the CRM
-                                            Contacts tab, which is where this now goes. */}
-                                        <Link href="/app/crm?tab=contacts"
-                                            className="block w-full mt-2 py-2 border border-dashed border-border rounded-lg text-caption text-center text-muted-foreground hover:bg-muted/50 transition-colors">
+                                        {/*
+                                          * A contact is created FROM ITS ACCOUNT, with the account
+                                          * already chosen. `contacts.create` requires a uuid
+                                          * accountId, so this is the shape the data model asks for —
+                                          * and it removes the account dropdown the standalone dialog
+                                          * made you re-answer.
+                                          *
+                                          * This was a LINK to /app/crm?tab=contacts, which never
+                                          * worked: the CRM page read its tab from useState and
+                                          * ignored the query string entirely, so it always landed on
+                                          * Dashboard. (?tab= is honoured as of this round.)
+                                          */}
+                                        <button
+                                            data-testid="account-add-contact"
+                                            onClick={() => setShowNewContact(true)}
+                                            className="block w-full mt-2 py-2 border border-dashed border-border rounded-lg text-caption text-center text-muted-foreground hover:bg-muted/50 transition-colors"
+                                        >
                                             + Add Contact
-                                        </Link>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -220,6 +246,66 @@ export default function AccountDetailPage() {
                                 />
                             </div>
                         </div>
+                        {/* Create-contact dialog — the account is FIXED, not chosen. */}
+                        {showNewContact && (
+                            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                                <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5" data-testid="account-new-contact-dialog">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h2 className="text-body-sm font-bold">Add Contact</h2>
+                                        <button onClick={() => setShowNewContact(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+                                    </div>
+                                    <p className="text-caption text-muted-foreground mb-4">
+                                        on <span className="font-medium text-foreground">{account.name}</span>
+                                    </p>
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
+                                                <input data-testid="new-contact-first" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                                                    value={contactForm.firstName} onChange={(e) => setContactForm(f => ({ ...f, firstName: e.target.value }))} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Last Name *</label>
+                                                <input data-testid="new-contact-last" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                                                    value={contactForm.lastName} onChange={(e) => setContactForm(f => ({ ...f, lastName: e.target.value }))} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
+                                            <input type="email" data-testid="new-contact-email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                                                value={contactForm.email} onChange={(e) => setContactForm(f => ({ ...f, email: e.target.value }))} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone</label>
+                                            <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                                                value={contactForm.phone} onChange={(e) => setContactForm(f => ({ ...f, phone: e.target.value }))} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title</label>
+                                            <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                                                value={contactForm.title} onChange={(e) => setContactForm(f => ({ ...f, title: e.target.value }))} />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 mt-4">
+                                        <button onClick={() => setShowNewContact(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
+                                        <button
+                                            data-testid="new-contact-save"
+                                            disabled={createContact.isPending || !contactForm.firstName.trim() || !contactForm.lastName.trim()}
+                                            onClick={() => createContact.mutate({
+                                                firstName: contactForm.firstName.trim(),
+                                                lastName: contactForm.lastName.trim(),
+                                                email: contactForm.email.trim() || undefined,
+                                                phone: contactForm.phone.trim() || undefined,
+                                                title: contactForm.title.trim() || undefined,
+                                                // The whole point: taken from the record, not asked for.
+                                                accountId: id,
+                                            })}
+                                            className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                                        >{createContact.isPending ? "Saving…" : "Add Contact"}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             }}

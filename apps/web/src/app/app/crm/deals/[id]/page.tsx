@@ -54,6 +54,13 @@ export default function DealDetailPage() {
     const qDeal = trpc.crm.deals.get.useQuery({ id });
     /* deal_id is a quote's only relationship column; this is the whole set. */
     const qQuotes = trpc.crm.deals.quotes.list.useQuery({ dealId: id });
+    /*
+     * The stage ladder comes from THE ORG'S CONFIG, not a hardcoded list.
+     * It was a literal seven-stage array here, so deactivating a stage (as
+     * Qualification now is by default — it is a LEAD status, not a deal stage)
+     * changed the board and left this page still offering it.
+     */
+    const qStages = trpc.crm.deals.stages.list.useQuery();
 
     const qAccounts = trpc.crm.accounts.list.useQuery({ limit: 200 });
     const qContacts = trpc.crm.contacts.list.useQuery({ limit: 200 });
@@ -197,7 +204,15 @@ export default function DealDetailPage() {
                         <PageHeader
                             icon={TrendingUp}
                             title={deal.title}
-                            subtitle={`${deal.accountId?.slice(0, 8) ?? "No Account"} · ${deal.contactId?.slice(0, 8) ?? "No Contact"}`}
+                            /* Names, resolved from the lists this page already loads.
+                               Was two uuid fragments joined by a dot. */
+                            subtitle={[
+                                qAccounts.data?.find((a: any) => a.id === deal.accountId)?.name ?? "No account",
+                                (() => {
+                                    const c = qContacts.data?.find((c: any) => c.id === deal.contactId);
+                                    return c ? `${c.firstName} ${c.lastName}` : "No contact";
+                                })(),
+                            ].join(" · ")}
                             badge={stageBadge}
                             actions={actions}
                             backHref="/app/crm"
@@ -249,9 +264,23 @@ export default function DealDetailPage() {
                                 <div className="bg-card border border-border rounded-xl p-5">
                                     <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest mb-4">Pipeline Stage</h3>
                                     <div className="space-y-2">
-                                        {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as const).map((s) => {
+                                        {(() => {
+                                            const rows = qStages.data;
+                                            const ordered = rows && rows.length > 0
+                                                ? [...rows].sort((a: any, b: any) => a.rank - b.rank)
+                                                : null;
+                                            // Show a stage when the org has it active, when it is
+                                            // terminal, or WHEN THIS DEAL IS SITTING ON IT — the last
+                                            // clause keeps a deal parked at a retired stage operable.
+                                            const keys: string[] = ordered
+                                                ? ordered
+                                                    .filter((r: any) => r.active || String(r.key).startsWith("closed_") || r.key === deal.stage)
+                                                    .map((r: any) => r.key as string)
+                                                : ["prospect", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"];
+                                            return keys;
+                                        })().map((s: any) => {
                                             const isClosedWon = deal.stage === "closed_won";
-                                            const isActiveStage = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"].includes(s);
+                                            const isActiveStage = !String(s).startsWith("closed_");
                                             const isRestricted = isClosedWon && isActiveStage;
                                             // Closed Won now requires a value and an expected close, server-side.
                                             const wonIncomplete = s === "closed_won"
@@ -379,9 +408,14 @@ export default function DealDetailPage() {
                                             <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide mb-2">Deal Owner</p>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                                                    {deal.ownerId.slice(0, 2).toUpperCase()}
+                                                    {((deal as any).ownerName ?? "?").slice(0, 2).toUpperCase()}
                                                 </div>
-                                                <span className="text-body-sm font-medium">{deal.ownerId.slice(0, 8)}</span>
+                                                {/* The owner's NAME. This printed `ownerId.slice(0, 8)` —
+                                                    a uuid fragment shown to a user as though it identified
+                                                    someone. `deals.get` carries `ownerName` now. */}
+                                                <span className="text-body-sm font-medium">
+                                                    {(deal as any).ownerName ?? "Unassigned"}
+                                                </span>
                                             </div>
                                         </div>
                                         <div>
@@ -408,9 +442,23 @@ export default function DealDetailPage() {
                                 <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="deal-quotes">
                                     <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                                         <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Quotes</h3>
-                                        {(qQuotes.data?.length ?? 0) > 0 && (
-                                            <span className="text-caption text-muted-foreground tabular-nums">{qQuotes.data!.length}</span>
-                                        )}
+                                        <div className="flex items-center gap-3">
+                                            {(qQuotes.data?.length ?? 0) > 0 && (
+                                                <span className="text-caption text-muted-foreground tabular-nums">{qQuotes.data!.length}</span>
+                                            )}
+                                            {/* Opens the ONE quote editor with THIS deal chosen —
+                                                `quotes.create` requires a dealId, so raising a quote
+                                                from the deal is the shape the data model asks for. */}
+                                            <PermissionGate module="accounts" action="write">
+                                                <button
+                                                    data-testid="deal-new-quote"
+                                                    onClick={() => router.push(`/app/crm?tab=quotes&newQuote=1&dealId=${id}`)}
+                                                    className="text-caption text-primary font-bold hover:underline"
+                                                >
+                                                    + New Quote
+                                                </button>
+                                            </PermissionGate>
+                                        </div>
                                     </div>
 
                                     {qQuotes.isLoading && (

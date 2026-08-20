@@ -80,9 +80,13 @@ test.describe("CSV ingestion", () => {
     // domcontentloaded is deterministic; networkidle can hang on noisy pages.
     await page.waitForLoadState("domcontentloaded");
 
-    // Switch to the Leads tab, then open its importer.
-    await page.getByRole("button", { name: /^Leads$/i }).first().click();
-    await page.getByRole("button", { name: /^Import$/i }).first().click();
+    /*
+     * Import moved from a per-tab button to ONE module-level control in the page
+     * header, where the user picks the entity. It was previously three separate
+     * buttons buried inside the Deals, People and Leads lists.
+     */
+    await page.getByTestId("crm-import").click();
+    await page.getByTestId("crm-import-leads").click();
     await expect(page.getByText("Import Leads")).toBeVisible();
 
     const csv = [

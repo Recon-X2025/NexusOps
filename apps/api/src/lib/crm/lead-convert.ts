@@ -51,8 +51,21 @@ export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
   }
 
-  // Idempotency: an already-converted lead returns its existing deal untouched.
-  if (lead.status === "converted" && lead.convertedDealId) {
+  /*
+   * Idempotency keys on `convertedDealId` ALONE.
+   *
+   * It was `status === "converted" && convertedDealId`, and the AND was the
+   * hole: `leads.update` accepts a status and blocks only the move INTO
+   * "converted", never the move out. Editing a converted lead to any other
+   * status therefore left `convertedDealId` set while the status said
+   * otherwise, and this guard — needing both — stopped matching. The next
+   * convert fell straight through and raised a SECOND deal against the same
+   * lead. Measured: deals 1 -> 2 on a lead already converted.
+   *
+   * `convertedDealId` is the durable fact. A lead that points at a deal has
+   * been converted, whatever its status column has since been edited to say.
+   */
+  if (lead.convertedDealId) {
     const [existing] = await tx
       .select()
       .from(crmDeals)
