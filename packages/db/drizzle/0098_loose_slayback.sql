@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "crm_activities_account_idx" ON "crm_activities" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "crm_activities_contact_idx" ON "crm_activities" USING btree ("contact_id");

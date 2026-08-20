@@ -69,6 +69,62 @@ async function fillTwoLines(page: Page) {
 }
 
 /**
+ * Insert a quote carrying real line items and totals but NO deal.
+ *
+ * Same DB-through-drizzle approach `mfa.spec.ts` uses for state the product
+ * deliberately will not create. The totals are stored as the engine would have
+ * written them (25,000 taxable @ 18% intra), so the PDF route gets past its
+ * line-items and zero-value refusals and reaches the buyer check — which is the
+ * one under test. `dealId` and `placeOfSupply` are null: no buyer, no verified
+ * place of supply.
+ */
+async function seedDeallessQuote(quoteNumber: string): Promise<void> {
+  if (!process.env["DATABASE_URL"]) {
+    process.env["DATABASE_URL"] =
+      "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test";
+  }
+  const { getDb, crmQuotes, users, eq } = await import("@coheronconnect/db");
+  const database = getDb();
+  const [admin] = await database
+    .select()
+    .from(users)
+    .where(eq(users.email, "admin@coheron.com"));
+  if (!admin?.orgId) throw new Error("seedDeallessQuote: admin user has no org");
+
+  await database.insert(crmQuotes).values({
+    orgId: admin.orgId,
+    quoteNumber,
+    dealId: null,
+    items: [
+      {
+        description: "Enterprise licence",
+        quantity: 1,
+        unitPrice: "25000",
+        total: "25000",
+        hsnCode: "998314",
+        gstRate: 18,
+      },
+    ],
+    subtotal: "25000",
+    discountPct: "0",
+    placeOfSupply: null,
+    isInterstate: false,
+    taxableValue: "25000",
+    cgstAmount: "2250",
+    sgstAmount: "2250",
+    igstAmount: "0",
+    taxTotal: "4500",
+    total: "29500",
+  });
+}
+
+/** Remove the seeded dealless quote so it cannot outlive this test. */
+async function deleteDeallessQuote(quoteNumber: string): Promise<void> {
+  const { getDb, crmQuotes, eq } = await import("@coheronconnect/db");
+  await getDb().delete(crmQuotes).where(eq(crmQuotes.quoteNumber, quoteNumber));
+}
+
+/**
  * Give the tenant its own GSTIN.
  *
  * Done over tRPC rather than by clicking because NOTHING in the web app calls
@@ -185,7 +241,8 @@ test.describe("Quote document", () => {
     await expect
       .poll(dealOption, { timeout: 20_000, message: "the new deal must be offered on the quote" })
       .not.toBe("");
-    await page.getByTestId("quote-deal").selectOption(await dealOption());
+    const dealId = await dealOption();
+    await page.getByTestId("quote-deal").selectOption(dealId);
 
     await fillTwoLines(page);
     // The place of supply resolved, so no "state missing" warning is shown.
@@ -194,9 +251,32 @@ test.describe("Quote document", () => {
     await page.getByTestId("quote-create").click();
     await expect(quoteDialog).toBeHidden({ timeout: 20_000 });
 
-    // ── Download it, and read what the document actually says ───────────────
-    // The card's actions live behind `isExpanded` — click the card to open it.
-    await page.getByTestId("quote-number").first().click();
+    /*
+     * ── Download it, and read what the document actually says ───────────────
+     *
+     * Find THIS test's quote by number rather than taking `.first()`.
+     *
+     * `.first()` is the newest card in the whole org, which is only this test's
+     * quote when nothing else has made one. That is false in the full suite
+     * (`crm-quote-lineitems.spec.ts` raises a quote earlier in the run) and
+     * false on any re-run against a database that was not reset — where the
+     * dealless quote seeded by the refusal test below is newest, and its PDF is
+     * REFUSED by design, so no download event ever fires and this test times out
+     * 30s later pointing at the wrong line.
+     *
+     * The quote number comes from the procedure, scoped to the deal just made,
+     * so the card clicked is unambiguously this test's. Only one card is
+     * expanded at a time, so the Download control below is then this card's.
+     */
+    const listRes = await page.request.get(
+      `/api/trpc/crm.deals.quotes.list?input=${encodeURIComponent(JSON.stringify({ dealId }))}`,
+    );
+    expect(listRes.ok(), "the quote list must be readable to find this test's quote").toBeTruthy();
+    const listBody = await listRes.json();
+    const ownQuoteNumber: string = listBody?.result?.data?.[0]?.quoteNumber;
+    expect(ownQuoteNumber, "the quote just created must come back for its deal").toBeTruthy();
+
+    await page.getByTestId("quote-number").filter({ hasText: ownQuoteNumber }).first().click();
     const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
     await page.getByRole("button", { name: /Download PDF/i }).first().click();
     const download: Download = await downloadPromise;
@@ -235,22 +315,34 @@ test.describe("Quote document", () => {
     // The supplier side must be complete, so the refusal under test is the
     // CUSTOMER one rather than a missing-GSTIN refusal.
     await ensureSupplierGstin(page);
+
+    /*
+     * The dealless quote is now INSERTED DIRECTLY, not created through the
+     * product.
+     *
+     * `crm.deals.quotes.create` requires a dealId as of this round — a quote
+     * reaches its buyer only via quote -> deal -> account, so one without a deal
+     * has no buyer at all. That closes the door on NEW dealless quotes; it does
+     * not remove the ones already stored (the column is still nullable, and
+     * three such rows exist on the dev/test databases — every one of them made
+     * by an earlier run of THIS spec).
+     *
+     * Those rows are exactly what this test is about: the PDF route must refuse
+     * a quote whose tax basis cannot be verified, and that route is reached by
+     * stored data, not by the create path. Seeding the row directly tests the
+     * refusal on the condition that actually occurs, instead of testing a
+     * create path that can no longer produce it. The assertion is unchanged.
+     */
+    const quoteNumber = `QT-NODEAL-${Date.now()}`;
+    await seedDeallessQuote(quoteNumber);
+
     await gotoCrmTab(page, "Quotes");
 
-    // A quote with no deal selected has no account, so no buyer state — the
-    // stored split would silently take the SELLER's state and bill CGST/SGST on
-    // an unverified basis. The document must not exist in that condition.
-    await page.getByRole("button", { name: /New Quote/i }).first().click();
-    const quoteDialog = page.getByTestId("new-quote-dialog");
-    await expect(quoteDialog).toBeVisible({ timeout: 15_000 });
-    await fillTwoLines(page);
-    await expect(page.getByTestId("quote-create")).toBeEnabled();
-    await page.getByTestId("quote-create").click();
-    await expect(quoteDialog).toBeHidden({ timeout: 20_000 });
-
-    // The newest quote card is the one just made; expand it, then its Download
-    // must refuse.
-    await page.getByTestId("quote-number").first().click();
+    // Find THAT quote's card by its number rather than trusting ordering, then
+    // expand it — the actions live behind `isExpanded`.
+    const card = page.getByTestId("quote-number").filter({ hasText: quoteNumber }).first();
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await card.click();
     await page.getByRole("button", { name: /Download PDF/i }).first().click();
 
     // Refused with the reason and the field to fix — not a silent failure, and
@@ -258,5 +350,15 @@ test.describe("Quote document", () => {
     await expect(
       page.getByText(/not linked to a customer account|has no state on file/i).first(),
     ).toBeVisible({ timeout: 20_000 });
+
+    /*
+     * Remove the seeded row. A quote with no deal is REFUSED by the PDF route by
+     * design, so leaving it behind makes it the newest quote in the org and
+     * silently breaks any later test that reaches for the most recent card —
+     * which is exactly what it did to the test above on re-runs against a
+     * database that was not reset. Specs must be self-isolating: seed, assert,
+     * clean up.
+     */
+    await deleteDeallessQuote(quoteNumber);
   });
 });

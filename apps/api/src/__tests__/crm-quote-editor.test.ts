@@ -156,26 +156,37 @@ describe("CRM quote line-item editor", () => {
   // ── the zero-value guard ──────────────────────────────────────────────────
   describe("a quote must be worth something", () => {
     it("refuses a quote with no lines", async () => {
-      await expect(caller.deals.quotes.create({ items: [], discountPct: "0" }))
+      // dealId is required as of this round; the guard under test is still the
+      // line-item one, which fires inside the handler after input parsing.
+      const { deal } = await seedDeal("29");
+      await expect(caller.deals.quotes.create({ dealId: deal.id, items: [], discountPct: "0" }))
         .rejects.toThrow(/at least one line item/i);
     });
 
     it("refuses a quote whose lines total zero — the exact payload the old dialog sent", async () => {
+      const { deal } = await seedDeal("29");
       await expect(caller.deals.quotes.create({
+        dealId: deal.id,
         items: [{ description: "CoheronConnect Enterprise License", quantity: 1, unitPrice: "0", total: "0" }],
         discountPct: "0",
       })).rejects.toThrow(/more than zero/i);
     });
 
     it("refuses on the DEPRECATED flat path too, so the hole did not just move", async () => {
+      // The deprecated twin requires a dealId now too — the rule was added to
+      // BOTH paths, so the hole did not just move here either.
+      const { deal } = await seedDeal("29");
       await expect(caller.createQuote({
+        dealId: deal.id,
         items: [{ description: "Anything", quantity: 1, unitPrice: "0", total: "0" }],
         discountPct: "0",
       })).rejects.toThrow(/more than zero/i);
     });
 
     it("refuses an UPDATE that would empty an existing quote to zero", async () => {
+      const { deal } = await seedDeal("29");
       const quote = await caller.deals.quotes.create({
+        dealId: deal.id,
         items: [{ description: "Real", quantity: 1, unitPrice: "1000", total: "1000", gstRate: 18 }],
         discountPct: "0",
       });
@@ -186,7 +197,9 @@ describe("CRM quote line-item editor", () => {
     });
 
     it("a status-only update still works — the guard fires only when lines are sent", async () => {
+      const { deal } = await seedDeal("29");
       const quote = await caller.deals.quotes.create({
+        dealId: deal.id,
         items: [{ description: "Real", quantity: 1, unitPrice: "1000", total: "1000", gstRate: 18 }],
         discountPct: "0",
       });

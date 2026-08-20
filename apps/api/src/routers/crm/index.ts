@@ -46,6 +46,7 @@ import { crmDashboardRouter } from "./dashboard";
 import { convertLeadToDeal } from "../../lib/crm/lead-convert";
 import { createScoredLead, updateScoredLead } from "../../lib/crm/lead-write";
 import { buildQuoteTaxColumns, assertQuoteHasValue, type QuoteLine } from "../../lib/crm/quote-tax";
+import { recordDealStageChange } from "../../lib/crm/stage-history";
 
 // ─── Dashboard helper (shared between legacy + new sub-router) ────────────────
 async function getCrmExecutiveSummary(db: DbOrTx, orgId: string) {
@@ -101,7 +102,7 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.accounts.create */
   createAccount: permissionProcedure("accounts", "write")
-    .input(z.object({ name: z.string().min(1), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional() }))
+    .input(z.object({ name: z.string().min(1), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional(), billingAddress: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const [account] = await db.insert(crmAccounts).values({ orgId: org!.id, ...input, ownerId: user!.id }).returning();
@@ -109,7 +110,7 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.accounts.update */
   updateAccount: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional(), billingAddress: z.string().optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
@@ -209,7 +210,7 @@ export const crmRouter = router({
       lostReason: z.string().trim().min(1).max(500).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const [existing] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
       // Identical guards to the canonical path, from the same helper.
@@ -225,7 +226,22 @@ export const crmRouter = router({
       const updates: Partial<typeof crmDeals.$inferInsert> = { stage: input.stage, updatedAt: new Date() };
       if (input.stage === "closed_won" || input.stage === "closed_lost") { updates.closedAt = new Date(); } else { updates.wonApprovedAt = null; updates.wonApprovedBy = null; updates.wonApprovalTier = null; updates.closedAt = null; }
       updates.lostReason = input.stage === "closed_lost" ? input.lostReason! : null;
-      const [deal] = await db.update(crmDeals).set(updates).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      // Stage history is written HERE TOO, from the same shared helper the
+      // canonical procedure uses. Recording only on the canonical path would
+      // silently lose every move made through this twin, and the table would
+      // then under-report transitions in a way nothing downstream could detect.
+      const deal = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(crmDeals).set(updates)
+          .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+        await recordDealStageChange(tx, {
+          orgId: org!.id,
+          dealId: input.id,
+          fromStage: existing.stage,
+          toStage: input.stage,
+          changedBy: user?.id ?? null,
+        });
+        return updated;
+      });
       return deal;
     }),
   /** @deprecated Use trpc.crm.deals.approveDealWon */
@@ -458,7 +474,10 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.deals.quotes.create */
   createQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ dealId: z.string().uuid().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional(), discountPct: z.coerce.number().min(0).max(100).optional() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
+    // dealId is REQUIRED here too. A rule that exists only on the canonical
+    // procedure leaves the deprecated twin as an open hole, and the two then
+    // drift — the failure mode this codebase has hit three times.
+    .input(z.object({ dealId: z.string().uuid(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional(), discountPct: z.coerce.number().min(0).max(100).optional() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       // Same validity rule as the canonical path — a ₹0 quote is not a quote,

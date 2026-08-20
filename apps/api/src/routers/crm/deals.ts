@@ -15,6 +15,7 @@ import {
   type DealCloseApprovalTier,
 } from "../../lib/org-settings";
 import { buildQuoteTaxColumns, assertQuoteHasValue, type QuoteLine } from "../../lib/crm/quote-tax";
+import { recordDealStageChange } from "../../lib/crm/stage-history";
 
 /** One quote line as the editor sends it. Shared by create / update / previewTax. */
 const quoteLineSchema = z.object({
@@ -259,7 +260,7 @@ export const crmDealsRouter = router({
       lostReason: z.string().trim().min(1).max(500).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const [existing] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
 
@@ -311,7 +312,24 @@ export const crmDealsRouter = router({
         updates.lostReason = null;
       }
 
-      const [deal] = await db.update(crmDeals).set(updates).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      /*
+       * The move and its history entry commit TOGETHER. A deal that moved
+       * without a recorded transition, or a recorded transition for a move that
+       * rolled back, would both be silent corruption of a table whose only
+       * purpose is to be trustworthy later.
+       */
+      const deal = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(crmDeals).set(updates)
+          .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+        await recordDealStageChange(tx, {
+          orgId: org!.id,
+          dealId: input.id,
+          fromStage: existing.stage,
+          toStage: input.stage,
+          changedBy: user?.id ?? null,
+        });
+        return updated;
+      });
       return deal;
     }),
 
@@ -512,7 +530,20 @@ export const crmDealsRouter = router({
 
     create: permissionProcedure("accounts", "write")
       .input(z.object({
-        dealId: z.string().uuid().optional(),
+        /*
+         * REQUIRED. A quote reaches its buyer only transitively —
+         * quote -> deal -> account — because `deal_id` is a quote's ONLY
+         * relationship column. A quote created without one therefore has no
+         * buyer at all: no account, no place of supply, so `buildQuoteTaxColumns`
+         * silently falls back to the org's own state and bills intra-state
+         * CGST/SGST on a sale whose destination nobody knows.
+         *
+         * The COLUMN stays nullable on purpose. Dealless rows exist (three,
+         * all created by `quote-document.spec.ts` to prove the PDF refuses
+         * such a quote) and nothing here rewrites or deletes them — this
+         * closes the door, it does not sweep the room.
+         */
+        dealId: z.string().uuid(),
         items: z.array(quoteLineSchema).default([]),
         discountPct: z.string().default("0"),
         validUntil: z.string().optional(),

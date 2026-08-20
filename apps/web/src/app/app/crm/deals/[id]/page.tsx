@@ -5,14 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     TrendingUp, Building2, Users, Calendar, DollarSign,
-    Trash2, Edit3, CheckCircle2, Activity, MessageSquare, X
+    Trash2, Edit3, CheckCircle2, MessageSquare, X
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { PermissionGate, useRBAC } from "@/lib/rbac-context";
 import { cn } from "@/lib/utils";
 import { ResourceView } from "@/components/ui/resource-view";
 import { PageHeader } from "@/components/ui/page-header";
-import { Timeline, type TimelineItem } from "@/components/ui/timeline";
+import { CrmActivityTimeline } from "@/components/crm/activity-timeline";
 import { LOST_REASONS, LOST_REASON_OTHER } from "@/lib/crm-lost-reasons";
 
 const STAGE_CFG: Record<string, { label: string; color: string }> = {
@@ -23,6 +23,15 @@ const STAGE_CFG: Record<string, { label: string; color: string }> = {
     verbal_commit: { label: "Verbal Commit", color: "text-orange-700 bg-orange-100" },
     closed_won: { label: "Closed Won", color: "text-green-700 bg-green-100" },
     closed_lost: { label: "Closed Lost", color: "text-red-700 bg-red-100" },
+};
+
+/** Same status vocabulary the CRM Quotes tab uses. Presentation only. */
+const QUOTE_STATUS_CFG: Record<string, string> = {
+    draft: "text-muted-foreground bg-muted",
+    sent: "text-blue-700 bg-blue-100",
+    accepted: "text-green-700 bg-green-100",
+    rejected: "text-red-700 bg-red-100",
+    expired: "text-orange-700 bg-orange-100",
 };
 
 function dealCloseTierClient(value: number, low: number, execAbove: number): "none" | "manager" | "executive" {
@@ -43,7 +52,8 @@ export default function DealDetailPage() {
     const [lostReasonText, setLostReasonText] = useState("");
 
     const qDeal = trpc.crm.deals.get.useQuery({ id });
-    const qActivities = trpc.crm.activities.list.useQuery({ dealId: id });
+    /* deal_id is a quote's only relationship column; this is the whole set. */
+    const qQuotes = trpc.crm.deals.quotes.list.useQuery({ dealId: id });
 
     const qAccounts = trpc.crm.accounts.list.useQuery({ limit: 200 });
     const qContacts = trpc.crm.contacts.list.useQuery({ limit: 200 });
@@ -115,15 +125,6 @@ export default function DealDetailPage() {
                         </button>
                     </PermissionGate>
                 );
-
-                const activityItems: TimelineItem[] = (qActivities.data ?? []).map((a: any) => ({
-                    id: a.id,
-                    icon: MessageSquare,
-                    title: a.subject,
-                    subtitle: a.description,
-                    timestamp: a.createdAt,
-                    tags: [a.type, a.outcome && `Outcome: ${a.outcome}`].filter(Boolean) as string[],
-                }));
 
                 return (
                     <div className="flex flex-col gap-6 p-6">
@@ -390,19 +391,84 @@ export default function DealDetailPage() {
                                     </div>
                                 </div>
 
-                                {/* Activity Timeline */}
-                                <Timeline
-                                    items={activityItems}
-                                    isLoading={qActivities.isLoading}
-                                    emptyMessage="No activities logged for this deal yet."
-                                    emptyIcon={Activity}
-                                    header={
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Activity Timeline</h3>
-                                            <button className="text-caption text-primary font-bold hover:underline">+ Log Activity</button>
+                                {/*
+                                  * QUOTES ON THE DEAL. `deal_id` is a quote's ONLY
+                                  * relationship column — a quote reaches its buyer
+                                  * transitively (quote -> deal -> account), which is
+                                  * why a quote with no deal has no buyer at all and
+                                  * why `quotes.create` now REQUIRES one.
+                                  *
+                                  * The status values are the schema's, shown as they
+                                  * are: draft / sent / accepted / rejected / expired.
+                                  * There is NO versioning in the schema — no version,
+                                  * parent, revision or supersede column — so nothing
+                                  * here implies a revision chain. Multiple quotes on
+                                  * one deal are siblings, listed newest first.
+                                  */}
+                                <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="deal-quotes">
+                                    <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                                        <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Quotes</h3>
+                                        {(qQuotes.data?.length ?? 0) > 0 && (
+                                            <span className="text-caption text-muted-foreground tabular-nums">{qQuotes.data!.length}</span>
+                                        )}
+                                    </div>
+
+                                    {qQuotes.isLoading && (
+                                        <div className="p-5 space-y-3 animate-pulse">
+                                            {[...Array(2)].map((_, i) => (
+                                                <div key={i} className="h-10 bg-muted rounded" />
+                                            ))}
                                         </div>
-                                    }
-                                />
+                                    )}
+
+                                    {!qQuotes.isLoading && (qQuotes.data?.length ?? 0) === 0 && (
+                                        <div className="p-8 text-center text-body-sm text-muted-foreground leading-relaxed">
+                                            No quotes on this deal yet. Quotes raised against this deal
+                                            appear here with their current status.
+                                        </div>
+                                    )}
+
+                                    <div className="divide-y divide-border">
+                                        {qQuotes.data?.map((quote: any) => (
+                                            <div key={quote.id} className="p-4 flex items-center justify-between gap-4">
+                                                <div className="min-w-0 space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-mono text-muted-foreground">{quote.quoteNumber}</span>
+                                                        <span className={cn(
+                                                            "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                                            QUOTE_STATUS_CFG[quote.status] ?? "text-muted-foreground bg-muted",
+                                                        )}>
+                                                            {quote.status}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-caption text-muted-foreground">
+                                                        <span>{Array.isArray(quote.items) ? quote.items.length : 0} line{(Array.isArray(quote.items) ? quote.items.length : 0) === 1 ? "" : "s"}</span>
+                                                        {quote.validUntil && (
+                                                            <span className="flex items-center gap-1">
+                                                                <Calendar className="w-3 h-3" /> Valid to {new Date(quote.validUntil).toLocaleDateString("en-IN")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    {/* The STORED total, not a re-computation — a panel
+                                                        must not disagree with the ledger. "Rs." is the PDF
+                                                        rule (WinAnsi has no U+20B9); the browser renders the
+                                                        glyph, and the rest of this page uses it. */}
+                                                    <p className="text-body-sm font-bold tabular-nums">
+                                                        ₹{Number(quote.total ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </p>
+                                                    <p className="text-[10px] text-muted-foreground tabular-nums">
+                                                        incl. ₹{Number(quote.taxTotal ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tax
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* One shared timeline, scoped to this deal. */}
+                                <CrmActivityTimeline scope={{ dealId: id }} />
                             </div>
                         </div>
                     </div>

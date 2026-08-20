@@ -264,6 +264,16 @@ export const crmActivities = pgTable(
     dealIdx: index("crm_activities_deal_idx").on(t.dealId),
     leadIdx: index("crm_activities_lead_idx").on(t.leadId),
     ownerIdx: index("crm_activities_owner_idx").on(t.ownerId),
+    /*
+     * account and contact are filterable on `crm.activities.list` (they always
+     * were columns; the input schema silently stripped them until 2026-08-19),
+     * so they need the same index treatment deal and lead already have.
+     * Measured at 120k activities across 50 accounts: without the account index
+     * the planner scans via org_idx and filters — 12.8 ms; with it, a bitmap AND
+     * of account_idx + org_idx — 3.0 ms. ~4.2x.
+     */
+    accountIdx: index("crm_activities_account_idx").on(t.accountId),
+    contactIdx: index("crm_activities_contact_idx").on(t.contactId),
   }),
 );
 
@@ -304,6 +314,65 @@ export const crmQuotes = pgTable(
     orgNumberIdx: uniqueIndex("crm_quotes_org_number_idx").on(t.orgId, t.quoteNumber),
     orgIdx: index("crm_quotes_org_idx").on(t.orgId),
     dealIdx: index("crm_quotes_deal_idx").on(t.dealId),
+  }),
+);
+
+// ── CRM Deal Stage History ─────────────────────────────────────────────────
+/**
+ * Every stage TRANSITION a deal makes, appended forward from the day this
+ * lands.
+ *
+ * `crm_deals.stage` records the CURRENT stage and nothing else — no prior
+ * stage, no timestamp of the move, no actor. Nothing anywhere else records it
+ * either, so time-in-stage, stage ageing and conversion-between-stages are all
+ * uncomputable today, not merely unreported. Stage history can only ever
+ * accumulate FORWARD, which is the whole argument for starting the record now
+ * rather than when a screen wants it.
+ *
+ * THE TABLE STARTS EMPTY AND IS NOT BACKFILLED. There is nothing to backfill
+ * from — the prior stage of an existing deal is not recoverable from any column
+ * — and inventing a history is worse than having none, because a fabricated
+ * first transition would be indistinguishable from a real one in every metric
+ * computed off this table later.
+ *
+ * Written at BOTH transition sites: the canonical `crm.deals.movePipeline` and
+ * the deprecated flat `crm.movePipeline`. Writing from only the canonical one
+ * would silently miss every move made through the twin — the exact drift that
+ * has bitten this module before. Deal CREATION is deliberately not recorded
+ * here: an opening stage is not a transition, `fromStage` would have to be
+ * invented, and `crm_deals.createdAt` already carries when the deal appeared.
+ *
+ * Carries `org_id` and is RLS-walled in the same migration, per the 0052/0061
+ * convention. A child table with no `org_id` is the class every leak in the
+ * isolation audit belongs to.
+ */
+export const crmDealStageHistory = pgTable(
+  "crm_deal_stage_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    dealId: uuid("deal_id").notNull().references(() => crmDeals.id, { onDelete: "cascade" }),
+    /**
+     * The stage the deal was in before the move.
+     *
+     * NOT NULL: this table records transitions only, and a transition always has
+     * a side it came from. A nullable `fromStage` would be the seam through
+     * which a fabricated "created" row could enter.
+     */
+    fromStage: dealStageEnum("from_stage").notNull(),
+    toStage: dealStageEnum("to_stage").notNull(),
+    /**
+     * Nullable actor reference -> SET NULL, per the repo-wide FK policy. The
+     * history of what happened to a deal must survive the departure of the
+     * person who did it.
+     */
+    changedBy: uuid("changed_by").references(() => users.id, { onDelete: "set null" }),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("crm_deal_stage_history_org_idx").on(t.orgId),
+    /* The query this table exists for is "this deal, in order". */
+    dealChangedIdx: index("crm_deal_stage_history_deal_changed_idx").on(t.dealId, t.changedAt),
   }),
 );
 

@@ -48,6 +48,24 @@ describe("G7: CPQ tax/GST on quotes", () => {
     await cleanupOrg(orgId);
   });
 
+  /**
+   * A deal carrying NO account.
+   *
+   * `quotes.create` requires a dealId as of this round, so the "nothing links
+   * this quote to a buyer" case can no longer be expressed by omitting the
+   * deal. It is expressed by a deal with no account instead — which is the
+   * same condition the tax engine sees (`resolveBuyer` finds no account, so no
+   * state), and is reachable in the product: `deals.create` leaves accountId
+   * optional.
+   */
+  async function seedDealWithoutAccount() {
+    const [deal] = await testDb()
+      .insert(crmDeals)
+      .values({ orgId, title: "Deal (no account)", ownerId: userId })
+      .returning();
+    return { deal: deal! };
+  }
+
   async function seedDealWithAccount(stateCode: string | null) {
     const [account] = await testDb()
       .insert(crmAccounts)
@@ -128,7 +146,9 @@ describe("G7: CPQ tax/GST on quotes", () => {
   });
 
   it("defaults to org state (intra) when no account/state is linked", async () => {
+    const { deal } = await seedDealWithoutAccount();
     const quote = await caller.deals.quotes.create({
+      dealId: deal.id,
       items: [{ description: "Widget", quantity: 1, unitPrice: "10000", total: "10000", gstRate: 18 }],
       discountPct: "0",
     });

@@ -6,6 +6,7 @@
  */
 import { router, permissionProcedure } from "../../lib/trpc";
 import { crmDeals, crmLeads, eq, and, desc, count, sum, inArray, notInArray, lt, type DbOrTx } from "@coheronconnect/db";
+import { buildManagementView } from "../../lib/crm/management-view";
 
 async function getExecutiveSummary(db: DbOrTx, orgId: string) {
   const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
@@ -52,5 +53,14 @@ export const crmDashboardRouter = router({
 
   executiveSummary: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
     return getExecutiveSummary(ctx.db, ctx.org!.id);
+  }),
+
+  /**
+   * CRM management view — CURRENT STATE ONLY (see lib/crm/management-view.ts for
+   * what is deliberately absent and why). Gated on `analytics:read`, matching the
+   * Sales Analytics tab that renders it.
+   */
+  managementView: permissionProcedure("analytics", "read").query(async ({ ctx }) => {
+    return buildManagementView(ctx.db, ctx.org!.id);
   }),
 });

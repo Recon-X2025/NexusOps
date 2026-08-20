@@ -22,6 +22,7 @@ import {
   crmActivities,
   eq,
   and,
+  or,
   isNull,
   type DbOrTx,
 } from "@coheronconnect/db";
@@ -83,16 +84,52 @@ export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
     });
   }
 
-  // ── Upsert the account from the lead's company. ────────────────────────────
+  /*
+   * ── Upsert the account. ───────────────────────────────────────────────────
+   *
+   * A CONVERSION ALWAYS PRODUCES AN ACCOUNT. This was `if (!accountId &&
+   * lead.company)`, so a lead with no company converted to a contact whose
+   * `accountId` was undefined — and `crm_contacts.account_id` is nullable, so
+   * it stored NULL without complaint. `contacts.create` REQUIRES an accountId;
+   * conversion did not. Two paths, two rules.
+   *
+   * The consequence is not cosmetic: an account-less contact appears on no
+   * account page, and `contacts.list({ accountId })` — which is how the account
+   * screen finds its people — cannot return it by construction. The deal was
+   * left account-less too, which is the same hole one level up: `crm_deals`
+   * carries the account, and the quote -> deal -> account chain is how a quote
+   * finds its buyer and its place of supply.
+   *
+   * DECISION (b): where the lead names no company, the account is named after
+   * the PERSON. Refusing to convert — option (a) — was rejected because a sole
+   * proprietor or an individual buyer is an ordinary Indian SMB customer, not
+   * bad data; refusing would leave a fully qualified lead (conversion already
+   * demands an estimated value and an expected close) with no route forward
+   * except typing a company name that does not exist, which puts the
+   * fabrication in the customer record rather than keeping it out. The person's
+   * name is real data already on the lead; nothing is invented.
+   *
+   * Zero account-less contacts exist on either database today, so there is
+   * nothing to migrate — this closes the path, it does not repair history.
+   */
   let accountId = lead.accountId ?? undefined;
-  if (!accountId && lead.company) {
+  if (!accountId) {
+    const company = lead.company?.trim();
+    const personName = [lead.firstName, lead.lastName]
+      .map((part) => part?.trim())
+      .filter(Boolean)
+      .join(" ");
+    // firstName/lastName are NOT NULL, so personName is only ever empty if both
+    // are whitespace. Email is the next identifying thing the lead carries.
+    const accountName = company || personName || lead.email?.trim() || `Lead ${leadId}`;
+
     const [existingAccount] = await tx
       .select()
       .from(crmAccounts)
       .where(
         and(
           eq(crmAccounts.orgId, orgId),
-          eq(crmAccounts.name, lead.company),
+          eq(crmAccounts.name, accountName),
           eq(crmAccounts.archived, false),
         ),
       );
@@ -101,7 +138,16 @@ export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
     } else {
       const [account] = await tx
         .insert(crmAccounts)
-        .values({ orgId, name: lead.company, ownerId: lead.ownerId ?? actorId })
+        .values({
+          orgId,
+          name: accountName,
+          ownerId: lead.ownerId ?? actorId,
+          // Say why the account exists when it was not a named company, so the
+          // record is legible to whoever opens it next.
+          notes: company
+            ? undefined
+            : "Created on lead conversion. The lead named no company, so this account is the individual buyer.",
+        })
         .returning();
       accountId = account!.id;
     }
@@ -165,22 +211,52 @@ export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
     })
     .returning();
 
-  // ── Re-point the lead's open activities at the new deal. ───────────────────
-  // Only unarchived activities on this contact that aren't already tied to a
-  // deal — so we never steal another deal's history.
-  if (contactId) {
-    await tx
-      .update(crmActivities)
-      .set({ dealId: deal!.id, accountId, updatedAt: new Date() })
-      .where(
-        and(
-          eq(crmActivities.orgId, orgId),
-          eq(crmActivities.contactId, contactId),
-          eq(crmActivities.archived, false),
-          isNull(crmActivities.dealId),
-        ),
-      );
-  }
+  /*
+   * ── Carry the lead's history onto the new deal. ──────────────────────────
+   *
+   * This matched on contact_id ALONE. Activities logged against a LEAD carry
+   * lead_id with contact_id NULL, so they never matched: a converted lead's
+   * history stayed stranded on the lead, the new deal showed zero, and no
+   * screen surfaced what had happened before conversion. Proven live — a lead
+   * with two activities converted, deal showed 0, lead kept both.
+   *
+   * The contact_id branch is EXTENDED, not replaced: a lead whose activities
+   * were already attached by contact_id must keep re-pointing exactly as before.
+   *
+   * DECISION (a): set deal_id and LEAVE lead_id intact. The lead row survives
+   * conversion and still has a page; clearing lead_id would blank that page and
+   * erase the record of what happened before the deal existed. An activity is
+   * genuinely associated with all of them, and these columns are independent —
+   * so the deal, the account and the lead each show it. Nothing is moved away
+   * from anywhere.
+   *
+   * account_id and contact_id are set too, because conversion is the moment
+   * those associations become known — without them the account timeline (see
+   * accounts/[id]/page.tsx) would start blank for a customer that has a history.
+   *
+   * `isNull(dealId)` is kept so we never steal another deal's activities.
+   */
+  const associationFilters = [
+    contactId ? eq(crmActivities.contactId, contactId) : undefined,
+    eq(crmActivities.leadId, leadId),
+  ].filter(Boolean);
+
+  await tx
+    .update(crmActivities)
+    .set({
+      dealId: deal!.id,
+      accountId,
+      ...(contactId ? { contactId } : {}),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(crmActivities.orgId, orgId),
+        eq(crmActivities.archived, false),
+        isNull(crmActivities.dealId),
+        or(...associationFilters),
+      ),
+    );
 
   // ── Flag + back-link the lead. ─────────────────────────────────────────────
   await tx

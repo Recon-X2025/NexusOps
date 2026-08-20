@@ -40,13 +40,35 @@ export function assertActivityHasAssociation(input: {
 
 export const crmActivitiesRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ dealId: z.string().uuid().optional(), leadId: z.string().uuid().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    /*
+     * All FOUR association columns are filterable, because all four are real:
+     * `crm_activities` carries deal_id, lead_id, contact_id and account_id as
+     * independent nullable FKs, and `create` populates any of them.
+     *
+     * accountId and contactId were absent here, so zod SILENTLY STRIPPED them and
+     * the procedure returned the whole org. Measured live against an org holding
+     * exactly 4 activities: list({dealId}) -> 1, list({leadId}) -> 1, but
+     * list({accountId}) -> 4 and list({contactId}) -> 4. The account page
+     * (accounts/[id]/page.tsx) rendered that org-wide set as "Recent Activity"
+     * for whichever account you happened to be looking at.
+     */
+    .input(z.object({
+      dealId: z.string().uuid().optional(),
+      leadId: z.string().uuid().optional(),
+      accountId: z.string().uuid().optional(),
+      contactId: z.string().uuid().optional(),
+      limit: z.coerce.number().default(50),
+      showArchived: z.boolean().default(false),
+    }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmActivities.orgId, org!.id), eq(crmActivities.archived, input.showArchived)];
       if (input.dealId) conditions.push(eq(crmActivities.dealId, input.dealId));
       // A lead can now carry its own history — same filter shape as dealId.
       if (input.leadId) conditions.push(eq(crmActivities.leadId, input.leadId));
+      // Same filter shape again — an omitted filter must never widen the result.
+      if (input.accountId) conditions.push(eq(crmActivities.accountId, input.accountId));
+      if (input.contactId) conditions.push(eq(crmActivities.contactId, input.contactId));
       return db.select().from(crmActivities).where(and(...conditions)).orderBy(desc(crmActivities.createdAt)).limit(input.limit);
     }),
 

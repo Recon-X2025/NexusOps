@@ -105,6 +105,22 @@ test.describe("CRM quote line items", () => {
     const posShown = (await page.getByTestId("quote-pos").count()) + (await page.getByTestId("quote-pos-warning").count());
     expect(posShown).toBeGreaterThan(0);
 
+    /*
+     * A deal is now REQUIRED before a quote can be created — `quotes.create`
+     * rejects a dealless quote, because a quote reaches its buyer only via
+     * quote -> deal -> account. This spec never picked one, so Create stayed
+     * disabled on the new gate.
+     *
+     * This is SETUP catching up with a contract change, not a weakened
+     * assertion: every total asserted below is unchanged, and the intra/inter
+     * branch already handles whichever state the chosen deal's account carries.
+     */
+    const firstDeal = await page.getByTestId("quote-deal").locator("option").evaluateAll(
+      (opts) => (opts as HTMLOptionElement[]).find((o) => o.value !== "")?.value ?? "",
+    );
+    expect(firstDeal, "the org needs at least one deal to quote against").not.toBe("");
+    await page.getByTestId("quote-deal").selectOption(firstDeal);
+
     // ── Create it ───────────────────────────────────────────────────────────
     await expect(page.getByTestId("quote-create")).toBeEnabled();
     await page.getByTestId("quote-create").click();

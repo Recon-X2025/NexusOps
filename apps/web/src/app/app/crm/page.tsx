@@ -14,6 +14,8 @@ import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
+import { CrmActivityTimeline } from "@/components/crm/activity-timeline";
+import { CrmManagementView } from "@/components/crm/management-view";
 import { GSTIN_STATE_CODES } from "@coheronconnect/payroll-math";
 import { LOST_REASONS, LOST_REASON_OTHER } from "@/lib/crm-lost-reasons";
 
@@ -444,12 +446,12 @@ export default function CRMPage() {
   const [showStageConfig, setShowStageConfig] = useState(false);
   const [stageDraft, setStageDraft] = useState<Array<{ key: string; label: string; color: string; rank: number; active: boolean; probability: number }>>([]);
   const [showNewAccount, setShowNewAccount] = useState(false);
-  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", stateCode: "", gstin: "" });
+  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", billingAddress: "", stateCode: "", gstin: "" });
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   // stateCode/gstin are editable here too: every account created BEFORE this round
   // has no state, so the Add-form fix alone would leave existing customers billed
   // as intra-state for ever with no way to correct them.
-  const [editAccountForm, setEditAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", stateCode: "", gstin: "" });
+  const [editAccountForm, setEditAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "", billingAddress: "", stateCode: "", gstin: "" });
   const [showArchivedAccounts, setShowArchivedAccounts] = useState(false);
   const [showArchivedContacts, setShowArchivedContacts] = useState(false);
   const [showNewContact, setShowNewContact] = useState(false);
@@ -702,7 +704,7 @@ export default function CRMPage() {
   // deprecated input has no stateCode/gstin, so zod would strip both silently
   // while the toast said success. Exactly the Round 9b defect.
   trpc.crm.accounts.create.useMutation({
-    onSuccess: () => { toast.success("Account created"); refetchAccounts(); setShowNewAccount(false); setAccountForm({ name: "", industry: "", tier: "smb", website: "", stateCode: "", gstin: "" }); },
+    onSuccess: () => { toast.success("Account created"); refetchAccounts(); setShowNewAccount(false); setAccountForm({ name: "", industry: "", tier: "smb", website: "", billingAddress: "", stateCode: "", gstin: "" }); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create account"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -1615,7 +1617,7 @@ export default function CRMPage() {
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => { setEditingAccount(a); setEditAccountForm({ name: a.name ?? "", industry: a.industry ?? "", tier: a.tier ?? "smb", website: a.website ?? "", stateCode: a.stateCode ?? "", gstin: a.gstin ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
+                        <button onClick={() => { setEditingAccount(a); setEditAccountForm({ name: a.name ?? "", industry: a.industry ?? "", tier: a.tier ?? "smb", website: a.website ?? "", billingAddress: a.billingAddress ?? "", stateCode: a.stateCode ?? "", gstin: a.gstin ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
                         {a.archived ? (
                           <button onClick={() => handleUnarchiveAccount(a.id)} className="text-green-500 hover:text-green-600 px-1" title="Unarchive"><Repeat size={14} /></button>
                         ) : (
@@ -2058,86 +2060,30 @@ export default function CRMPage() {
         )}
 
         {/* ANALYTICS */}
-        {tab === "analytics" && (
-          <div className="p-4 grid grid-cols-2 gap-4">
-            <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Revenue by Stage (Weighted)</div>
-              <div className="p-3 space-y-2">
-                {pipelineStages.map(stage => {
-                  const deals = DEALS_LIVE.filter(d => d.stage === stage);
-                  const weighted = deals.reduce((s, d) => s + d.value * (d.probability / 100), 0);
-                  const cfg = stageCfg[stage] ?? { label: stage.replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
-                  return (
-                    <div key={stage} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-muted-foreground w-28 flex-shrink-0">{cfg.label}</span>
-                      <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (weighted / 500000) * 100)}%` }} />
-                      </div>
-                      <span className="font-mono text-foreground/80 w-16 text-right">₹{(weighted / 1000).toFixed(0)}K</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Deals by Source</div>
-              <div className="p-3 space-y-2">
-                {["Inbound / Website", "Inbound / Trial", "Direct / Outbound", "Partner Referral", "LinkedIn Outbound", "Upsell / Existing Customer", "Event / Conference"].map((src) => {
-                  const srcDeals = DEALS_LIVE.filter(d => d.source === src);
-                  if (srcDeals.length === 0) return null;
-                  const srcVal = srcDeals.reduce((s, d) => s + d.value, 0);
-                  return (
-                    <div key={src} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-muted-foreground flex-1">{src}</span>
-                      <span className="font-mono text-foreground/80">₹{(srcVal / 1000).toFixed(0)}K</span>
-                      <span className="text-muted-foreground/70">({srcDeals.length})</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="border border-border rounded overflow-hidden col-span-2">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Full Deals List</div>
-              <table className="ent-table w-full">
-                <thead>
-                  <tr>
-                    <th className="w-4" />
-                    <th>Opportunity</th>
-                    <th>Account</th>
-                    <th>Owner</th>
-                    <th>Stage</th>
-                    <th>Value</th>
-                    <th>Probability</th>
-                    <th>Weighted</th>
-                    <th>Close Date</th>
-                    <th>Source</th>
-                    <th>Last Activity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {DEALS_LIVE.map((d) => {
-                    const cfg = stageCfg[d.stage as DealStage] ?? { label: (d.stage ?? "—").replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
-                    return (
-                      <tr key={d.id} className={d.stage === "closed_lost" ? "opacity-50" : ""}>
-                        <td className="p-0"><div className={`priority-bar ${d.stage === "closed_won" ? "bg-green-500" : d.stage === "closed_lost" ? "bg-red-500" : "bg-blue-400"}`} /></td>
-                        <td className="font-mono text-[11px] text-primary">{d.number}</td>
-                        <td className="font-medium text-foreground">{d.account}</td>
-                        <td className="text-muted-foreground">{d.owner}</td>
-                        <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
-                        <td className="font-mono font-bold text-foreground">₹{(d.value ?? 0).toLocaleString("en-IN")}</td>
-                        <td className="font-mono text-muted-foreground">{d.probability}%</td>
-                        <td className="font-mono font-semibold text-primary">₹{((d.value ?? 0) * ((d.probability ?? 0) / 100)).toLocaleString("en-IN")}</td>
-                        <td className="text-muted-foreground text-[11px]">{d.closeDate}</td>
-                        <td className="text-muted-foreground/70 text-[11px]">{d.source}</td>
-                        <td className="text-muted-foreground/70 text-[11px]">{d.lastActivity}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/*
+          * SALES ANALYTICS — the CRM management view (Phase 3).
+          *
+          * This tab previously held three panels that could not be trusted:
+          *
+          *  • "Revenue by Stage (Weighted)" weighted by the DEAL's own
+          *    probability while calling itself a stage figure, and drew its bars
+          *    as a fraction of a HARDCODED 500000 — so the bar lengths meant
+          *    nothing on any org whose pipeline was not that size.
+          *  • "Deals by Source" read `d.source`. `crm_deals` HAS NO source
+          *    column, so every row was undefined, every group was empty, and the
+          *    panel rendered blank with nothing to say it had no data — exactly
+          *    the "cannot tell no-data from not-wired" failure this round exists
+          *    to remove.
+          *  • "Full Deals List" printed `source` and `lastActivity` columns for
+          *    the same non-existent fields, plus `d.number`, which is also not a
+          *    column on crm_deals.
+          *
+          * All three also aggregated client-side over `deals.list({ limit: 200 })`,
+          * so any org past 200 deals would have been quietly under-reported.
+          * The replacement aggregates in SQL over the whole table, scoped to the
+          * caller's org.
+          */}
+        {tab === "analytics" && <CrmManagementView />}
       </div>
 
       {/* Edit Lead Modal */}
@@ -2245,6 +2191,14 @@ export default function CRMPage() {
                   </div>
                 </div>
               </div>
+
+              {/* The lead's own history. `crm_activities.lead_id` has had a column,
+                  an FK, an index and an aggregate feeding the Leads list since it
+                  was added — and no screen that showed it. Same component the
+                  Deal, Account and Contact records use. */}
+              <div className="pt-3 mt-1 border-t border-border">
+                <CrmActivityTimeline scope={{ leadId: editingLead.id }} title="Activity" />
+              </div>
             </div>
             <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2 shrink-0">
               <button onClick={() => setEditingLead(null)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/30">Cancel</button>
@@ -2295,7 +2249,10 @@ export default function CRMPage() {
       {/* New Quote Modal — line-item editor with server-computed totals */}
       {showNewQuote && (() => {
         const grossTotal = quoteLines.reduce((s, l) => s + lineTotal(l), 0);
-        const canCreate = quoteLines.length > 0 && grossTotal > 0;
+        // Mirrors the server: a quote needs a deal (its only route to a buyer)
+        // AND a value. Both are stated below when unmet, rather than letting the
+        // click through to a 400.
+        const canCreate = quoteLines.length > 0 && grossTotal > 0 && !!quoteForm.dealId;
         const setLine = (i: number, patch: Partial<QuoteLineDraft>) =>
           setQuoteLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
         return (
@@ -2313,14 +2270,17 @@ export default function CRMPage() {
               {/* ── Which deal, and therefore which buyer ──────────────────── */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Deal</label>
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Deal *</label>
                   {/* The deal is how the quote reaches an account, and the account is
                       how the tax engine learns the place of supply. Without it every
-                      quote defaults to the org's own state — intra-state CGST/SGST. */}
+                      quote defaults to the org's own state — intra-state CGST/SGST.
+                      `quotes.create` REQUIRES a deal as of this round, so the "no
+                      deal" option is gone: leaving it would have offered a choice the
+                      server rejects with a raw zod error. */}
                   <select data-testid="quote-deal" value={quoteForm.dealId}
                     onChange={(e) => setQuoteForm(f => ({ ...f, dealId: e.target.value }))}
                     className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card">
-                    <option value="">— No deal (place of supply unknown) —</option>
+                    <option value="">— Select a deal —</option>
                     {DEALS_LIVE.map((d: any) => (
                       <option key={d.id} value={d.id}>{d.title} · {getDealAccountName(d)}</option>
                     ))}
@@ -2463,7 +2423,12 @@ export default function CRMPage() {
               </div>
               {!canCreate && (
                 <p data-testid="quote-zero-warning" className="text-[11px] text-amber-700">
-                  A quote must have at least one line worth more than ₹0 before it can be created.
+                  {/* Name the reason that actually applies. One message covering two
+                      conditions told a rep with a priced quote and no deal that their
+                      lines were worth ₹0. */}
+                  {!(quoteLines.length > 0 && grossTotal > 0)
+                    ? "A quote must have at least one line worth more than ₹0 before it can be created."
+                    : "Select the deal this quote is for. A quote reaches its customer through its deal, and without one it has no buyer and no place of supply."}
                 </p>
               )}
             </div>
@@ -2474,7 +2439,8 @@ export default function CRMPage() {
                 data-testid="quote-create"
                 disabled={createQuoteMutation.isPending || !canCreate}
                 onClick={() => createQuoteMutation.mutate({
-                  dealId: quoteForm.dealId || undefined,
+                  // Required now; `canCreate` guarantees it is set.
+                  dealId: quoteForm.dealId,
                   items: quoteLines.map(toQuoteApiLine),
                   discountPct: quoteForm.discountPct || "0",
                   validUntil: quoteForm.validUntil || undefined,
@@ -2521,6 +2487,17 @@ export default function CRMPage() {
                 <input type="url" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={accountForm.website} onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))} />
               </div>
               <div>
+                {/* The buyer address a quote PRINTS. The column and the account
+                    detail page both existed; no form ever wrote it, so the address
+                    block on every quote PDF rendered empty. Free text and a
+                    textarea because an Indian billing address is multi-line and
+                    must survive as typed. */}
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Billing Address</label>
+                <textarea data-testid="account-billing-address" rows={3} className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background resize-y"
+                  placeholder={"Unit 4, Prestige Tech Park\nOuter Ring Road, Bengaluru 560103"} value={accountForm.billingAddress}
+                  onChange={(e) => setAccountForm(f => ({ ...f, billingAddress: e.target.value }))} />
+              </div>
+              <div>
                 {/* Place of supply. The account's state drives the intra- vs inter-state
                     GST split on every quote (quote-tax.ts resolves buyer state from here).
                     Options come from GSTIN_STATE_CODES — the IRP's vocabulary — NOT from
@@ -2546,7 +2523,7 @@ export default function CRMPage() {
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewAccount(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } if (!accountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!accountForm.website.trim()) { toast.error("Website is required"); return; } if (!accountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with https://"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry.trim(), tier: accountForm.tier, website: accountForm.website.trim(), stateCode: accountForm.stateCode || undefined, gstin: accountForm.gstin.trim() || undefined }); }}
+                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } if (!accountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!accountForm.website.trim()) { toast.error("Website is required"); return; } if (!accountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with https://"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry.trim(), tier: accountForm.tier, website: accountForm.website.trim(), billingAddress: accountForm.billingAddress.trim() || undefined, stateCode: accountForm.stateCode || undefined, gstin: accountForm.gstin.trim() || undefined }); }}
                 disabled={createAccountMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createAccountMutation.isPending ? "Creating…" : "Create Account"}</button>
@@ -2585,6 +2562,12 @@ export default function CRMPage() {
                 <input type="url" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={editAccountForm.website} onChange={(e) => setEditAccountForm(f => ({ ...f, website: e.target.value }))} />
               </div>
               <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Billing Address</label>
+                <textarea data-testid="edit-account-billing-address" rows={3} className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background resize-y"
+                  placeholder={"Unit 4, Prestige Tech Park\nOuter Ring Road, Bengaluru 560103"} value={editAccountForm.billingAddress}
+                  onChange={(e) => setEditAccountForm(f => ({ ...f, billingAddress: e.target.value }))} />
+              </div>
+              <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">State (place of supply)</label>
                 <select data-testid="edit-account-state-code" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
                   value={editAccountForm.stateCode} onChange={(e) => setEditAccountForm(f => ({ ...f, stateCode: e.target.value }))}>
@@ -2604,7 +2587,7 @@ export default function CRMPage() {
             <div className="flex gap-2 mt-4">
               <button onClick={() => setEditingAccount(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!editAccountForm.name.trim()) { toast.error("Company name is required"); return; } if (!editAccountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!editAccountForm.website.trim()) { toast.error("Website is required"); return; } if (!editAccountForm.website.startsWith("http://") && !editAccountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with http:// or https://"); return; } updateAccountMutation.mutate({ id: editingAccount.id, name: editAccountForm.name.trim(), industry: editAccountForm.industry.trim(), tier: editAccountForm.tier, website: editAccountForm.website.trim(), stateCode: editAccountForm.stateCode || undefined, gstin: editAccountForm.gstin.trim() || undefined }); }}
+                onClick={() => { if (!editAccountForm.name.trim()) { toast.error("Company name is required"); return; } if (!editAccountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!editAccountForm.website.trim()) { toast.error("Website is required"); return; } if (!editAccountForm.website.startsWith("http://") && !editAccountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with http:// or https://"); return; } updateAccountMutation.mutate({ id: editingAccount.id, name: editAccountForm.name.trim(), industry: editAccountForm.industry.trim(), tier: editAccountForm.tier, website: editAccountForm.website.trim(), billingAddress: editAccountForm.billingAddress.trim() || undefined, stateCode: editAccountForm.stateCode || undefined, gstin: editAccountForm.gstin.trim() || undefined }); }}
                 disabled={updateAccountMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateAccountMutation.isPending ? "Saving…" : "Save Changes"}</button>
@@ -2667,7 +2650,11 @@ export default function CRMPage() {
       {/* Edit Contact Modal */}
       {editingContact && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          {/* max-h + a scrolling body: this dialog carries the contact's activity
+              timeline as well as its fields, and without a cap the Save button
+              was pushed below the fold on a laptop viewport — the same defect the
+              Edit Lead dialog was fixed for in Round 9a. */}
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-body-sm font-bold">Edit Contact</h2>
               <button onClick={() => setEditingContact(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -2703,6 +2690,12 @@ export default function CRMPage() {
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.title} onChange={(e) => setEditContactForm(f => ({ ...f, title: e.target.value }))} />
               </div>
             </div>
+
+            {/* The contact's own history, same component as the other three. */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <CrmActivityTimeline scope={{ contactId: editingContact.id }} title="Activity" />
+            </div>
+
             <div className="flex gap-2 mt-4">
               <button onClick={() => setEditingContact(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
