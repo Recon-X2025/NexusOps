@@ -8,8 +8,8 @@
  *   - right: a two-month calendar that supports range selection
  *
  * The component still surfaces a single `value` string so existing
- * callers (`HubCommandCenter`, `WorkbenchReportsTab`,
- * `CommandCenterShell`, the Command Center page) don't have to manage
+ * callers (`HubCommandCenter`, `CommandCenterShell`, the Command
+ * Center page) don't have to manage
  * two state slots. Custom ranges round-trip through
  * `custom:YYYY-MM-DD:YYYY-MM-DD` ids that
  * `resolveExecutiveQuickRange` knows how to expand.

@@ -7,17 +7,16 @@
  * the primary visual's leading edge — not on every surface. The shell
  * renders the strip; primary visuals consume `accent` via context.
  *
- * The shell now also renders an `Operate` / `Analytics & Reporting` tab
- * strip. The `Operate` tab is the workbench's normal `children` (queue,
- * board, calendar, etc.). The `Reports` tab is operator-KPI-only — it's
- * deliberately distinct from the hub Overview's reports tab, which is
- * strategic.
+ * The shell renders the workbench's `children` directly. It previously
+ * carried an `Analytics & Reporting` tab, but that tab resolved each
+ * workbench to its parent FUNCTION and showed the hub's metrics rather
+ * than the persona's. Every metric it displayed is already on the hub
+ * Overview, so the tab was removed rather than re-scoped.
  */
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { ACCENT_BAR } from "./accent";
-import { WorkbenchReportsTab } from "./workbench-reports-tab";
 import type { WorkbenchAccent, WorkbenchKey } from "@coheronconnect/types";
 
 interface WorkbenchContextValue {
@@ -32,8 +31,6 @@ export function useWorkbench() {
   if (!ctx) throw new Error("useWorkbench() must be called inside <WorkbenchShell>");
   return ctx;
 }
-
-type TabId = "operate" | "reports";
 
 interface WorkbenchShellProps {
   workbenchKey: WorkbenchKey;
@@ -55,11 +52,6 @@ export function WorkbenchShell({
   headerRight,
   children,
 }: WorkbenchShellProps) {
-  const [tab, setTab] = useState<TabId>("operate");
-  const tabs: Array<{ id: TabId; label: string }> = [
-    { id: "operate", label: "Operate" },
-    { id: "reports", label: "Analytics & Reporting" },
-  ];
   return (
     <WorkbenchContext.Provider value={{ accent, workbenchKey }}>
       <div className="-m-4 min-h-full bg-[#F0F4F8] dark:bg-slate-950 p-5 md:p-6">
@@ -76,39 +68,11 @@ export function WorkbenchShell({
               {subtitle}
             </p>
           </div>
-          {headerRight && tab === "operate" ? (
+          {headerRight ? (
             <div className="flex items-center gap-2 shrink-0 mt-2 sm:mt-0">{headerRight}</div>
           ) : null}
         </div>
-        <div className="border-b border-[#001B3D]/10 dark:border-slate-700 mb-4">
-          <nav className="-mb-px flex gap-6" role="tablist" aria-label="Workbench sections">
-            {tabs.map((t) => {
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setTab(t.id)}
-                  className={cn(
-                    "py-2.5 text-caption font-semibold border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm",
-                    active
-                      ? "border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400"
-                      : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200",
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-        {tab === "operate" ? (
-          children
-        ) : (
-          <WorkbenchReportsTab workbenchKey={workbenchKey} workbenchTitle={title} />
-        )}
+        <div className="mt-4">{children}</div>
       </div>
     </WorkbenchContext.Provider>
   );
