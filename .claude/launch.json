@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "dev-no-worker",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "turbo",
+        "run",
+        "dev",
+        "--concurrency",
+        "16",
+        "--filter=@coheronconnect/web",
+        "--filter=@coheronconnect/api"
+      ],
+      "port": 3000
+    }
+  ]
+}
