@@ -107,6 +107,12 @@ test.describe("RBAC — Restricted user", () => {
     // gets the Access-Restricted panel instead of the admin shell. (Was: "shell
     // loads for members" — that test blessed the RBAC-UI read exposure.)
     await page.goto("/app/admin", { waitUntil: "load" });
+    // AuthGuard renders "Verifying session…" until auth.me resolves; the
+    // RouteGuard's panel only mounts after that. Sampling body text at `load`
+    // races the bootstrap and intermittently captures the spinner instead —
+    // that is what failed run 32486469094, and flaked on /app/financial in the
+    // run before it. Wait for the panel, then keep the original assertions.
+    await expect(page.getByText("Access Restricted")).toBeVisible();
     const body = await page.textContent("body");
     expect(body).not.toContain("Unhandled Runtime Error");
     expect(body).toContain("Access Restricted");
@@ -114,6 +120,7 @@ test.describe("RBAC — Restricted user", () => {
 
   test("employee: /app/financial is blocked by the route guard", async ({ page }) => {
     await page.goto("/app/financial", { waitUntil: "load" });
+    await expect(page.getByText("Access Restricted")).toBeVisible();
     const body = await page.textContent("body");
     expect(body).toContain("Access Restricted");
   });
