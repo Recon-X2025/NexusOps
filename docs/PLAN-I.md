@@ -262,6 +262,20 @@ created because login never succeeded.
 **sweep47 result (valid run):** 28 failed, 14 passed, 6 skipped. Varied signatures,
 so real signal. Produced queue items 1, 2 and 6.
 
+**Also this run:** created this file and pointed `CLAUDE.md` at it as the single
+session-start reference (`c7383ba`). Rewrote `CLAUDE.md` — 362 → 307 lines: removed
+the stale pointers to `docs/CONTEXT.md` and `reports/fix-plan.md`, compressed prose to
+one line per rule, and added two sections that cost real time this run — **Tooling
+traps** (`rg`/`grep` are shell functions that vanish inside a script; zsh does not
+word-split) and **E2E isolation** (`reuseExistingServer` grabs the DEV servers,
+`next dev` refuses a second instance, `API_INTERNAL_URL` defaults to the DEV API,
+`testIgnore` beats CLI args). Also recorded the standing directive as a rule.
+
+It did not get much shorter because almost every line is a rule that was learned
+expensively. Below ~300 the next cut drops rules rather than words — if it must
+shrink further, that is a decision about which lessons to stop carrying, not an
+editing task.
+
 **Not done:** every queue item above. Nothing in the queue has been started.
 
 **Next:** queue item 1 — verify the nine round-trips by hand before planning
