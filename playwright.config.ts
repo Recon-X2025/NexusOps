@@ -17,7 +17,14 @@ export default defineConfig({
   // create/round-trip probes across every screen to surface candidates for a
   // human to triage, so as CI gates they fail by design — 23 of the 24 E2E
   // failures on run 32486469094 were sweep47, and they blocked the deploy.
-  // Run them deliberately instead:  npx playwright test e2e/sweep47-batch1.spec.ts
+  // Naming the files on the CLI does NOT defeat this — Playwright applies
+  // testIgnore before it reads arguments, so you get "0 tests in 0 files". To
+  // run them, point --config at a config that spreads this one and sets
+  // `testIgnore: []` + `testMatch: "**/sweep47-*.spec.ts"`. That config must
+  // also run the BUILT servers (`next start` / `node dist`) on spare ports and
+  // set API_INTERNAL_URL to the spare API port: `next dev` refuses to start a
+  // second instance, and the web proxy otherwise defaults to :3001, which is
+  // the DEV API on 5434 — these probes create records.
   // Do NOT "fix" them to go green; a green sweep47 is a broken sweep47.
   testIgnore: ["**/sweep47-*.spec.ts"],
   fullyParallel: false,         // Run sequentially (tests share state)
