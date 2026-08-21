@@ -279,7 +279,17 @@ radius is the honest gate.
 - Read files before editing; never propose changes to unread code.
 - **NEVER state that a file is committed, a commit exists, or a change is deployed without verifying
   it.** Quote `git log`/`status`/`show`. A commit hash you have not read is a fabrication.
+- **NO COMMIT WITHOUT A BUILD.** Run `pnpm build` before every commit, not just `lint:cold`.
+  Read the cache line: `Cached: N` where N < total means it genuinely rebuilt and the change
+  compiles; **fully cached means the build proved nothing** — it only confirms the change touched
+  no build input, which is the expected result for a docs-only commit and a red flag for any other.
+- **Do not push while a CI run is in flight.** Check `gh run list --branch main --limit 1` first.
+  A push to `main` deploys, and stacking one deploy on another in progress is how you get an
+  unattributable failure.
 - Don't commit unless asked. Stage specific files; never `git add -A`. Never commit secrets.
+- **`git add` fails atomically on a missing pathspec** — passing a pre-rename path silently stages
+  nothing. Never suppress stderr on a command whose failure matters, and verify the commit's
+  diffstat rather than its exit code.
 - **Other sessions may be editing this tree.** Confirm which process holds a port and which
   `DATABASE_URL` it has. Record a `git status` baseline at session start and diff against it at the
   end to prove you disturbed nothing else.
