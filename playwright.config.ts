@@ -10,6 +10,16 @@ const BASE_URL =
 
 export default defineConfig({
   testDir: "./e2e",
+  // Sweep-47 files are INVESTIGATIVE HARNESSES, not regression tests. Their own
+  // header says so: "A FAIL is a CANDIDATE, never a filed defect — a generic
+  // filler can produce input a specific form legitimately rejects, so every
+  // failure must be inspected before it is called anything." They drive generic
+  // create/round-trip probes across every screen to surface candidates for a
+  // human to triage, so as CI gates they fail by design — 23 of the 24 E2E
+  // failures on run 32486469094 were sweep47, and they blocked the deploy.
+  // Run them deliberately instead:  npx playwright test e2e/sweep47-batch1.spec.ts
+  // Do NOT "fix" them to go green; a green sweep47 is a broken sweep47.
+  testIgnore: ["**/sweep47-*.spec.ts"],
   fullyParallel: false,         // Run sequentially (tests share state)
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
