@@ -217,6 +217,21 @@ tracker, e-sign events, whistleblower settings, sector licences, legal hold.
 Not wiring. Each carries real regulatory semantics — filing formats, deadlines,
 statutory content. Sequence per obligation, not as a batch.
 
+### 11. A worker errors on every CI E2E run and nothing notices
+
+`[workflow:webhook] Job repeat:… failed: relation "webhook_deliveries" does not exist`
+appears in the E2E job of run `32504364037`. The run passed, so nobody sees it.
+
+The table is not missing: it is in `schema/integrations.ts`, in migration `0000`,
+written by `webhookDispatchWorkflow.ts:107`, and present on dev (5434). The job id
+is `repeat:…` — a BullMQ **repeatable** definition persisted in Redis, firing against
+a database that no longer matches the one it was scheduled against.
+
+Two things to establish: whether repeatable job definitions outlive a test-DB reset
+(and therefore whether this is CI-only), and whether the same can happen in
+production where Redis persists across deploys. **READ IN CODE ONLY** — not
+reproduced.
+
 ### Open product decision — ESG
 
 `/app/esg` was deleted (`0798c7c`): 169 lines, zero API calls, every figure a
@@ -279,6 +294,15 @@ It did not get much shorter because almost every line is a rule that was learned
 expensively. Below ~300 the next cut drops rules rather than words — if it must
 shrink further, that is a decision about which lessons to stop carrying, not an
 editing task.
+
+**Deployed:** run `32504364037` green end to end — image `nexusops/api:0798c7c`,
+`✓ API healthy`, matching `origin/main`. E2E 135 passed in 5.7m with the sweep47
+quarantine holding. That run's log produced queue item 11.
+
+**Rules added to CLAUDE.md this run:** no commit without a build (and read the cache
+line — a fully cached build proves nothing); do not push while a CI run is in flight;
+`git add` fails atomically on a missing pathspec, so verify a commit's diffstat rather
+than its exit code. All three were written after breaking them.
 
 **Not done:** every queue item above. Nothing in the queue has been started.
 
