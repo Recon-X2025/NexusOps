@@ -64,8 +64,12 @@ export function FinancePrimary({ payload, granularity }: HubPrimaryProps) {
             value={formatValue(burn?.current, burn?.unit, burn?.state)}
             state={burn?.state}
           />
+          {/* The metric id is `financial.gross_margin`, but the calculation is
+              (income - expenses) / income INCLUDING depreciation — a NET margin.
+              Label follows the metric's own label; the id is left alone
+              deliberately (renaming it is a finance-owner decision). */}
           <HubStatTile
-            label="Gross Margin"
+            label="Net Margin % (P&L proxy)"
             value={formatValue(margin?.current, margin?.unit ?? "percent", margin?.state)}
             state={margin?.state}
           />

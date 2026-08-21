@@ -1,5 +1,7 @@
 "use client";
 
+import { formatInr } from "@/lib/utils";
+
 import { useState, useEffect } from "react";
 import { Building2, Plus, Star, AlertTriangle, X, Upload } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -74,8 +76,8 @@ export default function VendorsPage() {
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [vendorForm, setVendorForm] = useState({ 
-    name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "",
-    gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: ""
+    name: "", contactEmail: "", contactPhone: "", contactPersonName: "", address: "", paymentTerms: "", notes: "",
+    gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: "", rating: ""
   });
   // @ts-ignore
   const importVendors = trpc.ingest.importVendors.useMutation();
@@ -90,14 +92,19 @@ export default function VendorsPage() {
   // @ts-ignore
   const contractsQuery = trpc.contracts.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("contracts.list", undefined));
   // @ts-ignore
+  // Headline figures come from the server, aggregated in SQL over the whole org.
+  // They were previously reduced client-side over `vendors.list({ limit: 50 })`,
+  // which silently turns every tile into "the first 50 vendors".
+  const vendorMetricsQuery = trpc.vendors.metrics.useQuery(undefined, mergeTrpcQueryOpts("vendors.metrics", undefined));
+  // @ts-ignore
   const createVendorMutation = trpc.vendors.create.useMutation({
     onSuccess: () => {
       vendorsQuery.refetch();
       toast.success("Vendor created");
       setShowAddVendor(false);
       setVendorForm({ 
-        name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "",
-        gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: ""
+        name: "", contactEmail: "", contactPhone: "", contactPersonName: "", address: "", paymentTerms: "", notes: "",
+        gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: "", rating: ""
       });
     },
     onError: (e: any) => { toast.error(e.message || "Failed to create vendor"); },
@@ -107,8 +114,7 @@ export default function VendorsPage() {
 
   const vendors = vendorsQuery.data?.items ?? [];
   const contracts = contractsQuery.data?.items ?? [];
-  const totalSpend = vendors.reduce((s: number, v: any) => s + (v.spend ?? v.annualSpend ?? 0), 0);
-  const atRisk = vendors.filter((v: any) => v.status === "at_risk" || v.status === "under_review").length;
+  const vendorMetrics = vendorMetricsQuery.data;
 
   return (
     <div className="flex flex-col gap-3">
@@ -190,6 +196,19 @@ export default function VendorsPage() {
                 <label className="text-[11px] text-muted-foreground">Contact Phone</label>
                 <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactPhone} onChange={(e) => setVendorForm(f => ({ ...f, contactPhone: e.target.value }))} />
               </div>
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">Contact Person</label>
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactPersonName} onChange={(e) => setVendorForm(f => ({ ...f, contactPersonName: e.target.value }))} />
+              </div>
+              <div>
+                {/*
+                  * CSAT reads `rating`. The column and the API field both already
+                  * existed, but no form wrote to them, so all 23 rows sat NULL and the
+                  * star column was structurally incapable of showing anything.
+                  */}
+                <label className="text-[10px] uppercase text-muted-foreground">CSAT Rating (0–5)</label>
+                <input type="number" min="0" max="5" step="0.1" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.rating} onChange={(e) => setVendorForm(f => ({ ...f, rating: e.target.value }))} />
+              </div>
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Address</label>
                 <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.address} onChange={(e) => setVendorForm(f => ({ ...f, address: e.target.value }))} />
@@ -217,6 +236,8 @@ export default function VendorsPage() {
                   msmeUdyamNumber: vendorForm.isMsme ? (vendorForm.msmeUdyamNumber || undefined) : undefined,
                   contactEmail: vendorForm.contactEmail || undefined, 
                   contactPhone: vendorForm.contactPhone || undefined, 
+                  contactPersonName: vendorForm.contactPersonName || undefined,
+                  rating: vendorForm.rating || undefined,
                   address: vendorForm.address || undefined, 
                   paymentTerms: vendorForm.paymentTerms || undefined, 
                   notes: vendorForm.notes || undefined 
@@ -285,10 +306,13 @@ export default function VendorsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
-          { label: "Total Vendor Spend",  value: `₹${(totalSpend / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
-          { label: "Active Vendors",      value: vendors.filter((v: any) => v.status === "active").length, color: "text-green-700" },
-          { label: "At Risk / Review",    value: atRisk, color: atRisk > 0 ? "text-red-700" : "text-green-700" },
-          { label: "Contracts Expiring (90d)", value: contracts.filter((c: any) => c.endDate && new Date(c.endDate) < new Date(Date.now() + 90*86400000)).length, color: "text-orange-700" },
+          // `₹${x/1e6}M` rendered ₹3,36,300 as "₹0.3M". formatInr is the repo's
+          // single source of truth for whole-rupee display; it groups Indian-style
+          // instead of abbreviating real money down to a rounding artefact.
+          { label: "Total Vendor Spend",  value: vendorMetrics ? formatInr(vendorMetrics.totalSpend) : "—", color: "text-foreground/80" },
+          { label: "Active Vendors",      value: vendorMetrics ? vendorMetrics.activeVendors : "—", color: "text-green-700" },
+          { label: "At Risk / Review",    value: vendorMetrics ? vendorMetrics.atRisk : "—", color: (vendorMetrics?.atRisk ?? 0) > 0 ? "text-red-700" : "text-green-700" },
+          { label: "Contracts Expiring (90d)", value: vendorMetrics ? vendorMetrics.contractsExpiring90d : "—", color: "text-orange-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
@@ -316,13 +340,18 @@ export default function VendorsPage() {
                 <th>Vendor</th>
                 <th>Category</th>
                 <th>Tier</th>
-                <th>Annual Spend</th>
-                <th className="text-center">Contracts</th>
-                <th className="text-center">Open Issues</th>
+                <th className="text-right">Total Spend</th>
+                {/*
+                  * "Contracts", "Open Issues" and "Renewal" were REMOVED, not renamed.
+                  * `contracts` has no vendor_id — only a free-text `counterparty`, which
+                  * matches 0 of 23 vendor names in this org — and `tickets` carries no
+                  * vendor reference at all. There is no join that yields these numbers
+                  * without inventing one, so the columns are gone rather than left
+                  * rendering a permanent, confident 0.
+                  */}
                 <th>SLA Score</th>
                 <th className="text-center">CSAT</th>
                 <th>Status</th>
-                <th>Renewal</th>
               </tr>
             </thead>
             <tbody>
@@ -331,7 +360,7 @@ export default function VendorsPage() {
                 : vendors.length === 0
                 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-8 text-muted-foreground/70 text-[12px]">
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground/70 text-[12px]">
                       No vendors found.
                     </td>
                   </tr>
@@ -346,25 +375,28 @@ export default function VendorsPage() {
                     <td>
                       <div>
                         <div className="font-medium text-foreground">{v.name}</div>
-                        <div className="text-[10px] text-muted-foreground/70">{Array.isArray(v.contacts) ? v.contacts[0] : (v.primaryContact ?? "")}</div>
+                        <div className="text-[10px] text-muted-foreground/70">{Array.isArray(v.contacts) ? v.contacts[0] : (v.contactPersonName ?? "")}</div>
                       </div>
                     </td>
                     <td><span className="status-badge text-muted-foreground bg-muted">{v.category}</span></td>
                     <td><span className={`status-badge ${TIER_COLOR[v.tier] ?? "text-muted-foreground bg-muted"}`}>{v.tier}</span></td>
-                    <td className="font-mono text-[11px] text-foreground/80">₹{((v.spend ?? v.annualSpend ?? 0) / 1000).toFixed(0)}K</td>
-                    <td className="text-center text-muted-foreground">{v.contracts ?? v.contractCount ?? 0}</td>
-                    <td className="text-center">{(v.activeIssues ?? 0) > 0 ? <span className="text-red-700 font-bold">{v.activeIssues}</span> : <span className="text-green-600">0</span>}</td>
-                    <td><ScoreBar value={v.slaScore ?? 0} /></td>
+                    <td className="font-mono text-[11px] text-foreground/80 text-right">{formatInr(v.spend ?? 0)}</td>
+                    {/*
+                      * slaScore is null when the vendor has no dated goods receipt to
+                      * measure against. Render "—", never 0% — a vendor with no
+                      * delivery history has no score, and 0% would assert it never
+                      * delivered on time.
+                      */}
+                    <td>{v.slaScore == null ? <span className="text-muted-foreground/60">—</span> : <ScoreBar value={v.slaScore} />}</td>
                     <td className="text-center">
                       <div className="flex items-center gap-0.5 justify-center">
                         {Array.from({length:5}).map((_,i) => (
-                          <Star key={i} className={`w-3 h-3 ${i < Math.round(v.csat ?? 0) ? "text-yellow-400 fill-yellow-400" : "text-slate-200"}`} />
+                          <Star key={i} className={`w-3 h-3 ${i < Math.round(Number(v.rating ?? 0)) ? "text-yellow-400 fill-yellow-400" : "text-slate-200"}`} />
                         ))}
-                        <span className="text-[10px] text-muted-foreground ml-0.5">{v.csat ?? 0}</span>
+                        <span className="text-[10px] text-muted-foreground ml-0.5">{v.rating == null ? "—" : Number(v.rating)}</span>
                       </div>
                     </td>
                     <td><span className={`status-badge capitalize ${STATUS_COLOR[v.status] ?? "text-muted-foreground bg-muted"}`}>{(v.status ?? "").replace(/_/g," ")}</span></td>
-                    <td className={`text-[11px] ${v.renewalDate && new Date(v.renewalDate) < new Date(Date.now() + 90*86400000) ? "text-orange-600 font-semibold" : "text-muted-foreground"}`}>{v.renewalDate ?? "—"}</td>
                   </tr>
                 ))
               }

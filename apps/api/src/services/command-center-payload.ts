@@ -526,10 +526,10 @@ type FlowSeed = {
  * (so the "Throughput" panel shows several lines instead of one). When
  * the function's metric pool can't supply paired created/resolved IDs,
  * `buildHubPayload` backfills additional rows from any `volume`
- * dimension metrics that resolved with non-zero values, treating
- * `current` as created and `previous` (if any) as resolved. This is the
- * most honest signal we can produce given the current registry — we
- * never fabricate IDs that don't exist.
+ * dimension metrics that resolved with a non-zero value AND a
+ * `previous` value to serve as the resolved side. Metrics without
+ * `previous` are skipped rather than padded — we never fabricate IDs
+ * that don't exist, and never a resolved figure either.
  */
 const HUB_FLOW_SEEDS: Partial<Record<FunctionKey, FlowSeed[]>> = {
   it_services: [
@@ -556,20 +556,6 @@ const HUB_FLOW_SEEDS: Partial<Record<FunctionKey, FlowSeed[]>> = {
       createdId: "devops.deploys_production_30d",
       resolvedId: "devops.deploys_production_30d",
       resolvedRateId: "devops.deploy_success_rate",
-    },
-  ],
-  security: [
-    {
-      label: "Incidents",
-      createdId: "security.incidents_open_total",
-      resolvedId: "security.incidents_open_total",
-    },
-  ],
-  finance: [
-    {
-      label: "Cash burn",
-      createdId: "financial.burn_rate",
-      resolvedId: "financial.burn_rate",
     },
   ],
 };
@@ -800,10 +786,10 @@ export async function buildHubPayload(input: {
   //   1. Use the per-function HUB_FLOW_SEEDS list to populate explicit
   //      created/resolved pairs (real metric IDs only — never fabricated).
   //   2. Backfill with up to 3 additional rows from any `volume` dimension
-  //      metric that resolved with a non-zero current value, treating
-  //      `current` as created and `previous` as resolved (so the bar
-  //      still has shape). This stops the Throughput panel from
-  //      showing a single line for hubs whose flow seeds are sparse.
+  //      metric that resolved with a non-zero current value AND carries a
+  //      `previous` value to act as the resolved side. Metrics with no
+  //      `previous` are skipped: a padded row would compare a number to
+  //      itself and render as perfect closure that never happened.
   const flow: FlowItem[] = [];
   const usedFlowIds = new Set<string>();
   const seeds = HUB_FLOW_SEEDS[fn] ?? [];
@@ -827,11 +813,16 @@ export async function buildHubPayload(input: {
       .filter((d) => d.dimension === "volume" && !usedFlowIds.has(d.id))
       .map((d) => ({ d, v: byId[d.id]! }))
       .filter(({ v }) => v.state !== "no_data" && Math.abs(v.current ?? 0) > 0)
+      // A flow row is an in/out pair. Without a prior-period value there is no
+      // "out" to show, and padding it with `current` renders a 1:1 bar that
+      // reads as perfect closure. Skip instead — an empty flow section is the
+      // honest output. Only `hr.headcount_active` supplies `previous` today.
+      .filter(({ v }) => v.previous != null)
       .sort((a, b) => Math.abs(b.v.current ?? 0) - Math.abs(a.v.current ?? 0))
       .slice(0, 3 - flow.length);
     for (const { d, v } of volumeMetrics) {
       const created = Math.round(v.current);
-      const resolved = v.previous != null ? Math.round(v.previous) : Math.round(v.current);
+      const resolved = Math.round(v.previous!);
       flow.push({ function: fn, label: d.label, created, resolved });
     }
   }

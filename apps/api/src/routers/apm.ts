@@ -11,7 +11,20 @@ import {
   count,
   sum,
   avg,
+  inArray,
+  sql,
 } from "@coheronconnect/db";
+
+/**
+ * Score at or above which an application counts as "high tech debt".
+ *
+ * `tech_debt_score` is a 0-100 integer. The UI speaks in categorical bands
+ * (critical/high/medium/low) but NO mapping from score to band exists anywhere
+ * in this repo — the bands are only a TypeScript union on the page. This
+ * constant is therefore a CHOSEN boundary, not a recovered one, and the tile
+ * carries it in its label so the number is never read without its definition.
+ */
+const HIGH_TECH_DEBT_MIN_SCORE = 70;
 
 export const apmRouter = router({
   applications: router({
@@ -57,12 +70,19 @@ export const apmRouter = router({
         name: z.string().min(1),
         description: z.string().optional(),
         category: z.string().optional(),
-        lifecycle: z.enum(["evaluating", "investing", "sustaining", "harvesting", "retiring", "obsolete"]).default("sustaining"),
-        cloudReadiness: z.enum(["cloud_native", "lift_shift", "replatform", "rearchitect", "retire", "not_assessed"]).default("not_assessed"),
+        lifecycle: z.enum(appLifecycleEnum.enumValues).default("sustaining"),
+        cloudReadiness: z.enum(cloudReadinessEnum.enumValues).default("not_assessed"),
         vendor: z.string().optional(),
         department: z.string().optional(),
         ownerId: z.string().uuid().optional(),
         annualCost: z.string().optional(),
+        // These three feed tiles on /app/apm but `create` accepted none of them,
+        // so a row could only ever be born with the column defaults
+        // (health 70, users 0, debt 0) and then edited — and `usersCount` was
+        // accepted by neither create NOR update, so it could not be set at all.
+        healthScore: z.coerce.number().int().min(0).max(100).optional(),
+        techDebtScore: z.coerce.number().int().min(0).max(100).optional(),
+        usersCount: z.coerce.number().int().min(0).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -76,9 +96,21 @@ export const apmRouter = router({
     update: permissionProcedure("analytics", "write")
       .input(z.object({
         id: z.string().uuid(),
+        // `name`, `category`, `vendor` and `department` were accepted by CREATE
+        // but not by UPDATE, so a typo in any of them was uncorrectable through
+        // the API. `usersCount` was accepted by neither.
+        name: z.string().min(1).optional(),
+        category: z.string().optional(),
+        vendor: z.string().optional(),
+        department: z.string().optional(),
         lifecycle: z.enum(appLifecycleEnum.enumValues).optional(),
-        healthScore: z.coerce.number().optional(),
-        techDebtScore: z.coerce.number().optional(),
+        // 0-100 is the range the UI already assumes: the health bar is rendered
+        // as `width: {healthScore}%` and the tech-debt tile bands on >= 70.
+        // Neither bound was enforced anywhere — not in zod, and there is no
+        // CHECK constraint on the table (queried).
+        healthScore: z.coerce.number().int().min(0).max(100).optional(),
+        techDebtScore: z.coerce.number().int().min(0).max(100).optional(),
+        usersCount: z.coerce.number().int().min(0).optional(),
         cloudReadiness: z.enum(cloudReadinessEnum.enumValues).optional(),
         annualCost: z.string().optional(),
         description: z.string().optional(),
@@ -118,14 +150,48 @@ export const apmRouter = router({
         return acc;
       }, {});
 
+      /*
+       * These three were read out of `byLifecycle` under the keys "retire",
+       * "sunset" and "active". None of those is a value of the lifecycle enum
+       * (evaluating | investing | sustaining | harvesting | retiring | obsolete),
+       * so every lookup missed and all three returned 0 for every org, forever —
+       * while the same map sitting beside them held the real counts. Two of them
+       * were not lifecycle questions at all: tech debt lives on `tech_debt_score`
+       * and cloud readiness on `cloud_readiness`. Each is now counted in SQL
+       * against the column that actually answers it, org-scoped.
+       */
+      const [retireRow] = await db
+        .select({ c: count() })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.orgId, org!.id),
+            inArray(applications.lifecycle, ["retiring", "harvesting", "obsolete"]),
+          ),
+        );
+      const [debtRow] = await db
+        .select({ c: count() })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.orgId, org!.id),
+            sql`${applications.techDebtScore} >= ${HIGH_TECH_DEBT_MIN_SCORE}`,
+          ),
+        );
+      const [cloudRow] = await db
+        .select({ c: count() })
+        .from(applications)
+        .where(and(eq(applications.orgId, org!.id), eq(applications.cloudReadiness, "cloud_native")));
+
       return {
         total: Number(total),
         avgHealthScore: avgHealth ? Math.round(Number(avgHealth)) : 0,
         totalAnnualCost: totalCost ? Number(totalCost) : 0,
         byLifecycle,
-        retireCandidates: byLifecycle["retire"] ?? 0,
-        highTechDebt: byLifecycle["sunset"] ?? 0,
-        cloudNative: byLifecycle["active"] ?? 0,
+        retireCandidates: Number(retireRow?.c ?? 0),
+        highTechDebt: Number(debtRow?.c ?? 0),
+        highTechDebtMinScore: HIGH_TECH_DEBT_MIN_SCORE,
+        cloudNative: Number(cloudRow?.c ?? 0),
       };
     }),
   }),

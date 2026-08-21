@@ -8,6 +8,10 @@ type Payload = inferRouterOutputs<AppRouter>["commandCenter"]["getView"];
 
 export function CommandCenterFlow({ payload }: { payload: Payload }) {
   const flow = payload.flow || [];
+  // reduce() over an empty array returns 0, which renders as a measured "0 in,
+  // 0 out" rather than an absence. Match the treatment `operationalLoad` already
+  // gives the rate: show an em dash when there is nothing to total.
+  const hasFlow = flow.length > 0;
   const totalCreated = flow.reduce((sum, item) => sum + (item.created || 0), 0);
   const totalResolved = flow.reduce((sum, item) => sum + (item.resolved || 0), 0);
 
@@ -18,9 +22,9 @@ export function CommandCenterFlow({ payload }: { payload: Payload }) {
   const operationalLoad = fulfillmentRate === null ? "—" : `${fulfillmentRate}%`;
 
   const flowItems = [
-    { label: "Throughput (Created)", value: totalCreated.toLocaleString(), color: "#00BCFF" },
+    { label: "Throughput (Created)", value: hasFlow ? totalCreated.toLocaleString() : "—", color: "#00BCFF" },
     { label: "Fulfillment Rate", value: operationalLoad, color: "#004FFB" },
-    { label: "Fulfillment (Resolved)", value: totalResolved.toLocaleString(), color: "#00C971" },
+    { label: "Fulfillment (Resolved)", value: hasFlow ? totalResolved.toLocaleString() : "—", color: "#00C971" },
   ];
 
   return (
