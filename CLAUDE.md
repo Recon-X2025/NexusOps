@@ -26,8 +26,18 @@ pnpm + Turborepo monorepo, Node `>=20`.
 - `packages/payroll-math` — pure India payroll/tax/GST money-math
 - `packages/types`, `validators`, `ui`, `metrics`, `config`, `cli`
 
-For current state — what is live, what is uncommitted, what works — read `docs/CONTEXT.md`.
-For the work queue and open risks, `reports/fix-plan.md`.
+## Start every session here
+
+**Read the highest-numbered `docs/PLAN-*.md` — currently `docs/PLAN-I.md`. It is the
+only reference file a new session needs.** It carries current state, the queue in
+priority order, and a run log. It is updated at the END of every run, including runs
+that changed nothing. When it reaches 500 lines it rolls over to the next numeral,
+carrying state and queue forward and leaving the run log behind; the new file becomes
+the one to read.
+
+`docs/CONTEXT.md` and `reports/fix-plan.md` are **superseded and stale** — `fix-plan.md`
+claims a payroll effective-date fix that is not in the code. Keep them for history;
+do not plan from them.
 
 ---
 
