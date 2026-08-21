@@ -128,50 +128,62 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       },
     ],
   },
-  {
-    id: "security_compliance",
-    label: "Security & Compliance",
-    icon: "ShieldCheck",
-    defaultExpanded: false,
-    modules: ["security", "grc", "approvals"],
-    items: [
-      { label: "Overview", href: "/app/security-compliance", icon: "LayoutDashboard", module: "security" },
-      { label: "SecOps", href: "/app/workbench/secops", icon: "Shield", module: "workbench" },
-      { label: "GRC", href: "/app/workbench/grc", icon: "Scale", module: "workbench", dividerAfter: true },
-      {
-        label: "Security Operations",
-        href: "/app/security",
-        icon: "Shield",
-        badge: "security_incidents_open",
-        module: "security",
-      },
-      { label: "Risk & Compliance", href: "/app/grc", icon: "Scale", module: "grc" },
-      {
-        label: "DPDP Privacy",
-        href: "/app/dpdp",
-        icon: "ShieldCheck",
-        module: "compliance",
-        // All three children removed: "Data Subject Requests" repeated this item's own
-        // href, and the other two were ?tab= into the same host page. The three tabs on
-        // /app/dpdp are the sub-navigation. Verified by running that /app/dpdp,
-        // ?tab=consent and ?tab=breach each still land on their tab, so bookmarks hold.
-      },
-      // ESG Reporting removed from nav — the page is fabricated data behind
-      // FEATURE_ESG (off by default). Restore this entry when it reads real data.
-      {
-        label: "Approvals & Workflow",
-        href: "/app/approvals",
-        icon: "CheckSquare",
-        badge: "approvals_pending",
-        module: "approvals",
-        // "Approval Queue" removed — it repeated this item's own href (/app/approvals).
-        // Flow Designer is a distinct route and stays.
-        children: [
-          { label: "Flow Designer", href: "/app/flows" },
-        ],
-      },
-    ],
-  },
+  // ── Security & Compliance — HIDDEN FROM NAVIGATION ────────────────────────
+  // The whole group is commented out of SIDEBAR_GROUPS, not deleted. Every route
+  // below still exists and still resolves; they are reachable by URL, by the
+  // command palette (⌘K), and by in-page links from other screens. Restore by
+  // uncommenting this block — nothing else has to change.
+  //
+  // Consequence to be aware of before restoring or leaving as-is:
+  //   /app/approvals and /app/flows were reachable ONLY from this group's
+  //   "Approvals & Workflow" item and its "Flow Designer" child. Hiding the group
+  //   makes /app/flows URL-only (the command palette does not list it), and leaves
+  //   /app/approvals reachable only via ⌘K.
+  //
+  // {
+  //   id: "security_compliance",
+  //   label: "Security & Compliance",
+  //   icon: "ShieldCheck",
+  //   defaultExpanded: false,
+  //   modules: ["security", "grc", "approvals"],
+  //   items: [
+  //     { label: "Overview", href: "/app/security-compliance", icon: "LayoutDashboard", module: "security" },
+  //     { label: "SecOps", href: "/app/workbench/secops", icon: "Shield", module: "workbench" },
+  //     { label: "GRC", href: "/app/workbench/grc", icon: "Scale", module: "workbench", dividerAfter: true },
+  //     {
+  //       label: "Security Operations",
+  //       href: "/app/security",
+  //       icon: "Shield",
+  //       badge: "security_incidents_open",
+  //       module: "security",
+  //     },
+  //     { label: "Risk & Compliance", href: "/app/grc", icon: "Scale", module: "grc" },
+  //     {
+  //       label: "DPDP Privacy",
+  //       href: "/app/dpdp",
+  //       icon: "ShieldCheck",
+  //       module: "compliance",
+  //       // All three children removed: "Data Subject Requests" repeated this item's own
+  //       // href, and the other two were ?tab= into the same host page. The three tabs on
+  //       // /app/dpdp are the sub-navigation. Verified by running that /app/dpdp,
+  //       // ?tab=consent and ?tab=breach each still land on their tab, so bookmarks hold.
+  //     },
+  //     // ESG Reporting removed from nav — the page is fabricated data behind
+  //     // FEATURE_ESG (off by default). Restore this entry when it reads real data.
+  //     {
+  //       label: "Approvals & Workflow",
+  //       href: "/app/approvals",
+  //       icon: "CheckSquare",
+  //       badge: "approvals_pending",
+  //       module: "approvals",
+  //       // "Approval Queue" removed — it repeated this item's own href (/app/approvals).
+  //       // Flow Designer is a distinct route and stays.
+  //       children: [
+  //         { label: "Flow Designer", href: "/app/flows" },
+  //       ],
+  //     },
+  //   ],
+  // },
   {
     id: "people_workplace",
     label: "People & Workplace",
