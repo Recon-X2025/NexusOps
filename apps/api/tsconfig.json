@@ -17,6 +17,7 @@
     "dist",
     "src/migrate.ts",
     "src/__tests__",
+    "src/__auditrun__",
     "src/**/*.test.ts"
   ]
 }
