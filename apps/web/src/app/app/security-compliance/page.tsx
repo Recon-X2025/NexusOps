@@ -9,7 +9,7 @@ export default function SecurityComplianceHubPage() {
     <HubCommandCenter
       functionKey="security"
       title="Security & Compliance"
-      subtitle="Hub overview · posture across SecOps, GRC, ESG, approvals"
+      subtitle="Hub overview · posture across SecOps, GRC, approvals"
       footerQuote="Risk that isn't measured isn't managed — quantify, then act."
     />
   );

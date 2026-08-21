@@ -125,8 +125,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   webhooks: "Webhooks",
   "api-keys": "API Keys",
   runs: "Runs",
-  // Setup & ESG
-  esg: "ESG Reporting",
+  // Setup
   "onboarding-wizard": "Setup Wizard",
   "custom-fields": "Custom Fields",
   // Virtual / AI

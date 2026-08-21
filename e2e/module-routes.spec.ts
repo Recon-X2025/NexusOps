@@ -65,7 +65,6 @@ const ADMIN_MODULE_ROUTES = [
   "/app/settings/webhooks",
   "/app/settings/api-keys",
   "/app/expenses",
-  "/app/esg",
   "/app/strategy",
   "/app/strategy-projects",
   "/app/finance-procurement",

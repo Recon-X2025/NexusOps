@@ -62,7 +62,6 @@ const ROUTE_MODULE_RULES: ReadonlyArray<{ prefix: string; module: Module }> = [
   { prefix: "/app/grc", module: "grc" },
   { prefix: "/app/dpdp", module: "compliance" },
   { prefix: "/app/compliance", module: "compliance" },
-  { prefix: "/app/esg", module: "grc" },
   { prefix: "/app/approvals", module: "approvals" },
   { prefix: "/app/flows", module: "approvals" },
   { prefix: "/app/workflows", module: "approvals" },

@@ -168,8 +168,6 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
   //       // /app/dpdp are the sub-navigation. Verified by running that /app/dpdp,
   //       // ?tab=consent and ?tab=breach each still land on their tab, so bookmarks hold.
   //     },
-  //     // ESG Reporting removed from nav — the page is fabricated data behind
-  //     // FEATURE_ESG (off by default). Restore this entry when it reads real data.
   //     {
   //       label: "Approvals & Workflow",
   //       href: "/app/approvals",

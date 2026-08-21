@@ -46,7 +46,7 @@ const ROUTES = [
   "/app/changes/new", "/app/cmdb", "/app/command", "/app/compliance",
   "/app/contracts", "/app/crm", "/app/csm", "/app/customer-sales",
   "/app/dashboard", "/app/developer-ops", "/app/devops", "/app/dpdp",
-  "/app/employee-center", "/app/employee-portal", "/app/escalations", "/app/esg",
+  "/app/employee-center", "/app/employee-portal", "/app/escalations",
   "/app/events", "/app/expenses", "/app/finance-procurement",
   "/app/finance/accounting/balance-sheet", "/app/finance/accounting/coa",
   "/app/finance/accounting/gstin", "/app/finance/accounting/gstr",
