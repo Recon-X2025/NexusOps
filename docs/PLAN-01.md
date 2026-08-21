@@ -1,4 +1,4 @@
-# PLAN — I
+# PLAN — 01
 
 **This is the single reference file for a new session. Read it first.**
 
@@ -9,11 +9,15 @@ happens next* lives here.
 
 - **Updated at the END of every run.** A run that changes nothing still gets a log
   entry saying so.
-- **Hard cap 500 lines.** When this file reaches it, create `docs/PLAN-II.md`,
+- **Hard cap 500 lines.** When this file reaches it, create `docs/PLAN-02.md`,
   carry CURRENT STATE + THE QUEUE forward, leave the RUN LOG behind, and put a
-  pointer at the top of the retired file. Then `docs/PLAN-II.md` becomes the file
-  a new session reads. Same again for III, IV, …
-- **A new session reads the highest-numbered `docs/PLAN-*.md`.** Nothing else.
+  pointer at the top of the retired file. Then `docs/PLAN-02.md` becomes the file
+  a new session reads. Same again for 03, 04, …
+- **Numbering is zero-padded two digits so a plain `sort` finds the newest.** Roman
+  numerals do not sort — `IX` collates before `V`.
+- **A new session finds this file by rule, not by name:**
+  `ls docs/PLAN-*.md | sort | tail -1`. `CLAUDE.md` carries that rule, so it never
+  needs editing when the plan rolls over.
 - Older `PLAN-*` files are history. Their "done" claims are unverified — treat
   them the way `CLAUDE.md` says to treat `reports/fix-plan.md`.
 

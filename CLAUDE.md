@@ -5,10 +5,26 @@ Operating rules for AI agents in this repo. **Rules, not status** — no SHAs, n
 
 ## Start here
 
-**Read the highest-numbered `docs/PLAN-*.md` — currently `docs/PLAN-I.md`.** It is the only
-reference a new session needs: current state, the queue, and a run log. Update it at the END of
-every run, including runs that changed nothing. At 500 lines it rolls to the next numeral,
-carrying state and queue forward and leaving the run log behind.
+```
+ls docs/PLAN-*.md | sort | tail -1
+```
+
+**Read that file. It is the only reference a new session needs** — current state, the queue in
+priority order, and a run log.
+
+Deliberately a rule, not a filename: this file must never need editing when the plan rolls over.
+
+- Update the plan at the END of every run, including runs that changed nothing.
+- At 500 lines create the next file — **zero-padded two digits**, `PLAN-02.md`, `PLAN-03.md`, so a
+  plain `sort` always finds the newest. (Roman numerals do not sort: `IX` collates before `V`.)
+  Carry CURRENT STATE and THE QUEUE forward, leave the RUN LOG behind, and put a pointer at the top
+  of the retired file.
+- Older `PLAN-*` files are history. Their "done" claims are unverified.
+
+**This file is rules; the plan is state.** Rules live here because this file is loaded
+automatically every session — state does not, because state changes and stale rules are worse than
+no rules. If you find yourself editing CLAUDE.md to record something that changed, it belongs in
+the plan instead.
 
 `docs/CONTEXT.md` and `reports/fix-plan.md` are superseded and stale. History only.
 
