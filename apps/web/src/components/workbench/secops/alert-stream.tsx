@@ -53,7 +53,7 @@ export function AlertStream({
       {state !== "ok" || !rows ? (
         <WorkbenchEmpty
           state={state === "ok" ? "no_data" : state}
-          message={state === "no_data" ? "No active incidents — quiet shift." : undefined}
+          message={state === "no_data" ? "No active incidents." : undefined}
         />
       ) : (
         <ol className="relative pl-4 space-y-2 border-l border-rose-200 dark:border-rose-900/60">

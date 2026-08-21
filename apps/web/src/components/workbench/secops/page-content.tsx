@@ -52,7 +52,11 @@ export function SecOpsContent() {
             ) : !data?.mitreRollup.data?.length ? (
               <WorkbenchEmpty
                 state={data?.mitreRollup.state === "error" ? "error" : "no_data"}
-                message="No MITRE techniques tagged on active incidents."
+                message={
+                  data?.mitreRollup.state === "error"
+                    ? undefined
+                    : "No MITRE techniques tagged on active incidents."
+                }
               />
             ) : (
               <ul className="text-caption space-y-1.5">

@@ -35,7 +35,9 @@ export function ServiceDeskContent() {
             ) : !data?.shift.data?.length ? (
               <WorkbenchEmpty
                 state={data?.shift.state === "error" ? "error" : "no_data"}
-                message="No on-call schedules configured."
+                message={
+                  data?.shift.state === "error" ? undefined : "No on-call schedules configured."
+                }
               />
             ) : (
               <ul className="text-caption space-y-1.5">
