@@ -304,7 +304,20 @@ line — a fully cached build proves nothing); do not push while a CI run is in 
 `git add` fails atomically on a missing pathspec, so verify a commit's diffstat rather
 than its exit code. All three were written after breaking them.
 
+**Open decision for the owner — the build gate.** `pnpm build` is cache-aware and
+returned `11/11 successful, Cached: 11 cached` twice while compiling nothing: a replay,
+not a build. `pnpm exec turbo run build --force` gave `Cached: 0` with 11 cache
+bypasses and fresh artifacts. Choose one as the standing pre-commit gate:
+
+- keep the cache-aware build and rely on reading the cache line — cheap, but needs a
+  judgement call about when a cache hit is acceptable, and that judgement already
+  failed once this run;
+- make `--force` the gate — ~30s per commit, no judgement, always a real answer.
+
+Leaning `--force`. Not written into `CLAUDE.md` pending the owner's call.
+
 **Not done:** every queue item above. Nothing in the queue has been started.
 
 **Next:** queue item 1 — verify the nine round-trips by hand before planning
-anything sized off them.
+anything sized off them. Do not size anything off the sweep47 numbers until that
+verification is done.
