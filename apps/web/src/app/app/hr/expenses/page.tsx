@@ -59,9 +59,18 @@ export default function ExpensesPage() {
   const [rejectingId, setRejectingId]   = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  // Local date, not UTC. `toISOString()` renders in UTC, so east of UTC this
+  // pre-filled YESTERDAY for anyone filing before 05:30 IST — the claim then
+  // carries a date the employee never chose.
+  const todayLocal = () => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+
   const [form, setForm] = useState({
     title: "", description: "", category: "miscellaneous", amount: "",
-    expenseDate: new Date().toISOString().slice(0, 10), projectCode: "", employeeId: "", receiptUrl: "",
+    expenseDate: todayLocal(), projectCode: "", employeeId: "", receiptUrl: "",
   });
 
   const utils        = trpc.useUtils();

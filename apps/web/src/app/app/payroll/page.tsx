@@ -100,7 +100,12 @@ interface StructureFormState {
  */
 function firstOfCurrentMonth(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  // `format` renders in LOCAL time. `toISOString()` renders in UTC, and
+  // `new Date(y, m, 1)` is LOCAL midnight — so east of UTC the two disagree by a
+  // day and this returned the last day of the PREVIOUS month. In IST it gave
+  // 2026-07-31 for August, i.e. the exact off-by-one this function exists to
+  // prevent, just in the other direction.
+  return format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
 }
 
 function emptyStructureForm(): StructureFormState {
