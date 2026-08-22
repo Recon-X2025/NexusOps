@@ -1,6 +1,11 @@
-# PLAN — 01
+# PLAN — 01  ·  RETIRED
 
-**This is the single reference file for a new session. Read it first.**
+> **Superseded by `docs/PLAN-02.md`.** This file is history: it keeps the run log for
+> 2026-08-21 → 22. CURRENT STATE and THE QUEUE moved forward; the copies below are
+> frozen at rollover and **item 12 below contains a withdrawn finding** — read the
+> corrected version in PLAN-02.
+>
+> Find the live file by rule, never by name: `ls docs/PLAN-*.md | sort | tail -1`
 
 Operating rules stay in `CLAUDE.md`. Everything about *what is true now* and *what
 happens next* lives here.
