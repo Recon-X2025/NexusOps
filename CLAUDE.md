@@ -213,8 +213,14 @@ radius is the honest gate.
 
 **Payroll operability**
 - **Any date feeding a payroll PERIOD defaults to the PERIOD START, never `today`.** A structure
-  dated after the 1st is not in force that month and the employee is silently excluded. Beware
-  `toISOString()` on a local-midnight Date — east of UTC it yields the previous day.
+  dated after the 1st is not in force that month and the employee is silently excluded.
+- **Never build a user-facing date with `toISOString()`.** It renders UTC; `new Date(y, m, d)` is
+  LOCAL midnight, so east of UTC they differ by a day. This warning was already in this file as
+  prose and the bug shipped anyway — `firstOfCurrentMonth()` returned 2026-07-31 for August in
+  IST. Use `format(d, "yyyy-MM-dd")` (date-fns, local) or build the string from
+  `getFullYear/getMonth/getDate`. `toISOString()` is correct ONLY when the Date was built with
+  `Date.UTC()`, as `monthStart`/`monthEnd` in `lib/format-money.ts` are. Test under a non-UTC `TZ`;
+  server code passes only because the container runs UTC.
 - **The approval chain is 2 or 3 steps, never 1, and needs that many DISTINCT accounts.** Length is
   stamped onto `payroll_runs.approval_chain_length` at creation. **On a 2-step chain the FINANCE
   approval lands on `CFO_APPROVED`** — statutory generation and the bank file gate on that state.
