@@ -1,18 +1,16 @@
-# PLAN — 02 — RETIRED
+# PLAN — 03
 
-> **Superseded by `docs/PLAN-03.md`.** CURRENT STATE and THE QUEUE were carried
-> forward there. What remains below is this file's RUN LOG (runs 1–9), kept as
-> history. Its "done" claims were true when written and are not re-verified.
+**This is the single reference file for a new session. Read it first.**
 
 Operating rules stay in `CLAUDE.md`. Everything about *what is true now* and *what
-happens next* lives here. `docs/PLAN-01.md` holds this project's earlier run log and
-is history — its "done" claims were true when written and are not re-verified here.
+happens next* lives here. `docs/PLAN-01.md` and `docs/PLAN-02.md` hold the earlier run logs and
+are history — its "done" claims were true when written and are not re-verified here.
 
 ## How this file works
 
 - **Updated at the END of every run.** A run that changes nothing still gets a log
   entry saying so.
-- **Hard cap 500 lines.** At the cap create `docs/PLAN-03.md`, carry CURRENT STATE +
+- **Hard cap 500 lines.** At the cap create `docs/PLAN-04.md`, carry CURRENT STATE +
   THE QUEUE forward, leave the RUN LOG behind, and put a pointer at the top of the
   retired file.
 - **Numbering is zero-padded two digits so a plain `sort` finds the newest.** Roman
@@ -87,95 +85,84 @@ Ordering: **cross-tenant writes** first, then **promises already broken**, then
 **things that destroy data on a timer**, then **dead surfaces**, then **honesty of
 claims**, then **test health**.
 
-### 0. Tenant isolation — swept 2026-08-22, three confirmed cross-tenant writes
 
-Jumped the queue because the failure mode is silent and the victim is another
-tenant. **What was RUN:** the schema/policy enumeration and every count below was
-queried against **5434/DEV** with `psql`, and the migration text was diffed against
-it. **PROVEN 2026-08-22 (run 9):** the three writes below were reproduced through the
-real tRPC procedures against 5433/TEST — see `tenant-isolation.test.ts`, currently
-RED by design. **Still only READ:** the ~40 unclassified sweep candidates.
+### 0. Tenant isolation — swept and FIXED 2026-08-22 (run 10)
 
-**The wall that works.** RLS coverage is complete and agrees from two directions:
-238 tables, **198 carry `org_id`, and all 198 are `ENABLE`d, `FORCE`d and policied**
-on 5434. The migration-derived list and `pg_policies` return the same 198. Nothing
-carrying `org_id` is unprotected. The 4 extra policies in the migrations
-(`buildings`, `facility_spaces`, `facility_requests`, `move_requests`) name tables
-that no longer exist in schema or DB.
+**Nine handlers fixed, all proven by test.** Every fix was written red-first or
+red-checked afterwards by neutralising the guard and confirming the assertion
+fails — a guard that has never been seen to bite is not a guard.
 
-Two policy variants looked wrong and are not. Four tables allow `org_id IS NULL` —
-`professional_tax_slabs`, `statutory_ceilings`, `leave_state_baselines`,
-`lead_scoring_rules` — and they are exactly the four whose `org_id` is nullable:
-global config rows with tenant overrides. `org_counters` compares without a `::uuid`
-cast because its `org_id` is `text`. Both correct.
+**The wall that works, verified two ways.** 238 tables; **198 carry `org_id` and
+all 198 are `ENABLE`d, `FORCE`d and policied** on 5434/DEV. The migration text and
+`pg_policies` independently returned the same 198. The "org_id tables with no
+policy" detector returned ZERO — re-derived from the live catalog rather than the
+SQL before believing it. Four extra policies name tables that no longer exist
+(`buildings`, `facility_*`, `move_requests`). The `org_id IS NULL` policy variant
+covers exactly the four global-config tables whose `org_id` is nullable, and
+`org_counters` skips the `::uuid` cast because its column is `text`. Both correct.
 
-**Fail-open confirmed live**, as CLAUDE.md says: every policy begins
-`current_setting('app.org_id', true) IS NULL OR ... = '' OR ...`, so an unset GUC
-returns everything. `rlsTenant` (`lib/trpc.ts:542`) also returns `next()` **un-wrapped**
-when `ctx.orgId` is absent, falling back to the pooled owner connection. Both are
-deliberate and commented. Neither is reachable from an authenticated tRPC call.
+**Fail-open confirmed live** and deliberate: every policy opens
+`current_setting('app.org_id', true) IS NULL OR ... = ''`, and `rlsTenant`
+(`lib/trpc.ts:542`) returns `next()` un-wrapped when `ctx.orgId` is absent. Neither
+is reachable from an authenticated tRPC call. Changing them is a design decision,
+not a fix.
 
-**The wall that does not exist.** The other **40 tables carry no `org_id` and
-therefore no RLS at all** — the two sets correspond exactly, no table is in one and
-not the other. Eight are legitimately global (`organizations`, `permissions`,
-`role_permissions`, `sessions`, `accounts`, `verification_tokens`, `user_roles`,
-`notification_preferences`). **The other ~32 are tenant child tables whose only wall
-is the app-layer filter.** This is the class CLAUDE.md names, now enumerated.
+**The wall that does not exist.** The other **40 tables carry no `org_id` and so no
+RLS** — the two sets correspond exactly. Eight are legitimately global; **~32 are
+tenant child tables whose only wall is the app-layer filter.** That is the class
+every fix below lives in.
 
-**Three confirmed unguarded writes into that class.** Each takes a parent id
-straight from input, inserts it into a no-RLS child table, and never checks the
-parent's org:
+**Fixed (9 sites):**
 
-**All three are reproduced, not inferred.** Org B's call returned success in every
-case: `submit` a response row carrying B's `respondentId`, `addNote` a log row on A's
-`workOrderId`, `grantAcl` a plain `{ ok: true }`.
+| Handler | Was | Now |
+|---|---|---|
+| `surveys.submit` | `surveyId` unchecked → B's response counted in A's CSAT | org-scoped, NOT_FOUND |
+| `work-orders.addNote` | `workOrderId` unchecked → note in A's activity feed | org-scoped, NOT_FOUND |
+| `documents.grantAcl` | `documentId` unchecked | org-scoped, NOT_FOUND |
+| `documents.grantAcl` | `principalId` unchecked (user/role/team) | org-scoped per principalType |
+| `assets.assign` (cmdb) | `ownerId` unchecked | `assertSameOrgIfPresent` |
+| `assets.assign` (sam) | `assetId`, `userId` unchecked | `assertSameOrgIfPresent` |
+| `assets.assign` (ham) | `userId` unchecked | checked before the update writes it |
+| `assets.assign` (sam/licences) | `userId` unchecked | `assertSameOrgIfPresent` |
+| `tickets.assign` | `assigneeId` unchecked | checked outside the transaction |
+| `financial.createInvoice` | lookup existed, result never checked | `if (!vendorRow) throw` |
+| `financial.createGSTInvoice` | no vendor lookup at all | `assertSameOrg` |
+| `documentRetentionWorkflow` | join had no org predicate | predicate on the JOIN, not the WHERE |
 
-1. **`surveys.submit` (`routers/surveys.ts:82`) — the serious one.** `surveyId` goes
-   into `survey_responses` with no lookup. `getResults` validates the survey's org
-   and then reads responses by `surveyId` alone. So a user with `surveys:write` in
-   org A can post a response onto org B's survey, and **B's own results screen counts
-   it, averages it into the score and lists it** — foreign `respondentId` included.
-   A cross-tenant write the victim reads back as their own CSAT.
-2. **`work-orders.addNote` (`routers/work-orders.ts:316`)** — `workOrderId` into
-   `work_order_activity_logs`, same shape. Read path not traced; assume the same
-   until shown otherwise.
-3. **`documents.grantAcl` (`routers/documents.ts:259`)** — `documentId` into
-   `document_acls`, no check. **Inert, for a worse reason: `documentAcls` is written
-   here and read NOWHERE in the codebase.** The only two references are the import
-   and this insert. Document ACLs are not enforced at all, so the grant screen
-   asserts a restriction nothing applies. That is a standing-directive problem, not
-   an isolation one, and it wants its own item.
+**One shared helper, not nine copies:** `lib/assert-same-org.ts` —
+`assertSameOrg` / `assertSameOrgIfPresent`. Throws **NOT_FOUND, never FORBIDDEN**,
+so the error cannot become a cross-tenant existence oracle.
 
-**The invoice twins — integrity, not exposure.** `createInvoice`
-(`routers/financial.ts:229`) *does* look up the vendor with an org predicate at :267
-and then **never checks the result**, three lines below a `legalEntityId` lookup that
-does `if (!le) throw`. Its twin `createGSTInvoice` (:1352) has **no vendor lookup at
-all**. A foreign `vendorId` is stored either way; the vendor resolves `undefined`, so
-the buyer state is unknown and — per CLAUDE.md — silently defaults to an
-**intra-state CGST/SGST split**. Not a leak: the read-back joins are RLS-filtered, so
-the foreign vendor comes back NULL. A wrong tax split and a dangling reference. The
-canonical/deprecated twin pattern exactly.
+**The retention sweeper predicate is on the JOIN deliberately.** On a LEFT JOIN a
+WHERE against the policy side would discard documents with no policy at all —
+exactly the ones the 90-day default exists for. The spec asserts both directions:
+a foreign policy is ignored, and the org's OWN policy still purges. Without the
+second assertion an over-broad fix that made the sweeper inert would pass.
 
-**The HTTP routes are fine.** All 32 Fastify registrations in `apps/api/src/http/`
-bypass `rlsTenant` as documented, but every one checked is correctly app-filtered:
-the four PDF routes all resolve `ctx.orgId` and carry `eq(*.orgId, orgId)`;
-`public-surveys` derives the org from a hashed, expiring, single-use invite token;
-`super-admin` is cross-tenant by design behind a bearer token; `webhooks` gates on IP
-allowlist + HMAC. Defence-in-depth gap, not exposure.
+**Two mistakes this work made, both caught by tests, neither by review:**
 
-**The detector, and what it costs.** `input.<x>Id` written into `.values({})` with no
-`eq(<table>.id, input.<x>Id)` in the same handler: **51 candidates, 9 strict**. It is
-not blind — it flags the known `createGSTInvoice vendorId`. It over-reports: the
-`assets.assign` hits are false positives, because that handler validates `input.id`
-under a different field name. **~40 "org-nearby" candidates are unclassified** and
-each needs a handler read. The script is disposable; the shape is what to keep.
+1. **The twin guard landed in the wrong twin.** `createInvoice` and
+   `createGSTInvoice` contain an identical duplicate-payable block; a
+   replace-first put the "twin" guard into the canonical procedure, which already
+   had one, leaving the twin bare. The deprecated-twins trap, sprung while fixing
+   the deprecated-twins trap. Only the test found it.
+2. **The detector went stale the moment the fix landed.** It matched a literal
+   `eq(table.id, input.x)` and could not see the helper, so it reported 8
+   unguarded sites that were fixed. Updated, then **sanity-checked by neutralising
+   one guard** — flagged exactly 1, restored → 0.
 
-**Next, in order:** (a) ~~prove it with a two-tenant test~~ **DONE — red**; (b) fix
-the three by validating the parent with an org predicate, and turn the spec green;
-(c) work the remaining ~40 candidates; (d) decide
-whether the ~32 child tables should carry `org_id` + RLS rather than relying on a
-filter that three handlers have already forgotten.
+**Still open, and NOT fixed:**
 
+- **`document_acls` is read NOWHERE.** The write is now org-scoped; ACLs remain
+  unenforced product-wide. Scoping the write does not make the feature real — the
+  code carries a comment saying so. Needs its own item and a product decision.
+- **~32 child tables should probably carry `org_id` + RLS** rather than relying on
+  a filter nine handlers forgot. That is a migration programme — per-table
+  backfill, hand-appended RLS stanza, seed update, duplicate-detecting index that
+  RAISEs — not a session's work, and done badly it is worse than the gap.
+- **`documents.upload` cannot run here: S3 is not enabled** (`S3_BUCKET not
+  configured`). Confirmed by the owner. Document rows are seeded directly in tests.
+  Worth establishing whether upload works in ANY environment.
 
 ### 1. ~~Nine round-trip failures~~ — CLOSED 2026-08-22, no defect
 
@@ -400,95 +387,40 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+_Runs 1–9 are in `docs/PLAN-02.md`._
 
-## 2026-08-22 — run 9 (two-tenant check — RED, as intended)
+## 2026-08-22 — run 10 (isolation fixes, all nine, each proven)
 
-Wrote the failing test before the fix, so the assertion is known to bite. Three cases
-added to the existing `apps/api/src/__tests__/tenant-isolation.test.ts` (14 → 17).
+**Gates: `pnpm build` 11/11 `Cached: 8` · `pnpm lint:cold` 9/9 `Cached: 0` · full
+api suite in 4 shards on 5433/TEST — 610 + 462 + 539 + 482 = 2,093 passed, 1
+failed.** Baseline was 2,085; +8 is exactly the tests added (6 isolation, 2
+retention), so nothing was silently skipped.
 
-**Result on `fb28ec6`: 3 failed / 14 passed, 5433/TEST.** Every failure is org B's
-mutation *succeeding* against an org-A parent — not a missing row or a bad fixture.
+**The one failure is pre-existing and not mine.** `differentiating-modules-deep >
+Director KYC` fails with `APP_SECRET is not configured`. It failed the SAME test
+twice, which by this file's own rule means defect not contention — so I stashed
+every change and ran it on clean `fb28ec6`: **identical failure**. Cause:
+`APP_SECRET` is in `.env` but NOT in `.env.test`, and vitest loads `.env.test`.
+An environment gap, and it means the suite has never been green in this shell.
 
-**One case initially failed for the wrong reason** and proved nothing: `grantAcl` went
-through `documents.upload`, which threw `S3_BUCKET not configured` before reaching the
-ACL write. Reseated to insert the document directly with `testDb()`, so the case now
-exercises only the path under test. Worth remembering — a red test is not automatically
-a red test *for your reason*.
+**Method that paid for itself.** Every fix red-first or red-checked. Two defects in
+my own work were caught only because of it: the twin guard in the wrong twin, and
+the two secondary-reference tests that passed on first run and had to be proven to
+bite. Both would have shipped as green-looking no-ops.
 
-**Contention noted, not eliminated:** the foreign APIs on :3011/:3021 were up during
-this run. Left alone — they may be another session's. A single self-isolating spec is
-robust to them in a way a full suite is not.
+**Full suite could not be run in one process** — backgrounded runs were reaped
+twice, silently, at ~7%. Sharding with `--shard=n/4` in the foreground worked. A
+piped `| tail` also swallows everything when a run is killed: write to a file.
 
-**Left clean:** `cleanupOrg` removed both orgs — 0 organizations created in the last
-30 min, 0 `survey_responses`, 0 `document_acls` in 5433.
+**Contention:** foreign APIs on :3011/:3021 were up throughout. Left alone — they
+may be another session's. No diffuse failures appeared.
 
-**Working tree:** `docs/PLAN-02.md` + `tenant-isolation.test.ts`, both uncommitted.
-**The spec is RED — do not commit it without the fix**, or CI goes red on main.
+**Left clean:** `cleanupOrg` removed every seeded org; 0 stray orgs, 0
+`survey_responses`, 0 `document_acls` in 5433.
 
-**Next:** the three org-predicate fixes, then this spec green.
+**NOT VERIFIED.** Nothing is committed and nothing is deployed. No E2E run. No
+browser check — the fixes are all server-side and covered by API tests, but no
+screen was clicked. The ~32-table structural question is untouched. `apps/web`,
+nested sub-routers and the Temporal worker paths were never swept.
 
-## 2026-08-22 — run 8 (tenant isolation sweep)
-
-No code changed. Ran the isolation check the queue never had an item for, and added
-it as **item 0**.
-
-**Run, not read:** `psql` against 5434/DEV for `pg_policies`, `pg_class.relrowsecurity`
-/ `relforcerowsecurity` and `information_schema.columns`; a brace-matching parse of
-all 47 schema modules for `pgTable` + `org_id`; a diff of `CREATE POLICY` across 100
-migrations against both.
-
-**Headline:** RLS is complete where it applies — 198/198 `org_id` tables enabled,
-forced and policied, migrations and live DB agreeing. The exposure is the **40 tables
-with no `org_id` and so no RLS**, ~32 of them tenant child tables guarded only by an
-app filter. **Three handlers forget that filter**, and `surveys.submit` is read back
-by the victim tenant's own results screen.
-
-**Two things I expected to find and did not.** The Fastify HTTP routes bypass
-`rlsTenant` exactly as documented, but every one is correctly app-filtered. And the
-`org_id IS NULL` policy variant is not a hole — it is the four global-config tables.
-
-**A detector that returned zero, and why I did not believe it.** "org_id tables with
-no CREATE POLICY" came back empty. Per the reporting standard that usually means a
-broken detector, so I re-derived it from the live catalog instead of the migration
-text; both said 198. The zero was real. The FK detector went the other way — 51
-candidates, 9 strict, with confirmed false positives in `assets.assign`.
-
-**Correction to a stored note.** The `createInvoice` vendor gap was recorded as
-"stores an unvalidated vendorId". Half right: `createInvoice` looks the vendor up
-with an org predicate and never guards the result; the twin `createGSTInvoice` has no
-lookup at all. And it is not a leak — the read-back joins are RLS-filtered. It is a
-wrong intra-state GST split on a dangling reference.
-
-**NOT VERIFIED.** No cross-tenant request was made against a running server — every
-handler verdict is code reading, which the standard calls UNVERIFIED, and item 0
-carries that word. `work-orders.addNote`'s read path is untraced. ~40 sweep
-candidates are unclassified. Nested sub-routers, the Temporal worker paths and
-`apps/web` were not swept at all. No gate was run: nothing was compiled or tested,
-because nothing changed.
-
-**Next:** a two-tenant integration test that actually posts across orgs, before any
-fix — proving #1 is what turns this item from read to run.
-
-## 2026-08-22 — run 7 (document audit + rollover)
-
-Audited the plan against reality rather than assuming it was current. Three faults
-found in my own file:
-
-1. **CURRENT STATE was dated 2026-08-21** and still quoted run-1 gate figures.
-2. **Item 12 asserted a finding I had already withdrawn** — that a new requisition
-   auto-approving meant no approval gate exists. It is a configured tier. The
-   correction sat in item 4 while item 12 still stated the error, so a reader
-   starting at 12 would be misled. This is the same failure mode I criticised
-   `reports/fix-plan.md` for.
-3. **`documents.retention` shipping untested was recorded nowhere** — now item 13.
-
-All seven "DONE" SHAs were verified to exist rather than trusted.
-
-Rolled over to `PLAN-02` at the cap. `CLAUDE.md` needed no edit — it finds the file
-by rule.
-
-**Deployed this run:** `bbe6331` — approvals wired end to end, green through
-`Deploy to Vultr`.
-
-**Next:** wire the remaining approval callers (contracts, expense claims, change
-requests, leave), or close item 13 by testing retention.
+**Next:** commit (needs the owner's go), then decide the two open items above.
