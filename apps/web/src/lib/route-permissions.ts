@@ -130,6 +130,11 @@ const ROUTE_MODULE_RULES: ReadonlyArray<{ prefix: string; module: Module }> = [
   { prefix: "/app/workbench", module: "workbench" },
 
   // ── Settings / Admin / Setup ───────────────────────────────────────────────
+  // More specific than /app/settings below, and SORTED_RULES is longest-prefix
+  // first, so this wins. The page is settings-shaped but the data is approvals:
+  // gating it on `settings` would lock out an approvals admin who has no
+  // settings grant.
+  { prefix: "/app/settings/approval-chains", module: "approvals" },
   { prefix: "/app/settings", module: "settings" },
   { prefix: "/app/admin", module: "admin" },
   { prefix: "/app/onboarding-wizard", module: "admin" },

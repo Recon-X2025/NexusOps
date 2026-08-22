@@ -215,6 +215,40 @@ export const approvalsRouter = router({
       return created;
     }),
 
+  /**
+   * Users in this org who actually hold `approvals:approve`.
+   *
+   * The chain editor picks from this rather than from every user, because
+   * `raise` refuses an approver who cannot approve. Offering the full user list
+   * would let someone build a chain that only fails later, at the moment
+   * somebody tries to use it. Server-authoritative on purpose — duplicating the
+   * RBAC mapping in the browser is how the two drift.
+   */
+  eligibleApprovers: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const rows = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        matrixRole: users.matrixRole,
+      })
+      .from(users)
+      .where(and(eq(users.orgId, org!.id), sql`${users.status} != 'disabled'`))
+      .orderBy(asc(users.name));
+
+    return rows
+      .filter((u: { role: string; matrixRole: string | null }) =>
+        checkDbUserPermission(u.role, "approvals", "approve", u.matrixRole ?? undefined),
+      )
+      .map((u: { id: string; name: string; email: string }) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+      }));
+  }),
+
   /** Approval chains — which approvers an entity type routes to. */
   chains: router({
     list: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
