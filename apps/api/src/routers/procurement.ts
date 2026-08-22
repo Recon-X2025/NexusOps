@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getTableColumns } from "drizzle-orm";
 import { getNextNumber } from "../lib/auto-number";
+import { raiseApproval } from "../lib/raise-approval";
 import {
   vendors,
   purchaseRequests,
@@ -297,7 +298,60 @@ export const procurementRouter = router({
         return created;
       });
 
-      return { ...pr, approvalRequired: approvalLevel !== "auto", approvalLevel };
+      // ── Route it ─────────────────────────────────────────────────────────
+      // `approvalRequired` has always been returned here and nothing acted on
+      // it: the PR sat `pending` with no approver and appeared in nobody's
+      // queue. Raise a real approval so it reaches someone.
+      //
+      // Deliberately AFTER the transaction and non-fatal. The requisition is
+      // already committed and valid; failing the create because approvals are
+      // unconfigured would break requisitions for every org that has not set a
+      // chain — a strictly worse outcome than today's silent pending.
+      //
+      // The key is the PR id, a durable fact, so a retried create cannot raise
+      // a second approval for the same requisition.
+      let approvalRaised = false;
+      let approvalIssue: string | null = null;
+      if (approvalLevel !== "auto") {
+        try {
+          await raiseApproval(db, {
+            orgId: org!.id,
+            requesterId: user!.id,
+            requesterName: user!.name,
+            entityType: "purchase_request",
+            entityId: pr!.id,
+            title: `${pr!.number} — ${input.title}`,
+            description: input.justification ?? null,
+            type: "purchase",
+            // PR priority is critical|high|medium|low; an approval is
+            // urgent|high|normal. Map rather than pass through — an unmapped
+            // value would silently fall to the zod default and lose the signal.
+            priority:
+              input.priority === "critical"
+                ? "urgent"
+                : input.priority === "high"
+                  ? "high"
+                  : "normal",
+            amount: totalAmount.toString(),
+            idempotencyKey: `purchase_request:${pr!.id}`,
+          });
+          approvalRaised = true;
+        } catch (err) {
+          // Most often: no approval chain configured for purchase_request, so
+          // there is nobody to route to. Surface it rather than swallow it —
+          // the caller needs to know the request will not reach an approver.
+          approvalIssue = err instanceof Error ? err.message : String(err);
+          console.warn("[procurement.create] approval not raised:", approvalIssue);
+        }
+      }
+
+      return {
+        ...pr,
+        approvalRequired: approvalLevel !== "auto",
+        approvalLevel,
+        approvalRaised,
+        approvalIssue,
+      };
     }),
 
     get: permissionProcedure("procurement", "read")

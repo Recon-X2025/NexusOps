@@ -20,52 +20,7 @@ import { getWorkflowService } from "../services/workflow";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { getNextNumber } from "../lib/auto-number";
 import { checkDbUserPermission } from "../lib/rbac-db";
-
-/**
- * Resolve the approver sequence for an entity.
- *
- * Order of precedence:
- *   1. An explicit `approverId` on the call — the caller already knows who.
- *   2. The active `approval_chains` row for (org, entityType).
- *
- * What the chain rules mean here, stated plainly because the column is opaque
- * jsonb and guessing would be worse than declaring:
- *   - `threshold`  — a rule applies when the request has no amount, or the
- *                    amount is at or above the threshold.
- *   - `approvers`  — user ids, taken in array order.
- *   - `condition`  — NOT interpreted. Nothing has ever written this column, so
- *                    there is no established meaning to honour. A chain that
- *                    relies on `condition` alone resolves to its approvers as
- *                    though the condition passed.
- *   - `sequential` — NOT read. `decide` advances one step at a time in
- *                    `approval_steps.sequence` order, so every chain behaves
- *                    sequentially. Parallel cannot be honoured yet: the request
- *                    does not record which chain or rule produced it, so the
- *                    mode is unknown at decision time. That needs a column on
- *                    the request, so it is queued rather than guessed at.
- */
-async function resolveApprovers(
-  db: any,
-  orgId: string,
-  entityType: string,
-  amount: number | null,
-): Promise<string[]> {
-  const chains = await db
-    .select()
-    .from(approvalChains)
-    .where(and(eq(approvalChains.orgId, orgId), eq(approvalChains.entityType, entityType)));
-
-  const active = chains.filter((c: { isActive: boolean | null }) => c.isActive !== false);
-  const out: string[] = [];
-  for (const chain of active) {
-    for (const rule of chain.rules ?? []) {
-      const threshold = typeof rule.threshold === "number" ? rule.threshold : null;
-      if (threshold !== null && amount !== null && amount < threshold) continue;
-      for (const a of rule.approvers ?? []) if (!out.includes(a)) out.push(a);
-    }
-  }
-  return out;
-}
+import { raiseApproval } from "../lib/raise-approval";
 
 export const approvalsRouter = router({
   /**
@@ -96,123 +51,21 @@ export const approvalsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-
-      if (input.idempotencyKey) {
-        const [existing] = await db
-          .select()
-          .from(approvalRequests)
-          .where(
-            and(
-              eq(approvalRequests.orgId, org!.id),
-              eq(approvalRequests.idempotencyKey, input.idempotencyKey),
-            ),
-          );
-        if (existing) return existing;
-      }
-
-      const amount = input.amount != null ? Number(input.amount) : null;
-      let approvers = input.approverId
-        ? [input.approverId]
-        : await resolveApprovers(db, org!.id, input.entityType, Number.isFinite(amount) ? amount : null);
-
-      // Refuse rather than invent an approver. A request nobody can act on is
-      // worse than no request — it sits pending forever and reads as a backlog.
-      if (approvers.length === 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `No approver could be resolved for "${input.entityType}". Set an approval chain for it, or pass approverId.`,
-        });
-      }
-
-      // Every approver must be a user in THIS org. `approver_id` is a plain FK
-      // to users with no org predicate, so without this a foreign user id would
-      // be accepted and the request would be actionable by another tenant.
-      const valid = await db
-        .select({
-          id: users.id,
-          email: users.email,
-          role: users.role,
-          matrixRole: users.matrixRole,
-        })
-        .from(users)
-        .where(and(eq(users.orgId, org!.id), inArray(users.id, approvers)));
-      const validIds = new Set(valid.map((v: { id: string }) => v.id));
-      const unknown = approvers.filter((a) => !validIds.has(a));
-      if (unknown.length > 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Approver(s) not found in this organisation: ${unknown.join(", ")}`,
-        });
-      }
-
-      // …and must actually be able to approve. `decide` is gated on
-      // approvals:approve, so routing to someone without it produces a request
-      // that sits in their queue and 403s the moment they touch it — the same
-      // "nobody can act on this" failure the check above exists to prevent,
-      // just discovered later and by the wrong person.
-      const cannot = valid.filter(
-        (v: { role: string; matrixRole: string | null }) =>
-          !checkDbUserPermission(v.role, "approvals", "approve", v.matrixRole ?? undefined),
-      );
-      if (cannot.length > 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `These approvers cannot approve (missing approvals:approve): ${cannot
-            .map((c: { email: string }) => c.email)
-            .join(", ")}`,
-        });
-      }
-
-      approvers = approvers.filter((a) => validIds.has(a));
-
-      const requestNumber = await getNextNumber(db, org!.id, "APR");
-
-      const [created] = await db
-        .insert(approvalRequests)
-        .values({
-          orgId: org!.id,
-          entityType: input.entityType,
-          entityId: input.entityId,
-          approverId: approvers[0]!,
-          requesterId: user!.id,
-          title: input.title ?? null,
-          description: input.description ?? null,
-          type: input.type ?? "change",
-          priority: input.priority,
-          amount: input.amount ?? null,
-          dueDate: input.dueDate ? new Date(input.dueDate) : null,
-          requestNumber,
-          status: "pending",
-          idempotencyKey: input.idempotencyKey ?? null,
-        })
-        .returning();
-
-      // One step per approver, in order. `decide` walks these by sequence, so
-      // approver 2 is only reached once approver 1 has approved.
-      await db.insert(approvalSteps).values(
-        approvers.map((approverId, i) => ({
-          orgId: org!.id,
-          requestId: created!.id,
-          approverId,
-          sequence: i + 1,
-          status: "pending" as const,
-        })),
-      );
-
-      try {
-        await sendNotification({
-          orgId: org!.id,
-          userId: approvers[0]!,
-          title: `Approval requested: ${input.title ?? input.entityType}`,
-          body: `${user!.name ?? "Someone"} raised ${requestNumber} for your approval.`,
-          sourceType: input.entityType,
-          sourceId: input.entityId,
-        });
-      } catch {
-        /* non-fatal — the request is already persisted */
-      }
-
-      return created;
+      return raiseApproval(db, {
+        orgId: org!.id,
+        requesterId: user!.id,
+        requesterName: user!.name,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        title: input.title ?? null,
+        description: input.description ?? null,
+        type: input.type ?? null,
+        priority: input.priority,
+        amount: input.amount ?? null,
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        approverId: input.approverId ?? null,
+        idempotencyKey: input.idempotencyKey ?? null,
+      });
     }),
 
   /**
