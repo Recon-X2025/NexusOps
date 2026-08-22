@@ -67,9 +67,10 @@ second instance. The web app proxies `/api/trpc` via `API_INTERNAL_URL`, which
 defaults to `:3001` — the DEV API. An isolated run needs built servers on spare
 ports **and** `API_INTERNAL_URL` overridden.
 
-**`reports/fix-plan.md` is stale.** It claims `EFFECTIVE-DATE-DEFAULT` is fixed; it
-is not (see queue item 2). Its section 5 asks for a sweep47 decision that has since
-been made. Do not plan from it.
+**`reports/fix-plan.md` is stale.** Its line 183 claims `EFFECTIVE-DATE-DEFAULT` is
+fixed. The *rule* was fixed; the *timezone* was not, and that took until 2026-08-22
+to find (item 2). Its section 5 asks for a sweep47 decision that has since been made.
+Do not plan from it.
 
 ---
 
@@ -78,45 +79,33 @@ been made. Do not plan from it.
 Ordering: **promises already broken** first, then **things that destroy data on a
 timer**, then **dead surfaces**, then **honesty of claims**, then **test health**.
 
-### 1. Nine round-trip failures — a value was saved and was gone after reload
+### 1. ~~Nine round-trip failures~~ — CLOSED 2026-08-22, no defect
 
-`contracts` · `flows` · `legal` · `procurement` · `sam` · `settings/api-keys` ·
-`surveys` · `vendors` · `work-orders/parts`
+All nine verified by hand through the browser against 5434/DEV: a record was
+created on each screen and the **persisted row** read back in SQL. **All nine work.**
+vendors 40→41 · contracts (5-step wizard, all fields correct) · settings/api-keys
+(name survives reload) · procurement PR-0041 + line item · surveys 6→7 ·
+legal 30→31 · sam · work-orders/parts · flows. Records reverted by explicit key.
 
-**Status: CANDIDATE.** Found by the sweep47 generic harness; 14 other modules pass
-the identical harness, which is suggestive but not proof.
+The harness fails on three shapes, and the nine were all one of them: **format-
+validated fields** (GSTIN/PAN/CSAT/number inputs reject a text token), **multi-step
+wizards** (one click and one submit never reaches step 5), and **no text field at
+all** (flows is a canvas designer). The 14 that passed are single-step free-text
+forms. Nothing here needed fixing — do not size work off sweep47 counts.
 
-**Do this first:** open each screen, create one record by hand, reload, and read the
-**persisted row via SQL** — not the mutation's return value. Three outcomes: the
-write never happens; the write happens and the read filters it out; or the form
-legitimately rejected the harness's generic input.
+### 2. ~~Payroll effective date~~ — FIXED 2026-08-22 (`5ff4375`)
 
-**Check the known cause before writing code:** `CLAUDE.md` documents deprecated
-twins whose frozen zod input silently strips fields added since — mutation succeeds,
-toast says success, data is gone. That is exactly this signature.
+`toISOString()` renders UTC while `new Date(y,m,d)` is LOCAL midnight, so east of
+UTC they disagree by a day. `firstOfCurrentMonth()` returned the last day of the
+PREVIOUS month (IST: 2026-07-31 for August). Fixed with `format(...,"yyyy-MM-dd")`.
+Same class fixed in `hr/expenses` where the claim form pre-filled YESTERDAY before
+05:30 IST.
 
-`settings/api-keys` first regardless of order. A key you cannot retrieve is worthless
-and users will have assumed they had one.
-
-### 2. Payroll effective date is one day before the period start
-
-**Status: CONFIRMED (read in code + observed in a run).**
-
-`apps/web/src/app/app/payroll/page.tsx:103`
-
-```js
-return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-```
-
-`new Date(2026, 7, 1)` in IST is `2026-07-31T18:30:00Z`, so this returns
-`2026-07-31` — the last day of the previous month, in every timezone east of UTC.
-Contradicts the standing decision in `CLAUDE.md`: *any date feeding a payroll PERIOD
-defaults to the PERIOD START*.
-
-Fix is one line (`date-fns` `format` is already imported). **The real work is the
-blast radius** — grep every `toISOString().slice(0,10)` and check each for the same
-local-midnight-to-UTC shift. A period *end* shifted a day is not cosmetic. Add a
-test that pins the default under a non-UTC `TZ` or it regresses invisibly.
+Proved under both zones and verified in a running IST browser (form now defaults to
+2026-08-01). Blast radius swept — 19 `toISOString().slice(0,10)` sites; the rest are
+sound (filenames, round-trips of already-UTC stored values, and the finance period
+boundaries, which use `Date.UTC()` deliberately). **Server-side sites are safe only
+because the container runs UTC — they would shift if `TZ` were ever set.**
 
 ### 3. `documentRetentionPolicies` — deletes documents on a timer nobody can set
 
@@ -232,6 +221,16 @@ Two things to establish: whether repeatable job definitions outlive a test-DB re
 production where Redis persists across deploys. **READ IN CODE ONLY** — not
 reproduced.
 
+### 12. Two observations from the round-trip verification
+
+- **A new requisition is created with `status = "approved"`.** PR-0041 went straight
+  to approved with no approval step. Consistent with item 4 — there is no approval
+  gate, so the record simply asserts it passed one. Fix alongside the raise path.
+- **Contract templates display "0 clauses · 8 required"** on the picker, yet step 4 of
+  the wizard renders the clauses fine. So the clause text comes from the frontend, not
+  from `contract_clause_templates` (no write path). The count and the content
+  disagree; one of them is lying.
+
 ### Open product decision — ESG
 
 `/app/esg` was deleted (`0798c7c`): 169 lines, zero API calls, every figure a
@@ -248,6 +247,26 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-22 — run 2
+
+**Closed queue item 1 — no defect.** Verified all nine round-trip candidates by hand
+through the browser against 5434/DEV, reading the persisted row in SQL rather than
+trusting the UI. All nine create paths work. Test records reverted by explicit key;
+counts back to baseline (vendors 40, contracts 120, surveys 6, matters 30, api_keys 0).
+Backup taken first: `~/nexusops-20260822-1227.sql`. One thing the revert cannot undo —
+PR-0041 consumed an `org_counters` value, which is correct: identifiers are not reused.
+
+**Fixed queue item 2** (`5ff4375`) — the payroll effective-date timezone bug, plus the
+same class in `hr/expenses`. Proved under IST and UTC, then verified in a running IST
+browser. Swept all 19 `toISOString().slice(0,10)` sites; the rest are sound.
+
+**Learned:** the sweep47 harness is only valid for single-step free-text forms. It
+cannot handle format-validated fields, multi-step wizards, or canvas designers, and it
+reports all three as data loss. Its output needs this filter before anyone reads it.
+
+**Next:** queue item 3 — `documentRetentionPolicies`, the only item that destroys data
+unprompted.
 
 ## 2026-08-21 — run 1
 
