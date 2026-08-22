@@ -123,26 +123,31 @@ another tenant's policy id would inherit that tenant's duration and legal hold.
 is still unguarded — worth an org predicate on the sweeper, and worth checking
 whether other background sweepers share the shape.
 
-### 4. Approvals — the raise path is missing
+### 4. Approvals — raise path BUILT (`61a0af9`), two halves remain
 
-The subsystem is **half-built**, which makes this wiring rather than building:
+**Done:** `approvals.raise` and `approvals.chains` (list/create/setActive/remove).
+`approval_chains` had never been imported anywhere. raise refuses when no approver
+resolves rather than inventing one, allocates its number from `org_counters` ("APR"),
+and validates approvers against this org — `approver_id` is a plain FK to users with
+no org predicate. The chain `condition` jsonb is deliberately NOT interpreted:
+nothing ever wrote it, so there is no meaning to honour and guessing beats nothing
+only in appearance. `threshold` and `approvers` are honoured.
 
-| Exists | Missing |
-|---|---|
-| `decide` (approve/reject) | nothing creates a request |
-| `myPending`, `mySubmitted`, `myTeamPending`, `list` | nothing writes `approval_steps` |
-| worker notifying the requester of the outcome | nothing writes `approval_chains` |
+**Remaining, in order:**
 
-Consequence today: the sidebar badge is structurally incapable of being non-zero,
-and `/app/approvals` shows a green tick and "All caught up — no pending approvals"
-to every tenant, permanently.
+1. **`decide` does not advance a chain.** It marks the request approved/rejected
+   outright and closes the matching step; approver 2 is never reached. Multi-step
+   chains therefore record steps for the audit trail and stop. **Do this before
+   wiring callers** — routing a module onto a chain that cannot reach its second
+   approver ships a half-honoured promise.
+2. **No caller raises yet.** purchase requests, contracts, expense claims, change
+   requests, leave. Each changes that module's existing behaviour (a requisition
+   currently goes straight to `approved`, item 12), so each is its own reviewable
+   change.
+3. **An admin screen for chains.** The API exists; there is no UI.
 
-Add the raise path; call it from the modules that already imply approval (purchase
-requests, contracts, expense claims, change requests, leave). Then `approval_steps`
-for chain progress and an admin screen for `approval_chains`.
-
-**Constraint:** the payroll chain is 2 or 3 steps, never 1, needs that many
-**distinct** accounts, and its length is stamped onto
+**Constraint unchanged:** the payroll chain is 2 or 3 steps, never 1, needs that many
+DISTINCT accounts, and its length is stamped onto
 `payroll_runs.approval_chain_length` at creation. A generic chain must not
 contradict that.
 
@@ -255,6 +260,32 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-22 — run 4
+
+**Queue item 4 — raise path built** (`61a0af9`). Verified against an isolated API on
+a spare port: refusal when no approver resolves, explicit approver → APR-0001 with a
+step, idempotency key honoured on retry, cross-org approver refused, chain threshold
+honoured both ways, approver's `myPending` returning the item, and `decide` closing
+it. Probe data removed; counts back to 30/60/4.
+
+**Two defects the work exposed, both fixed in the same commit:**
+
+- **`= ANY(${jsArray})` 500'd on a single-element array** at three sites in
+  `approvals.ts`. Raising a request made it reachable for a real approver — their own
+  queue errored. `myPending` 500 → 1 item, `list` 500 → 32 items after switching to
+  `inArray`. This was found on baseline data in an earlier run; building the raise
+  path is what made it bite.
+- **`decide` erased the idempotency key**, writing `input.idempotencyKey ?? null` and
+  wiping the key `raise` stored on the durable fact. The unique index then stopped
+  protecting that request, so a retried raise could create a DUPLICATE for an
+  already-decided event. Found only because a probe row survived cleanup by
+  `idempotency_key` — worth remembering that a failed cleanup is evidence, not noise.
+
+**Carried design flaw:** one `idempotency_key` column serves both the raise key and
+the decide key. Preserving the existing value is a patch, not a fix.
+
+**Next:** make `decide` advance a chain (item 4.1) before wiring any caller.
 
 ## 2026-08-22 — run 3
 
