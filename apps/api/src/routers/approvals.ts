@@ -4,11 +4,13 @@ import { z } from "zod";
 import {
   approvalRequests,
   approvalSteps,
+  approvalChains,
   employees,
   users,
   eq,
   and,
   inArray,
+  asc,
   desc,
   sql,
 } from "@coheronconnect/db";
@@ -16,8 +18,258 @@ import { sendNotification } from "../services/notifications";
 import { enqueueApprovalDecision } from "../workflows/approvalWorkflow";
 import { getWorkflowService } from "../services/workflow";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
+import { getNextNumber } from "../lib/auto-number";
+
+/**
+ * Resolve the approver sequence for an entity.
+ *
+ * Order of precedence:
+ *   1. An explicit `approverId` on the call — the caller already knows who.
+ *   2. The active `approval_chains` row for (org, entityType).
+ *
+ * What the chain rules mean here, stated plainly because the column is opaque
+ * jsonb and guessing would be worse than declaring:
+ *   - `threshold`  — a rule applies when the request has no amount, or the
+ *                    amount is at or above the threshold.
+ *   - `approvers`  — user ids, taken in array order.
+ *   - `condition`  — NOT interpreted. Nothing has ever written this column, so
+ *                    there is no established meaning to honour. A chain that
+ *                    relies on `condition` alone resolves to its approvers as
+ *                    though the condition passed.
+ *   - `sequential` — every request today is closed by the FIRST decision
+ *                    (`decide` marks the request approved/rejected outright),
+ *                    so steps are recorded for the audit trail but a later step
+ *                    is never reached. Wiring sequential advancement is a
+ *                    separate change to `decide`.
+ */
+async function resolveApprovers(
+  db: any,
+  orgId: string,
+  entityType: string,
+  amount: number | null,
+): Promise<string[]> {
+  const chains = await db
+    .select()
+    .from(approvalChains)
+    .where(and(eq(approvalChains.orgId, orgId), eq(approvalChains.entityType, entityType)));
+
+  const active = chains.filter((c: { isActive: boolean | null }) => c.isActive !== false);
+  const out: string[] = [];
+  for (const chain of active) {
+    for (const rule of chain.rules ?? []) {
+      const threshold = typeof rule.threshold === "number" ? rule.threshold : null;
+      if (threshold !== null && amount !== null && amount < threshold) continue;
+      for (const a of rule.approvers ?? []) if (!out.includes(a)) out.push(a);
+    }
+  }
+  return out;
+}
 
 export const approvalsRouter = router({
+  /**
+   * Raise an approval request. This is the half of the subsystem that did not
+   * exist: `decide`, the queues and the notification worker were all built, but
+   * nothing created a row, so `approval_requests` was permanently empty and the
+   * sidebar badge could never be non-zero.
+   */
+  raise: permissionProcedure("approvals", "write")
+    .input(
+      z.object({
+        entityType: z.string().min(1),
+        entityId: z.string().uuid(),
+        title: z.string().trim().min(1).max(200).optional(),
+        description: z.string().trim().max(2000).optional(),
+        type: z.string().optional(),
+        priority: z.enum(["urgent", "high", "normal"]).default("normal"),
+        amount: z.string().optional(),
+        dueDate: z.string().datetime().optional(),
+        /** Explicit approver — wins over the chain. */
+        approverId: z.string().uuid().optional(),
+        /**
+         * Key on the DURABLE FACT (e.g. `pr:<id>:submit`), never on a mutable
+         * status, so a retry cannot raise a second request for the same event.
+         */
+        idempotencyKey: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+
+      if (input.idempotencyKey) {
+        const [existing] = await db
+          .select()
+          .from(approvalRequests)
+          .where(
+            and(
+              eq(approvalRequests.orgId, org!.id),
+              eq(approvalRequests.idempotencyKey, input.idempotencyKey),
+            ),
+          );
+        if (existing) return existing;
+      }
+
+      const amount = input.amount != null ? Number(input.amount) : null;
+      let approvers = input.approverId
+        ? [input.approverId]
+        : await resolveApprovers(db, org!.id, input.entityType, Number.isFinite(amount) ? amount : null);
+
+      // Refuse rather than invent an approver. A request nobody can act on is
+      // worse than no request — it sits pending forever and reads as a backlog.
+      if (approvers.length === 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `No approver could be resolved for "${input.entityType}". Set an approval chain for it, or pass approverId.`,
+        });
+      }
+
+      // Every approver must be a user in THIS org. `approver_id` is a plain FK
+      // to users with no org predicate, so without this a foreign user id would
+      // be accepted and the request would be actionable by another tenant.
+      const valid = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.orgId, org!.id), inArray(users.id, approvers)));
+      const validIds = new Set(valid.map((v: { id: string }) => v.id));
+      const unknown = approvers.filter((a) => !validIds.has(a));
+      if (unknown.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Approver(s) not found in this organisation: ${unknown.join(", ")}`,
+        });
+      }
+      approvers = approvers.filter((a) => validIds.has(a));
+
+      const requestNumber = await getNextNumber(db, org!.id, "APR");
+
+      const [created] = await db
+        .insert(approvalRequests)
+        .values({
+          orgId: org!.id,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          approverId: approvers[0]!,
+          requesterId: user!.id,
+          title: input.title ?? null,
+          description: input.description ?? null,
+          type: input.type ?? "change",
+          priority: input.priority,
+          amount: input.amount ?? null,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          requestNumber,
+          status: "pending",
+          idempotencyKey: input.idempotencyKey ?? null,
+        })
+        .returning();
+
+      // One step per approver, in order. See the note on `sequential` above —
+      // these are an audit trail today, not a state machine.
+      await db.insert(approvalSteps).values(
+        approvers.map((approverId, i) => ({
+          orgId: org!.id,
+          requestId: created!.id,
+          approverId,
+          sequence: i + 1,
+          status: "pending" as const,
+        })),
+      );
+
+      try {
+        await sendNotification({
+          orgId: org!.id,
+          userId: approvers[0]!,
+          title: `Approval requested: ${input.title ?? input.entityType}`,
+          body: `${user!.name ?? "Someone"} raised ${requestNumber} for your approval.`,
+          sourceType: input.entityType,
+          sourceId: input.entityId,
+        });
+      } catch {
+        /* non-fatal — the request is already persisted */
+      }
+
+      return created;
+    }),
+
+  /** Approval chains — which approvers an entity type routes to. */
+  chains: router({
+    list: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(approvalChains)
+        .where(eq(approvalChains.orgId, org!.id))
+        .orderBy(asc(approvalChains.entityType), asc(approvalChains.name));
+    }),
+
+    create: permissionProcedure("approvals", "admin")
+      .input(
+        z.object({
+          entityType: z.string().trim().min(1).max(80),
+          name: z.string().trim().min(1).max(120),
+          rules: z
+            .array(
+              z.object({
+                condition: z.record(z.unknown()).default({}),
+                approvers: z.array(z.string().uuid()).min(1),
+                threshold: z.number().optional(),
+                sequential: z.boolean().default(true),
+              }),
+            )
+            .min(1),
+          isActive: z.boolean().default(true),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const ids = [...new Set(input.rules.flatMap((r) => r.approvers))];
+        const valid = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.orgId, org!.id), inArray(users.id, ids)));
+        if (valid.length !== ids.length) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "One or more approvers are not users in this organisation",
+          });
+        }
+        const [created] = await db
+          .insert(approvalChains)
+          .values({
+            orgId: org!.id,
+            entityType: input.entityType,
+            name: input.name,
+            rules: input.rules,
+            isActive: input.isActive,
+          })
+          .returning();
+        return created;
+      }),
+
+    setActive: permissionProcedure("approvals", "admin")
+      .input(z.object({ id: z.string().uuid(), isActive: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [updated] = await db
+          .update(approvalChains)
+          .set({ isActive: input.isActive })
+          .where(and(eq(approvalChains.id, input.id), eq(approvalChains.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Approval chain not found" });
+        return updated;
+      }),
+
+    remove: permissionProcedure("approvals", "admin")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [removed] = await db
+          .delete(approvalChains)
+          .where(and(eq(approvalChains.id, input.id), eq(approvalChains.orgId, org!.id)))
+          .returning({ id: approvalChains.id });
+        if (!removed) throw new TRPCError({ code: "NOT_FOUND", message: "Approval chain not found" });
+        return { ok: true };
+      }),
+  }),
+
   myPending: permissionProcedure("approvals", "read").input(paginationInput).query(async ({ ctx, input }) => {
     const { db, org } = ctx;
     const rows = await db.select().from(approvalRequests)
@@ -33,7 +285,7 @@ export const approvalsRouter = router({
     const requesterMap: Record<string, string> = {};
     if (requesterIds.length > 0) {
       const requesterRows = await db.select({ id: users.id, name: users.name }).from(users)
-        .where(sql`${users.id} = ANY(${requesterIds})`);
+        .where(inArray(users.id, requesterIds));
       for (const u of requesterRows) requesterMap[u.id] = u.name;
     }
     return rows.map((r: (typeof rows)[number]) => ({
@@ -102,7 +354,7 @@ export const approvalsRouter = router({
     const nameMap: Record<string, string> = {};
     if (peopleIds.length > 0) {
       const nameRows = await db.select({ id: users.id, name: users.name }).from(users)
-        .where(sql`${users.id} = ANY(${peopleIds})`);
+        .where(inArray(users.id, peopleIds));
       for (const u of nameRows) nameMap[u.id] = u.name;
     }
 
@@ -157,7 +409,13 @@ export const approvalsRouter = router({
           status: input.decision,
           comment: input.comment,
           decidedAt: new Date(),
-          idempotencyKey: input.idempotencyKey ?? null,
+          // PRESERVE the existing key when the decision does not carry one.
+          // This used to write null, which erased the key `raise` stored on the
+          // durable fact — so the unique index stopped protecting that request
+          // and a retried raise could create a DUPLICATE for an event already
+          // decided. One column serving both the raise key and the decide key
+          // is the underlying design flaw; not widening it here.
+          idempotencyKey: input.idempotencyKey ?? request.idempotencyKey,
           version: sql`${approvalRequests.version} + 1`,
         })
         .where(and(
@@ -251,7 +509,7 @@ export const approvalsRouter = router({
       const requesterMap: Record<string, string> = {};
       if (requesterIds.length > 0) {
         const requesterRows = await db.select({ id: users.id, name: users.name }).from(users)
-          .where(sql`${users.id} = ANY(${requesterIds})`);
+          .where(inArray(users.id, requesterIds));
         for (const u of requesterRows) requesterMap[u.id] = u.name;
       }
 
