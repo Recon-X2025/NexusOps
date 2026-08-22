@@ -123,33 +123,60 @@ another tenant's policy id would inherit that tenant's duration and legal hold.
 is still unguarded — worth an org predicate on the sweeper, and worth checking
 whether other background sweepers share the shape.
 
-### 4. Approvals — raise path BUILT (`61a0af9`), two halves remain
+### 4. Approvals — usable now; one piece left
 
-**Done:** `approvals.raise` and `approvals.chains` (list/create/setActive/remove).
-`approval_chains` had never been imported anywhere. raise refuses when no approver
-resolves rather than inventing one, allocates its number from `org_counters` ("APR"),
-and validates approvers against this org — `approver_id` is a plain FK to users with
-no org predicate. The chain `condition` jsonb is deliberately NOT interpreted:
-nothing ever wrote it, so there is no meaning to honour and guessing beats nothing
-only in appearance. `threshold` and `approvers` are honoured.
+**Done:** `approvals.raise` + `approvals.chains` (`61a0af9`); `decide` advances the
+chain (`3b5415b`); chains admin screen at `/app/settings/approval-chains` plus
+`eligibleApprovers` (`d14ad04`).
 
-**Remaining, in order:**
+The loop works end to end and was verified in the running app: create a chain with
+ordered approvers and an amount threshold → raise resolves through it → the item
+appears in the approver's queue with working Approve/Reject → approving advances to
+approver 2 → the last approval closes it. A rejection ends the chain and marks later
+steps `skipped`.
 
-1. **`decide` does not advance a chain.** It marks the request approved/rejected
-   outright and closes the matching step; approver 2 is never reached. Multi-step
-   chains therefore record steps for the audit trail and stop. **Do this before
-   wiring callers** — routing a module onto a chain that cannot reach its second
-   approver ships a half-honoured promise.
-2. **No caller raises yet.** purchase requests, contracts, expense claims, change
-   requests, leave. Each changes that module's existing behaviour (a requisition
-   currently goes straight to `approved`, item 12), so each is its own reviewable
-   change.
-3. **An admin screen for chains.** The API exists; there is no UI.
+**Remaining:**
+
+1. **No module calls `raise`.** A purchase request still goes straight to `approved`
+   with no gate (item 12). Wiring each module changes that module's behaviour, so
+   each is its own reviewable change. This is now safe to do — the chain can reach
+   its second approver.
+2. **Parallel chains.** `sequential: false` is not honoured; the request does not
+   record which chain produced it, so the mode is unknown at decision time. Needs a
+   column on the request rather than a guess.
+
+**Design flaw carried:** one `idempotency_key` column serves both the raise key and
+the decide key. `decide` now preserves the existing value instead of nulling it —
+a patch, not a fix.
 
 **Constraint unchanged:** the payroll chain is 2 or 3 steps, never 1, needs that many
 DISTINCT accounts, and its length is stamped onto
-`payroll_runs.approval_chain_length` at creation. A generic chain must not
-contradict that.
+`payroll_runs.approval_chain_length` at creation.
+
+### 4b. Four approval chains route to nobody — OWNER DECISION
+
+`change_request`, `contract`, `expense_claim`, `purchase_request` sit in the dev
+database marked **active** with `rules: []`. No migration or seed inserts them; like
+the other unexplained rows they were put there by hand.
+
+**Fixed:** they no longer LOOK configured. Each row shows "No approvers — nothing can
+be raised" and a banner names all four. `create` requires at least one approver, so
+no new chain can be hollow.
+
+**Deliberately NOT fixed:** they are neither populated nor deleted.
+
+- *Not populated* — the only auto-default is "route to the org owner", and an approval
+  routing nobody chose is a compliance liability. "The system picked someone" is a
+  worse answer to an auditor than "there was no control."
+- *Not deleted* — I decided to delete them, then reversed it. As rows flagged red on
+  the page an admin already lands on, they are a visible backlog of four missing
+  controls. An empty list reads as "nothing needed here", which is false. The
+  suggested entity types live inside the create dialog, so they cannot prompt anyone
+  who has not already decided to act.
+
+**What would change the answer:** if those four are demo decoration rather than real
+intent, deleting them is right and the empty state becomes honest. Nothing in the repo
+records which they are.
 
 ### 5. `workflowStepRuns` — a documented contract nobody implements
 
@@ -260,6 +287,38 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-22 — run 5
+
+**Item 4 is usable.** `decide` now advances the chain (`3b5415b`) and the chains admin
+screen exists (`d14ad04`). Verified in the running app rather than by API alone: a
+chain built through the form, a request raised through it, and the item rendered in
+the approver's queue with working Approve/Reject — a page that has always shown
+"All caught up — no pending approvals" to every tenant.
+
+**Two defects fixed along the way**, both surfaced by running the thing rather than
+reading it: `raise` accepted an approver who lacked `approvals:approve` (the request
+would sit in their queue and 403 on touch), and `decide` erased the raise-time
+idempotency key.
+
+**Found:** four approval chains active with no approvers (item 4b). Made visible;
+decision on what to do with them left to the owner, with the reasoning recorded.
+
+**Reversed my own decision.** I ruled "delete the four hollow chains" and was asked
+whether that was right from a usage standpoint. It was not: flagged rows on a page an
+admin already visits are a prompt; an empty list is silence. The lens that matters is
+what the operator does next, not whether the data is tidy.
+
+**`tsx watch` is unusable in this repo.** It served stale code through several
+restarts and never picked up router changes. Running plain `tsx` and restarting on
+edits. The API on :3001 is now a plain process, not under the old supervisor — the
+original watcher (pid 63178) may still be alive and could fight for the port.
+
+**Dev data left in place deliberately:** the `zz_demo` chain and `APR-0006`, so the
+working case sits beside the four broken ones.
+
+**Next:** wire the first caller — purchase requests — so a requisition routes instead
+of skipping to `approved`.
 
 ## 2026-08-22 — run 4
 
