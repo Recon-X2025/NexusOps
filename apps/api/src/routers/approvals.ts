@@ -19,6 +19,7 @@ import { enqueueApprovalDecision } from "../workflows/approvalWorkflow";
 import { getWorkflowService } from "../services/workflow";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { getNextNumber } from "../lib/auto-number";
+import { checkDbUserPermission } from "../lib/rbac-db";
 
 /**
  * Resolve the approver sequence for an entity.
@@ -36,11 +37,12 @@ import { getNextNumber } from "../lib/auto-number";
  *                    there is no established meaning to honour. A chain that
  *                    relies on `condition` alone resolves to its approvers as
  *                    though the condition passed.
- *   - `sequential` — every request today is closed by the FIRST decision
- *                    (`decide` marks the request approved/rejected outright),
- *                    so steps are recorded for the audit trail but a later step
- *                    is never reached. Wiring sequential advancement is a
- *                    separate change to `decide`.
+ *   - `sequential` — NOT read. `decide` advances one step at a time in
+ *                    `approval_steps.sequence` order, so every chain behaves
+ *                    sequentially. Parallel cannot be honoured yet: the request
+ *                    does not record which chain or rule produced it, so the
+ *                    mode is unknown at decision time. That needs a column on
+ *                    the request, so it is queued rather than guessed at.
  */
 async function resolveApprovers(
   db: any,
@@ -126,7 +128,12 @@ export const approvalsRouter = router({
       // to users with no org predicate, so without this a foreign user id would
       // be accepted and the request would be actionable by another tenant.
       const valid = await db
-        .select({ id: users.id })
+        .select({
+          id: users.id,
+          email: users.email,
+          role: users.role,
+          matrixRole: users.matrixRole,
+        })
         .from(users)
         .where(and(eq(users.orgId, org!.id), inArray(users.id, approvers)));
       const validIds = new Set(valid.map((v: { id: string }) => v.id));
@@ -137,6 +144,25 @@ export const approvalsRouter = router({
           message: `Approver(s) not found in this organisation: ${unknown.join(", ")}`,
         });
       }
+
+      // …and must actually be able to approve. `decide` is gated on
+      // approvals:approve, so routing to someone without it produces a request
+      // that sits in their queue and 403s the moment they touch it — the same
+      // "nobody can act on this" failure the check above exists to prevent,
+      // just discovered later and by the wrong person.
+      const cannot = valid.filter(
+        (v: { role: string; matrixRole: string | null }) =>
+          !checkDbUserPermission(v.role, "approvals", "approve", v.matrixRole ?? undefined),
+      );
+      if (cannot.length > 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `These approvers cannot approve (missing approvals:approve): ${cannot
+            .map((c: { email: string }) => c.email)
+            .join(", ")}`,
+        });
+      }
+
       approvers = approvers.filter((a) => validIds.has(a));
 
       const requestNumber = await getNextNumber(db, org!.id, "APR");
@@ -161,8 +187,8 @@ export const approvalsRouter = router({
         })
         .returning();
 
-      // One step per approver, in order. See the note on `sequential` above —
-      // these are an audit trail today, not a state machine.
+      // One step per approver, in order. `decide` walks these by sequence, so
+      // approver 2 is only reached once approver 1 has approved.
       await db.insert(approvalSteps).values(
         approvers.map((approverId, i) => ({
           orgId: org!.id,
@@ -404,11 +430,47 @@ export const approvalsRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Request has already been decided" });
       }
 
+      // ── Chain advancement ────────────────────────────────────────────────
+      // The step this user owns, and whether anyone is left after them.
+      //
+      // Advancement is SEQUENTIAL, driven by `approval_steps.sequence`. The
+      // chain rule's `sequential: false` (parallel) is NOT honoured here and
+      // cannot be: the request does not record which chain or rule produced it,
+      // so the mode is unknown at decision time. Storing the mode on the
+      // request is the fix; it needs a column, so it is queued rather than
+      // guessed at.
+      const steps = await db.select().from(approvalSteps)
+        .where(eq(approvalSteps.requestId, input.requestId))
+        .orderBy(asc(approvalSteps.sequence));
+
+      const myStep = steps.find(
+        (s: { approverId: string; status: string }) =>
+          s.approverId === ctx.user!.id && s.status === "pending",
+      );
+      const laterPending = myStep
+        ? steps.filter(
+            (s: { sequence: number; status: string }) =>
+              s.sequence > myStep.sequence && s.status === "pending",
+          )
+        : [];
+
+      // A rejection ends the chain immediately — later approvers never see it.
+      // An approval closes the request ONLY when nobody is left after this step.
+      // A request with no steps at all (raised before chains existed, or seeded)
+      // behaves as it always did: one decision closes it.
+      const advancing = input.decision === "approved" && laterPending.length > 0;
+      const nextApprover = advancing ? laterPending[0]!.approverId : null;
+
       const [updated] = await db.update(approvalRequests)
         .set({
-          status: input.decision,
+          // Still pending while the chain has further approvers to hear from.
+          status: advancing ? "pending" : input.decision,
           comment: input.comment,
-          decidedAt: new Date(),
+          decidedAt: advancing ? null : new Date(),
+          // `approver_id` is the pointer to the CURRENT approver — move it on,
+          // otherwise the next person cannot load the request (the lookup above
+          // filters on it) and the chain stalls silently.
+          approverId: advancing ? nextApprover! : request.approverId,
           // PRESERVE the existing key when the decision does not carry one.
           // This used to write null, which erased the key `raise` stored on the
           // durable fact — so the unique index stopped protecting that request
@@ -431,24 +493,44 @@ export const approvalsRouter = router({
         });
       }
 
-      // Update corresponding approval step if it exists
-      const [step] = await db.select().from(approvalSteps)
-        .where(and(
-          eq(approvalSteps.requestId, input.requestId),
-          eq(approvalSteps.approverId, ctx.user!.id),
-          eq(approvalSteps.status, "pending"),
-        ));
-
-      if (step) {
+      if (myStep) {
         await db.update(approvalSteps)
           .set({
             status: input.decision,
             comments: input.comment,
             decidedAt: new Date(),
           })
-          .where(eq(approvalSteps.id, step.id));
+          .where(eq(approvalSteps.id, myStep.id));
+
+        // On rejection the remaining steps are SKIPPED, not left pending —
+        // a pending step on a rejected request would sit in someone's queue
+        // forever and count towards the badge.
+        if (input.decision === "rejected" && laterPending.length > 0) {
+          await db.update(approvalSteps)
+            .set({ status: "skipped", decidedAt: new Date() })
+            .where(inArray(approvalSteps.id, laterPending.map((s: { id: string }) => s.id)));
+        }
       }
 
+      // Hand the baton on. Without this the next approver is never told.
+      if (advancing && nextApprover) {
+        try {
+          await sendNotification({
+            orgId: org!.id,
+            userId: nextApprover,
+            title: `Approval needed: ${request.title ?? request.entityType}`,
+            body: `${request.requestNumber ?? "A request"} has passed the previous approver and now needs yours.`,
+            sourceType: request.entityType,
+            sourceId: request.entityId,
+          });
+        } catch { /* non-fatal — the advance is already persisted */ }
+      }
+
+      // Both of the following announce a FINAL outcome — the requester is told
+      // their request was approved or rejected. Neither may fire while the chain
+      // is still advancing, or approver 1 signing off would tell the requester
+      // the whole thing was approved before approver 2 had seen it.
+      if (!advancing) {
       try {
         await sendNotification({
           orgId: org!.id,
@@ -478,6 +560,7 @@ export const approvalsRouter = router({
         // Workflow failure is non-fatal — decision is already persisted
         console.warn("[approvals.decide] Failed to enqueue workflow job:", err);
       }
+      } // end !advancing
 
       return updated;
     }),
