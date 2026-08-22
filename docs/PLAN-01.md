@@ -107,13 +107,21 @@ sound (filenames, round-trips of already-UTC stored values, and the finance peri
 boundaries, which use `Date.UTC()` deliberately). **Server-side sites are safe only
 because the container runs UTC — they would shift if `TZ` were ever set.**
 
-### 3. `documentRetentionPolicies` — deletes documents on a timer nobody can set
+### 3. ~~`documentRetentionPolicies`~~ — DONE 2026-08-22 (`d44a400`)
 
-Read **only** by the retention worker. No write path, so the 90-day default is
-unreachable and the policy-level legal-hold flag can never be set — only the
-per-document one. The only item in this queue that destroys data unprompted.
+Added `documents.retention` (list/create/update/remove/assign) and an admin screen
+at `/app/settings/retention`. The 90-day default is now stated on the page — it was
+unreachable and unstated before. `durationDays` has a floor of 1 (a 0-day policy
+would erase a document the moment it was deleted). `remove` reports how many
+documents it reverted and to what, because `retention_policy_id` is ON DELETE SET
+NULL and the default may be SHORTER than the policy removed.
 
-Needs an admin CRUD screen.
+**Carried finding — the sweeper is not org-scoped.** It joins documents → policies
+with no org predicate and the FK does not constrain same-org, so a document holding
+another tenant's policy id would inherit that tenant's duration and legal hold.
+`assign` now validates org, which closes the only reachable way in. The join itself
+is still unguarded — worth an org predicate on the sweeper, and worth checking
+whether other background sweepers share the shape.
 
 ### 4. Approvals — the raise path is missing
 
@@ -247,6 +255,21 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-22 — run 3
+
+**Queue item 3 done** (`d44a400`). Retention policies are writable and the deletion
+default is visible. Verified against an isolated API+web stack on spare ports —
+`tsx watch` would not pick up the router change, so the shared dev API on 3001 kept
+serving the old router. Every path exercised: create, duplicate-name CONFLICT,
+zero-day BAD_REQUEST, update confirmed in SQL, cross-org assign refused, same-org
+assign persisted, remove reporting the revert count with FK set-null confirmed, and
+a policy created through the UI landing in 5434/DEV. Probe data removed.
+
+**Deployed:** run 32559621579 green end to end — `nexusops/api:d3e7a3c`. The payroll
+and expense timezone fixes are live.
+
+**Next:** queue item 4 — the approvals raise path.
 
 ## 2026-08-22 — run 2
 
