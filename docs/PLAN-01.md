@@ -123,35 +123,38 @@ another tenant's policy id would inherit that tenant's duration and legal hold.
 is still unguarded — worth an org predicate on the sweeper, and worth checking
 whether other background sweepers share the shape.
 
-### 4. Approvals — usable now; one piece left
+### 4. Approvals — wired end to end; two pieces left
 
-**Done:** `approvals.raise` + `approvals.chains` (`61a0af9`); `decide` advances the
-chain (`3b5415b`); chains admin screen at `/app/settings/approval-chains` plus
-`eligibleApprovers` (`d14ad04`).
+**Done:** `raise` + chains (`61a0af9`) · `decide` advances the chain (`3b5415b`) ·
+chains admin screen + `eligibleApprovers` (`d14ad04`) · **procurement raises**
+(`425b3e6`) · chain editing + atomic raise (`e74b69f`).
 
-The loop works end to end and was verified in the running app: create a chain with
-ordered approvers and an amount threshold → raise resolves through it → the item
-appears in the approver's queue with working Approve/Reject → approving advances to
-approver 2 → the last approval closes it. A rejection ends the chain and marks later
-steps `skipped`.
+A requisition over the tier now creates a real approval request, routed through the
+chain, visible in the approver's queue, advancing approver by approver.
+
+**Correction to an earlier finding (item 12):** the auto-`approved` on a new
+requisition is NOT a missing gate. `determineApproval` implements configured tiers —
+auto below 75,000, dept_head below 750,000, vp_finance above. The defect was only
+ever the un-routed `pending` case, which is now fixed.
 
 **Remaining:**
 
-1. **No module calls `raise`.** A purchase request still goes straight to `approved`
-   with no gate (item 12). Wiring each module changes that module's behaviour, so
-   each is its own reviewable change. This is now safe to do — the chain can reach
-   its second approver.
-2. **Parallel chains.** `sequential: false` is not honoured; the request does not
+1. **Other callers** — contracts, expense claims, change requests, leave. Each is its
+   own reviewable change. `lib/raise-approval.ts` is the one write site; call it and
+   the org check, approve-permission check and idempotency come with it.
+2. **Parallel chains.** `sequential: false` is not honoured — the request does not
    record which chain produced it, so the mode is unknown at decision time. Needs a
-   column on the request rather than a guess.
+   column on the request.
 
-**Design flaw carried:** one `idempotency_key` column serves both the raise key and
-the decide key. `decide` now preserves the existing value instead of nulling it —
-a patch, not a fix.
+**Two conventions this work established, neither pre-existing:**
 
-**Constraint unchanged:** the payroll chain is 2 or 3 steps, never 1, needs that many
-DISTINCT accounts, and its length is stamped onto
-`payroll_runs.approval_chain_length` at creation.
+- `purchase_request:<prId>` is the only SERVER-generated idempotency key in the
+  codebase; every other comes from the caller.
+- The raise is resolved read-only BEFORE the transaction and written INSIDE it, so a
+  configuration gap (no chain) and a real database failure are not caught
+  identically. Precedent: the codebase uses non-fatal-after for notifications and
+  workflow enqueues, but puts the PO accrual journal inside the transaction. An
+  approval is a control, not a notification.
 
 ### 4b. Four approval chains route to nobody — OWNER DECISION
 
@@ -287,6 +290,32 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-22 — run 6
+
+**Approvals wired to a real caller.** Procurement raises when its tier says approval
+is needed (`425b3e6`); chains can now be edited in place and the raise is atomic
+(`e74b69f`). Verified both paths: no chain → requisition created with the reason
+returned; chain configured → requisition and approval committed together.
+
+**CI failed once, on `no-any-ratchet`** (run 32570522211): `approvals.ts:48 db: any`.
+A guard doing exactly its job — `src/routers` must contain zero unannotated `any`.
+Nothing deployed; Build and Deploy were skipped. It was already fixed by a later
+local commit that moved the function into `lib/`, which is outside the guard's scope
+— fixed by luck, not intent.
+
+**The real mistake:** I ran `pnpm build` and `pnpm lint:cold` before every commit and
+NOT the test suite, for changes to approvals and procurement — core business logic
+with 28 tests touching it. A typecheck cannot catch a guard test. Gate to the change,
+not to the convenience.
+
+**Three design choices were challenged and one did not survive.** The procurement
+raise was post-transaction and non-fatal, which caught a config gap and a real DB
+failure identically. Checking precedent showed the codebase puts the PO accrual
+journal inside its transaction; the raise now matches. Asserting a choice is not the
+same as having checked it.
+
+**Next:** wire the remaining callers, or fill the four hollow chains (item 4b).
 
 ## 2026-08-22 — run 5
 
