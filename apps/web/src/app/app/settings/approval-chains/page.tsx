@@ -15,7 +15,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, GitBranch, Plus, Trash2, ArrowDown, AlertTriangle } from "lucide-react";
+import { Loader2, GitBranch, Plus, Trash2, Pencil, ArrowDown, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 
@@ -30,19 +30,44 @@ const SUGGESTED_ENTITIES = [
 
 interface Approver { id: string; name: string; email: string }
 
-function NewChainDialog({ approvers, onClose }: { approvers: Approver[]; onClose: () => void }) {
-  const utils = trpc.useUtils();
-  const [entityType, setEntityType] = useState("");
-  const [name, setName] = useState("");
-  const [chosen, setChosen] = useState<string[]>([]);
-  const [threshold, setThreshold] = useState("");
+interface ChainRow {
+  id: string;
+  entityType: string;
+  name: string;
+  isActive: boolean | null;
+  rules: Array<{ approvers: string[]; threshold?: number }>;
+}
 
+function ChainDialog({
+  approvers,
+  chain,
+  onClose,
+}: {
+  approvers: Approver[];
+  /** null = create, otherwise edit in place. */
+  chain: ChainRow | null;
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const rule0 = chain?.rules?.[0];
+  const [entityType, setEntityType] = useState(chain?.entityType ?? "");
+  const [name, setName] = useState(chain?.name ?? "");
+  const [chosen, setChosen] = useState<string[]>(rule0?.approvers ?? []);
+  const [threshold, setThreshold] = useState(
+    rule0?.threshold != null ? String(rule0.threshold) : "",
+  );
+
+  const done = (msg: string) => {
+    toast.success(msg);
+    void utils.approvals.chains.list.invalidate();
+    onClose();
+  };
   const create = trpc.approvals.chains.create.useMutation({
-    onSuccess: () => {
-      toast.success("Approval chain created");
-      void utils.approvals.chains.list.invalidate();
-      onClose();
-    },
+    onSuccess: () => done("Approval chain created"),
+    onError: (e) => toast.error(e.message),
+  });
+  const update = trpc.approvals.chains.update.useMutation({
+    onSuccess: () => done("Approval chain updated"),
     onError: (e) => toast.error(e.message),
   });
 
@@ -55,7 +80,9 @@ function NewChainDialog({ approvers, onClose }: { approvers: Approver[]; onClose
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-lg border border-border bg-card p-5 shadow-lg">
-        <h2 className="text-body font-semibold text-foreground">New approval chain</h2>
+        <h2 className="text-body font-semibold text-foreground">
+          {chain ? "Edit approval chain" : "New approval chain"}
+        </h2>
 
         <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           <label className="flex flex-col gap-1">
@@ -66,6 +93,7 @@ function NewChainDialog({ approvers, onClose }: { approvers: Approver[]; onClose
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
               placeholder="purchase_request"
+              disabled={!!chain}
             />
             <datalist id="entity-types">
               {SUGGESTED_ENTITIES.map((e) => <option key={e} value={e} />)}
@@ -153,26 +181,25 @@ function NewChainDialog({ approvers, onClose }: { approvers: Approver[]; onClose
           </button>
           <button
             type="button"
-            disabled={!valid || create.isPending}
-            onClick={() =>
-              create.mutate({
-                entityType: entityType.trim(),
-                name: name.trim(),
-                isActive: true,
-                rules: [
-                  {
-                    condition: {},
-                    approvers: chosen,
-                    sequential: true,
-                    ...(threshold.trim() ? { threshold: Number(threshold) } : {}),
-                  },
-                ],
-              })
-            }
+            disabled={!valid || create.isPending || update.isPending}
+            onClick={() => {
+              const rules = [
+                {
+                  condition: {},
+                  approvers: chosen,
+                  sequential: true,
+                  ...(threshold.trim() ? { threshold: Number(threshold) } : {}),
+                },
+              ];
+              if (chain) update.mutate({ id: chain.id, name: name.trim(), rules });
+              else create.mutate({ entityType: entityType.trim(), name: name.trim(), isActive: true, rules });
+            }}
             className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-caption font-semibold text-primary-foreground disabled:opacity-50"
           >
-            {create.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            Create chain
+            {create.isPending || update.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : null}
+            {chain ? "Save changes" : "Create chain"}
           </button>
         </div>
       </div>
@@ -182,7 +209,10 @@ function NewChainDialog({ approvers, onClose }: { approvers: Approver[]; onClose
 
 export default function ApprovalChainsPage() {
   const { can } = useRBAC();
-  const [open, setOpen] = useState(false);
+  const [dialog, setDialog] = useState<{ open: boolean; chain: ChainRow | null }>({
+    open: false,
+    chain: null,
+  });
   const utils = trpc.useUtils();
 
   const canRead = can("approvals", "read");
@@ -205,13 +235,7 @@ export default function ApprovalChainsPage() {
 
   if (!canRead) return <AccessDenied module="Approval chains" />;
 
-  const chains = (q.data ?? []) as Array<{
-    id: string;
-    entityType: string;
-    name: string;
-    isActive: boolean | null;
-    rules: Array<{ approvers: string[]; threshold?: number }>;
-  }>;
+  const chains = (q.data ?? []) as ChainRow[];
   const approvers = (qa.data ?? []) as Approver[];
   const nameOf = (id: string) => approvers.find((a) => a.id === id)?.name ?? id.slice(0, 8) + "…";
 
@@ -237,7 +261,7 @@ export default function ApprovalChainsPage() {
         {canAdmin ? (
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => setDialog({ open: true, chain: null })}
             className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-caption font-semibold text-primary-foreground"
           >
             <Plus className="h-3.5 w-3.5" /> New chain
@@ -337,6 +361,13 @@ export default function ApprovalChainsPage() {
                           <>
                             <button
                               type="button"
+                              onClick={() => setDialog({ open: true, chain: c })}
+                              className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-caption"
+                            >
+                              <Pencil className="h-3 w-3" /> Edit
+                            </button>
+                            <button
+                              type="button"
                               onClick={() =>
                                 setActive.mutate({ id: c.id, isActive: c.isActive === false })
                               }
@@ -366,7 +397,13 @@ export default function ApprovalChainsPage() {
         </div>
       )}
 
-      {open ? <NewChainDialog approvers={approvers} onClose={() => setOpen(false)} /> : null}
+      {dialog.open ? (
+        <ChainDialog
+          approvers={approvers}
+          chain={dialog.chain}
+          onClose={() => setDialog({ open: false, chain: null })}
+        />
+      ) : null}
     </div>
   );
 }

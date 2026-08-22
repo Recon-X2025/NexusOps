@@ -135,13 +135,28 @@ export const approvalsRouter = router({
         const { db, org } = ctx;
         const ids = [...new Set(input.rules.flatMap((r) => r.approvers))];
         const valid = await db
-          .select({ id: users.id })
+          .select({ id: users.id, email: users.email, role: users.role, matrixRole: users.matrixRole })
           .from(users)
           .where(and(eq(users.orgId, org!.id), inArray(users.id, ids)));
         if (valid.length !== ids.length) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "One or more approvers are not users in this organisation",
+          });
+        }
+        // Must hold approvals:approve, same as `update`. Without this you could
+        // CREATE a chain whose approver cannot approve but not EDIT one into
+        // that state — the weaker of two guards is the one that matters.
+        const cannot = valid.filter(
+          (v: { role: string; matrixRole: string | null }) =>
+            !checkDbUserPermission(v.role, "approvals", "approve", v.matrixRole ?? undefined),
+        );
+        if (cannot.length > 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `These approvers cannot approve (missing approvals:approve): ${cannot
+              .map((c: { email: string }) => c.email)
+              .join(", ")}`,
           });
         }
         const [created] = await db
@@ -155,6 +170,81 @@ export const approvalsRouter = router({
           })
           .returning();
         return created;
+      }),
+
+    /**
+     * Edit a chain in place — including its approvers.
+     *
+     * Without this the only way to give an approver-less chain some approvers
+     * was to delete and recreate it, which loses the row and any history
+     * attached to it. `rules` is replaced wholesale rather than merged: the
+     * approver ORDER is the meaning, and a merge cannot express "move Jane
+     * after Raj" without inventing a patch language for jsonb.
+     */
+    update: permissionProcedure("approvals", "admin")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          name: z.string().trim().min(1).max(120).optional(),
+          rules: z
+            .array(
+              z.object({
+                condition: z.record(z.unknown()).default({}),
+                approvers: z.array(z.string().uuid()).min(1),
+                threshold: z.number().optional(),
+                sequential: z.boolean().default(true),
+              }),
+            )
+            .min(1)
+            .optional(),
+          isActive: z.boolean().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...rest } = input;
+
+        const [target] = await db
+          .select({ id: approvalChains.id })
+          .from(approvalChains)
+          .where(and(eq(approvalChains.id, id), eq(approvalChains.orgId, org!.id)));
+        if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Approval chain not found" });
+
+        // Same guard as create: an approver must exist in THIS org and must
+        // actually hold approvals:approve, or the chain builds a request that
+        // 403s the moment its approver touches it.
+        if (rest.rules) {
+          const ids = [...new Set(rest.rules.flatMap((r) => r.approvers))];
+          const valid = await db
+            .select({ id: users.id, email: users.email, role: users.role, matrixRole: users.matrixRole })
+            .from(users)
+            .where(and(eq(users.orgId, org!.id), inArray(users.id, ids)));
+          if (valid.length !== ids.length) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "One or more approvers are not users in this organisation",
+            });
+          }
+          const cannot = valid.filter(
+            (v: { role: string; matrixRole: string | null }) =>
+              !checkDbUserPermission(v.role, "approvals", "approve", v.matrixRole ?? undefined),
+          );
+          if (cannot.length > 0) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `These approvers cannot approve (missing approvals:approve): ${cannot
+                .map((c: { email: string }) => c.email)
+                .join(", ")}`,
+            });
+          }
+        }
+
+        const [updated] = await db
+          .update(approvalChains)
+          .set(rest)
+          .where(and(eq(approvalChains.id, id), eq(approvalChains.orgId, org!.id)))
+          .returning();
+        return updated;
       }),
 
     setActive: permissionProcedure("approvals", "admin")

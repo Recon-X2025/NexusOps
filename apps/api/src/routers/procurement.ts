@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getTableColumns } from "drizzle-orm";
 import { getNextNumber } from "../lib/auto-number";
-import { raiseApproval } from "../lib/raise-approval";
+import { raiseApproval, resolveApprovers } from "../lib/raise-approval";
 import {
   vendors,
   purchaseRequests,
@@ -260,6 +260,29 @@ export const procurementRouter = router({
       const approvalLevel = await determineApproval(totalAmount, freshOrg?.settings ?? org!.settings);
       const status = approvalLevel === "auto" ? "approved" : "pending";
 
+      // ── Can this be routed at all? ───────────────────────────────────────
+      // Resolved BEFORE the transaction, read-only, so the two failure modes
+      // stay separable:
+      //   • no chain configured  → a config gap. The requisition is still valid
+      //     and must be created; failing here would break requisitions for
+      //     every org that has not set a chain.
+      //   • anything else (DB error mid-insert) → a real failure, and the
+      //     approval write below is inside the transaction so it rolls the
+      //     requisition back with it.
+      // Catching both identically — which is what a post-transaction try/catch
+      // does — would leave a committed requisition with no approval and only a
+      // console warning. That is the exact silent-pending state this change
+      // exists to remove.
+      let approvalIssue: string | null = null;
+      let canRoute = false;
+      if (approvalLevel !== "auto") {
+        const resolved = await resolveApprovers(db, org!.id, "purchase_request", totalAmount);
+        canRoute = resolved.length > 0;
+        if (!canRoute) {
+          approvalIssue = `No approval chain configured for "purchase_request" — this request will not reach an approver.`;
+        }
+      }
+
       // Number allocation + header + line items are one unit: a failed item
       // insert must roll back both the PR header and the consumed PR number.
       const pr = await db.transaction(async (tx) => {
@@ -295,37 +318,21 @@ export const procurementRouter = router({
           );
         }
 
-        return created;
-      });
-
-      // ── Route it ─────────────────────────────────────────────────────────
-      // `approvalRequired` has always been returned here and nothing acted on
-      // it: the PR sat `pending` with no approver and appeared in nobody's
-      // queue. Raise a real approval so it reaches someone.
-      //
-      // Deliberately AFTER the transaction and non-fatal. The requisition is
-      // already committed and valid; failing the create because approvals are
-      // unconfigured would break requisitions for every org that has not set a
-      // chain — a strictly worse outcome than today's silent pending.
-      //
-      // The key is the PR id, a durable fact, so a retried create cannot raise
-      // a second approval for the same requisition.
-      let approvalRaised = false;
-      let approvalIssue: string | null = null;
-      if (approvalLevel !== "auto") {
-        try {
-          await raiseApproval(db, {
+        // Atomic with the requisition. If this throws, the PR, its line items
+        // and the consumed PR number all roll back together — no half state.
+        if (canRoute) {
+          await raiseApproval(tx, {
             orgId: org!.id,
             requesterId: user!.id,
             requesterName: user!.name,
             entityType: "purchase_request",
-            entityId: pr!.id,
-            title: `${pr!.number} — ${input.title}`,
+            entityId: created!.id,
+            title: `${created!.number} — ${input.title}`,
             description: input.justification ?? null,
             type: "purchase",
             // PR priority is critical|high|medium|low; an approval is
             // urgent|high|normal. Map rather than pass through — an unmapped
-            // value would silently fall to the zod default and lose the signal.
+            // value would fall to the zod default and lose the signal.
             priority:
               input.priority === "critical"
                 ? "urgent"
@@ -333,23 +340,22 @@ export const procurementRouter = router({
                   ? "high"
                   : "normal",
             amount: totalAmount.toString(),
-            idempotencyKey: `purchase_request:${pr!.id}`,
+            // Keyed on the PR id, a durable fact, so a retried create cannot
+            // raise a second approval for the same requisition. Note this is
+            // the only SERVER-generated idempotency key in the codebase —
+            // every other one comes from the caller.
+            idempotencyKey: `purchase_request:${created!.id}`,
           });
-          approvalRaised = true;
-        } catch (err) {
-          // Most often: no approval chain configured for purchase_request, so
-          // there is nobody to route to. Surface it rather than swallow it —
-          // the caller needs to know the request will not reach an approver.
-          approvalIssue = err instanceof Error ? err.message : String(err);
-          console.warn("[procurement.create] approval not raised:", approvalIssue);
         }
-      }
+
+        return created;
+      });
 
       return {
         ...pr,
         approvalRequired: approvalLevel !== "auto",
         approvalLevel,
-        approvalRaised,
+        approvalRaised: canRoute,
         approvalIssue,
       };
     }),
