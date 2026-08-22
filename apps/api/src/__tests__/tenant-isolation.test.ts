@@ -22,7 +22,19 @@ import {
   cleanupOrg,
   testDb,
 } from "./helpers";
-import { chartOfAccounts, tickets, ticketWatchers, contractObligations, eq, and } from "@coheronconnect/db";
+import {
+  chartOfAccounts,
+  tickets,
+  ticketWatchers,
+  contractObligations,
+  documents,
+  vendors,
+  surveyResponses,
+  workOrderActivityLogs,
+  documentAcls,
+  eq,
+  and,
+} from "@coheronconnect/db";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {
@@ -352,6 +364,187 @@ describe.sequential("cross-tenant isolation — child resources", () => {
     // org B also cannot attach a KR to org A's objective.
     await expect(
       callerB.hr.okr.createKeyResult({ objectiveId: objective.id, title: "Injected KR" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  // ── No-`org_id` child tables (isolation sweep, 2026-08-22) ────────────────
+  //
+  // 40 tables carry no `org_id` and so have no RLS behind them; the app-layer
+  // filter is their only wall. These three handlers take a parent id straight
+  // from input and never check whose org that parent is in. Each case writes as
+  // org B onto an org-A parent and then asserts through ORG A's OWN read path —
+  // the point is not that B sees A's data, it is that B can put a row into A's.
+
+  it("org B cannot submit a survey response onto org A's survey", async () => {
+    const survey = (await callerA.surveys.create({
+      title: "Org A CSAT",
+      type: "csat",
+      questions: [{ id: "q1", type: "rating", question: "How did we do?", required: true }],
+    })) as { id: string };
+
+    // Org B posts onto org A's survey id.
+    await expect(
+      callerB.surveys.submit({ surveyId: survey.id, answers: { q1: "1" }, score: "1" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // Org A's own results screen must not have counted it.
+    const results = (await callerA.surveys.getResults({ id: survey.id })) as {
+      totalResponses: number;
+      averageScore: string | null;
+      responses: Array<{ respondentId: string | null }>;
+    };
+    expect(results.totalResponses).toBe(0);
+    expect(results.averageScore).toBeNull();
+    expect(results.responses).toHaveLength(0);
+
+    // And no row exists at all, since survey_responses has no RLS to fall back on.
+    const rows = await testDb()
+      .select()
+      .from(surveyResponses)
+      .where(eq(surveyResponses.surveyId, survey.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("org B cannot add a note to org A's work order", async () => {
+    const wo = (await callerA.workOrders.create({
+      shortDescription: "Org A work order",
+      type: "corrective",
+      priority: "4_low",
+    })) as { id: string };
+
+    await expect(
+      callerB.workOrders.addNote({ workOrderId: wo.id, note: "Injected by org B" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // Org A's detail view reads activity logs by workOrderId alone.
+    const detail = (await callerA.workOrders.get({ id: wo.id })) as {
+      activityLogs: Array<{ note: string | null }>;
+    };
+    expect(detail.activityLogs.some((l) => l.note === "Injected by org B")).toBe(false);
+
+    const logs = await testDb()
+      .select()
+      .from(workOrderActivityLogs)
+      .where(eq(workOrderActivityLogs.workOrderId, wo.id));
+    expect(logs.some((l) => l.note === "Injected by org B")).toBe(false);
+  });
+
+  it("org B cannot grant an ACL on org A's document", async () => {
+    // Seeded directly rather than through `documents.upload`, which calls S3 and
+    // is not configured under vitest. This case is about the ACL write path only.
+    const [doc] = await testDb()
+      .insert(documents)
+      .values({
+        orgId: orgA.orgId,
+        name: "org-a-confidential.txt",
+        mimeType: "text/plain",
+        sizeBytes: 10,
+        storageKey: `test/${orgA.orgId}/org-a-confidential.txt`,
+        sha256: "0".repeat(64),
+        classification: "confidential",
+      })
+      .returning();
+
+    await expect(
+      callerB.documents.grantAcl({
+        documentId: doc!.id,
+        principalType: "everyone_in_org",
+        permission: "read",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // document_acls has no org_id, so the row itself is the only observable.
+    const acls = await testDb()
+      .select()
+      .from(documentAcls)
+      .where(eq(documentAcls.documentId, doc!.id));
+    expect(acls).toHaveLength(0);
+  });
+  // ── Secondary references (same sweep): parent guarded, reference was not ───
+
+  it("org B's user cannot be assigned to org A's ticket", async () => {
+    const created = (await callerA.tickets.create({
+      title: "Org A ticket for assignment",
+      type: "incident",
+      priorityId: orgA.p1Id!,
+      statusId: orgA.statusOpenId!,
+    })) as { id: string };
+
+    // The ticket is org A's and the caller is org A — only the ASSIGNEE is foreign.
+    await expect(
+      callerA.tickets.assign({ id: created.id, assigneeId: orgB.adminId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const [row] = await testDb().select().from(tickets).where(eq(tickets.id, created.id));
+    expect(row!.assigneeId).not.toBe(orgB.adminId);
+  });
+
+  it("org A cannot grant a document ACL to a principal from org B", async () => {
+    const [doc] = await testDb()
+      .insert(documents)
+      .values({
+        orgId: orgA.orgId,
+        name: "org-a-acl-principal.txt",
+        mimeType: "text/plain",
+        sizeBytes: 10,
+        storageKey: `test/${orgA.orgId}/org-a-acl-principal.txt`,
+        sha256: "1".repeat(64),
+      })
+      .returning();
+
+    // Document is org A's; the PRINCIPAL is org B's user.
+    await expect(
+      callerA.documents.grantAcl({
+        documentId: doc!.id,
+        principalType: "user",
+        principalId: orgB.adminId,
+        permission: "read",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const acls = await testDb()
+      .select()
+      .from(documentAcls)
+      .where(eq(documentAcls.documentId, doc!.id));
+    expect(acls).toHaveLength(0);
+  });
+  // ── The invoice twins: canonical + deprecated, guarded separately ─────────
+  //
+  // Not an exposure — the read-back joins are RLS-filtered — but a foreign
+  // vendor resolved `undefined`, leaving the buyer state unknown, which defaults
+  // to an intra-state CGST/SGST split. Wrong tax on a dangling reference.
+  // Both are asserted because a guard on one twin and not the other leaves the
+  // defect fully reachable.
+
+  it("neither invoice procedure accepts a vendor from another org", async () => {
+    const [foreignVendor] = await testDb()
+      .insert(vendors)
+      .values({ orgId: orgB.orgId, name: "Org B Supplies Pvt Ltd" })
+      .returning();
+
+    // canonical
+    await expect(
+      callerA.financial.createInvoice({
+        vendorId: foreignVendor!.id,
+        invoiceNumber: `INV-XT-${Date.now()}`,
+        amount: "1000",
+        gstRate: 18,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // deprecated twin
+    await expect(
+      callerA.financial.createGSTInvoice({
+        vendorId: foreignVendor!.id,
+        invoiceNumber: `GST-XT-${Date.now()}`,
+        invoiceDate: new Date(),
+        supplierGstin: "29BBBBB1111B1Z3",
+        placeOfSupply: "29",
+        orgState: "29",
+        vendorState: "29",
+        lineItems: [
+          { description: "Widget", quantity: 1, unitPrice: 1000, gstRate: 18 as const },
+        ],
+      }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

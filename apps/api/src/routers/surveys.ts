@@ -87,7 +87,17 @@ export const surveysRouter = router({
       comments: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db, user } = ctx;
+      const { db, org, user } = ctx;
+      // `survey_responses` carries no `org_id`, so it has no RLS behind it and
+      // this filter is the only wall. Without it a caller could post onto another
+      // tenant's survey, and `getResults` — which reads responses by surveyId
+      // alone — would count it into that tenant's own CSAT.
+      const [survey] = await db
+        .select({ id: surveys.id })
+        .from(surveys)
+        .where(and(eq(surveys.id, input.surveyId), eq(surveys.orgId, org!.id)));
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND" });
+
       const [response] = await db.insert(surveyResponses).values({
         surveyId: input.surveyId,
         respondentId: user?.id,

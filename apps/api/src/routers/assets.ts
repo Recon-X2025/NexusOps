@@ -5,6 +5,7 @@ import { postAssetAcquisitionEntry } from "../lib/asset-acquisition-journal";
 import { currentFY } from "./accounting";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import {
   assets,
   assetStatusEnum,
@@ -14,6 +15,7 @@ import {
   ciItems,
   ciRelationships,
   softwareLicenses,
+  users,
   licenseTypeEnum,
   acquisitionTypeEnum,
   licenseAssignments,
@@ -232,6 +234,10 @@ export const assetsRouter = router({
           message: "Cannot assign a retired or disposed asset",
         });
       }
+
+      // The asset is org-checked above; the new owner was not. `asset_history`
+      // carries no org_id and so has no RLS behind it.
+      await assertSameOrgIfPresent(db, users, input.ownerId, org!.id, "Owner");
 
       const [updated] = await db
         .update(assets)
@@ -963,6 +969,11 @@ export const assetsRouter = router({
 
         if (!license) throw new TRPCError({ code: "NOT_FOUND" });
 
+        // The licence is org-checked above; the asset and user it is assigned to
+        // were not. `license_assignments` carries no org_id — no RLS behind it.
+        await assertSameOrgIfPresent(db, assets, input.assetId, org!.id, "Asset");
+        await assertSameOrgIfPresent(db, users, input.userId, org!.id, "User");
+
         if (license.totalSeats) {
           const [result] = await db
             .select({ used: count() })
@@ -1076,6 +1087,9 @@ export const assetsRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        // Checked before the update: `ownerId` is written by the same statement,
+        // so a foreign user would be persisted onto the asset either way.
+        await assertSameOrgIfPresent(db, users, input.userId, org!.id, "User");
         const [asset] = await db.update(assets)
           .set({ ownerId: input.userId, location: input.location, updatedAt: new Date() })
           .where(and(eq(assets.id, input.assetId), eq(assets.orgId, org!.id)))
@@ -1147,6 +1161,8 @@ export const assetsRouter = router({
           const [lic] = await db.select().from(softwareLicenses)
             .where(and(eq(softwareLicenses.id, input.licenseId), eq(softwareLicenses.orgId, org!.id)));
           if (!lic) throw new TRPCError({ code: "NOT_FOUND" });
+          // `license_assignments` carries no org_id — no RLS behind this write.
+          await assertSameOrgIfPresent(db, users, input.userId, org!.id, "User");
           const [cntRow] = await db.select({ cnt: count() }).from(licenseAssignments)
             .where(and(
               eq(licenseAssignments.licenseId, input.licenseId),

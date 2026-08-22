@@ -1,6 +1,7 @@
 import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import { createHash } from "node:crypto";
 import { sendNotification } from "../services/notifications";
 import { runTicketBusinessRules } from "../services/business-rules-engine";
@@ -1735,6 +1736,11 @@ export const ticketsRouter = router({
         .from(tickets)
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
       if (!prev) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // The ticket is org-checked above; the assignee was not. Checked outside
+      // the transaction so a foreign assignee aborts before any write, and
+      // because `ticket_activity_logs` has no org_id and so no RLS behind it.
+      await assertSameOrgIfPresent(db, users, input.assigneeId, org!.id, "Assignee");
 
       // Atomicity: the assignee update, handoff bookkeeping, and activity-log
       // entry must commit as a unit so a ticket is never reassigned without its

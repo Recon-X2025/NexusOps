@@ -21,7 +21,7 @@
  * RETENTION_SWEEP_CRON env var.
  */
 import { Queue, Worker, type Job } from "bullmq";
-import { eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import {
   documents,
   documentRetentionPolicies,
@@ -118,7 +118,18 @@ export async function runRetentionSweep(db: Db, batchSize = 500): Promise<SweepR
     .from(documents)
     .leftJoin(
       documentRetentionPolicies,
-      eq(documents.retentionPolicyId, documentRetentionPolicies.id),
+      // The org predicate is part of the JOIN, not the WHERE: on a LEFT JOIN a
+      // WHERE clause against the policy side would discard documents that have
+      // no policy at all, and those are exactly the ones the 90-day default is
+      // for. Matching on org here means a document holding another tenant's
+      // policy id falls back to the default instead of inheriting that tenant's
+      // duration and legal hold. The FK does not constrain same-org, and
+      // `documents.retention.assign` closing the reachable path does not make
+      // existing rows safe.
+      and(
+        eq(documents.retentionPolicyId, documentRetentionPolicies.id),
+        eq(documents.orgId, documentRetentionPolicies.orgId),
+      ),
     )
     .where(isNotNull(documents.deletedAt))
     .limit(batchSize);

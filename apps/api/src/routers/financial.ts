@@ -1,6 +1,7 @@
 import { router, permissionProcedure, adminProcedure, mfaGate, stepUpGate } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import { getTableColumns } from "drizzle-orm";
 import {
   budgetLines,
@@ -268,6 +269,12 @@ export const financialRouter = router({
         .select({ gstin: vendors.gstin, state: vendors.state })
         .from(vendors)
         .where(and(eq(vendors.id, input.vendorId), eq(vendors.orgId, org!.id)));
+      // The lookup was already org-scoped but its result was never checked, so a
+      // vendor from another org resolved `undefined` → buyer state unknown →
+      // a silently wrong intra-state CGST/SGST split on a dangling reference.
+      // `legalEntityId` above has always thrown here; the vendor now matches it.
+      if (!vendorRow) throw new TRPCError({ code: "NOT_FOUND", message: "Vendor not found" });
+
       
       const { gstinRegistry } = await import("@coheronconnect/db");
       let orgGstin;
@@ -1415,6 +1422,9 @@ export const financialRouter = router({
       if (dup > 0 && policy === "block") {
         throw new TRPCError({ code: "CONFLICT", message: "DUPLICATE_PAYABLE_INVOICE" });
       }
+      // The deprecated twin of `createInvoice` — it had no vendor lookup at all.
+      // A guard on one and not the other leaves the defect fully reachable.
+      await assertSameOrg(db, vendors, input.vendorId, org!.id, "Vendor");
       if (input.legalEntityId) {
         const [le] = await db
           .select({ id: legalEntities.id })

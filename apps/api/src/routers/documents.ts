@@ -1,8 +1,12 @@
 import { router, permissionProcedure, protectedProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import {
   documents,
+  users,
+  roles,
+  teams,
   documentVersions,
   documentAcls,
   documentRetentionPolicies,
@@ -267,7 +271,32 @@ export const documentsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { db, user } = ctx;
+      const { db, org, user } = ctx;
+      // `document_acls` carries no `org_id` and so has no RLS behind it; this
+      // filter is the only wall against granting on another tenant's document.
+      // NOTE: nothing in the codebase READS `document_acls` — ACLs are not
+      // enforced anywhere. This scopes the write; it does not make the feature
+      // real. See docs/PLAN-*.md item 0.
+      const [doc] = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(and(eq(documents.id, input.documentId), eq(documents.orgId, org!.id)))
+        .limit(1);
+      if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // The principal is a foreign key too, and which table it points at depends
+      // on principalType. `everyone_in_org` carries no principalId at all.
+      if (input.principalId) {
+        const principalTable =
+          input.principalType === "user" ? users
+          : input.principalType === "role" ? roles
+          : input.principalType === "team" ? teams
+          : null;
+        if (principalTable) {
+          await assertSameOrg(db, principalTable, input.principalId, org!.id, "Principal");
+        }
+      }
+
       await db.insert(documentAcls).values({
         documentId: input.documentId,
         principalType: input.principalType,

@@ -320,7 +320,17 @@ export const workOrdersRouter = router({
       isInternal: z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db } = ctx;
+      const { db, org } = ctx;
+      // `work_order_activity_logs` carries no `org_id` and so has no RLS behind
+      // it; this filter is the only wall. `get` reads the log by workOrderId
+      // alone, so an unscoped note lands in another tenant's activity feed.
+      const [wo] = await db
+        .select({ id: workOrders.id })
+        .from(workOrders)
+        .where(and(eq(workOrders.id, input.workOrderId), eq(workOrders.orgId, org!.id)))
+        .limit(1);
+      if (!wo) throw new TRPCError({ code: "NOT_FOUND" });
+
       const [log] = await db
         .insert(workOrderActivityLogs)
         .values({
