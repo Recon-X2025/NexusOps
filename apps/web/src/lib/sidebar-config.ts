@@ -388,6 +388,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Omnichannel", href: "/app/settings/omnichannel", icon: "MessagesSquare", module: "settings" },
       { label: "Webhooks", href: "/app/settings/webhooks", icon: "Globe", module: "settings" },
       { label: "API Keys", href: "/app/settings/api-keys", icon: "KeyRound", module: "settings" },
+      { label: "Retention", href: "/app/settings/retention", icon: "Archive", module: "settings" },
       { label: "App Inventory", href: "/app/apm", icon: "AppWindow", module: "reports" },
     ],
   },

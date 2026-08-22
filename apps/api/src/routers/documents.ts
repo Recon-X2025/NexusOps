@@ -5,10 +5,13 @@ import {
   documents,
   documentVersions,
   documentAcls,
+  documentRetentionPolicies,
   eq,
   and,
   desc,
+  asc,
   isNull,
+  count,
 } from "@coheronconnect/db";
 import {
   putObject,
@@ -275,6 +278,200 @@ export const documentsRouter = router({
       });
       return { ok: true };
     }),
+
+  /**
+   * Retention policies — the tenant-facing surface for the sweeper.
+   *
+   * The sweeper (`documentRetentionWorkflow`) hard-deletes soft-deleted
+   * documents once they are older than their policy's `durationDays`, or
+   * RETENTION_DEFAULT_DAYS (90) when no policy is attached. Until this
+   * sub-router existed nothing wrote `document_retention_policies`, so that
+   * 90-day default was unreachable and the policy-level `legalHold` flag —
+   * the only way to pin a whole class of documents — could never be set.
+   */
+  retention: router({
+    list: permissionProcedure("settings", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const policies = await db
+        .select()
+        .from(documentRetentionPolicies)
+        .where(eq(documentRetentionPolicies.orgId, org!.id))
+        .orderBy(asc(documentRetentionPolicies.name));
+
+      // Attach usage so the UI can say what a delete would actually release.
+      const usage = await db
+        .select({ policyId: documents.retentionPolicyId, n: count() })
+        .from(documents)
+        .where(and(eq(documents.orgId, org!.id), isNull(documents.deletedAt)))
+        .groupBy(documents.retentionPolicyId);
+      const byId = new Map(usage.map((u) => [u.policyId, Number(u.n)]));
+
+      return {
+        policies: policies.map((p) => ({ ...p, documentCount: byId.get(p.id) ?? 0 })),
+        /** What documents with no policy get. Shown so the default is not invisible. */
+        defaultDurationDays: Number(process.env["RETENTION_DEFAULT_DAYS"] ?? 90),
+      };
+    }),
+
+    create: permissionProcedure("settings", "write")
+      .input(
+        z.object({
+          name: z.string().trim().min(1).max(120),
+          description: z.string().trim().max(500).optional(),
+          // A 0-day policy would delete a document the moment it is soft-deleted.
+          durationDays: z.number().int().min(1).max(36_500),
+          legalHold: z.boolean().default(false),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [existing] = await db
+          .select({ id: documentRetentionPolicies.id })
+          .from(documentRetentionPolicies)
+          .where(
+            and(
+              eq(documentRetentionPolicies.orgId, org!.id),
+              eq(documentRetentionPolicies.name, input.name),
+            ),
+          );
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `A retention policy named "${input.name}" already exists.`,
+          });
+        }
+        const [created] = await db
+          .insert(documentRetentionPolicies)
+          .values({
+            orgId: org!.id,
+            name: input.name,
+            description: input.description ?? null,
+            durationDays: input.durationDays,
+            legalHold: input.legalHold,
+          })
+          .returning();
+        return created;
+      }),
+
+    update: permissionProcedure("settings", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          name: z.string().trim().min(1).max(120).optional(),
+          description: z.string().trim().max(500).nullable().optional(),
+          durationDays: z.number().int().min(1).max(36_500).optional(),
+          legalHold: z.boolean().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...rest } = input;
+        const [target] = await db
+          .select({ id: documentRetentionPolicies.id })
+          .from(documentRetentionPolicies)
+          .where(
+            and(eq(documentRetentionPolicies.id, id), eq(documentRetentionPolicies.orgId, org!.id)),
+          );
+        if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Retention policy not found" });
+
+        const [updated] = await db
+          .update(documentRetentionPolicies)
+          .set(rest)
+          .where(
+            and(eq(documentRetentionPolicies.id, id), eq(documentRetentionPolicies.orgId, org!.id)),
+          )
+          .returning();
+        return updated;
+      }),
+
+    remove: permissionProcedure("settings", "delete")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [target] = await db
+          .select({ id: documentRetentionPolicies.id, name: documentRetentionPolicies.name })
+          .from(documentRetentionPolicies)
+          .where(
+            and(
+              eq(documentRetentionPolicies.id, input.id),
+              eq(documentRetentionPolicies.orgId, org!.id),
+            ),
+          );
+        if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Retention policy not found" });
+
+        // `documents.retention_policy_id` is ON DELETE SET NULL, so every
+        // attached document silently falls back to the 90-day default — which
+        // may be SHORTER than the policy being removed. Report the count so the
+        // caller can be told what they just changed.
+        const [usage] = await db
+          .select({ n: count() })
+          .from(documents)
+          .where(
+            and(eq(documents.orgId, org!.id), eq(documents.retentionPolicyId, input.id)),
+          );
+
+        await db
+          .delete(documentRetentionPolicies)
+          .where(
+            and(
+              eq(documentRetentionPolicies.id, input.id),
+              eq(documentRetentionPolicies.orgId, org!.id),
+            ),
+          );
+
+        return {
+          ok: true,
+          name: target.name,
+          documentsReverted: Number(usage?.n ?? 0),
+          revertedToDays: Number(process.env["RETENTION_DEFAULT_DAYS"] ?? 90),
+        };
+      }),
+
+    /**
+     * Attach a policy to a document, or detach with `policyId: null`.
+     *
+     * The org check on the policy is load-bearing: the sweeper joins
+     * documents → policies with NO org predicate, and the FK does not
+     * constrain same-org, so a document holding another tenant's policy id
+     * would inherit that tenant's duration and legal-hold.
+     */
+    assign: permissionProcedure("settings", "write")
+      .input(
+        z.object({
+          documentId: z.string().uuid(),
+          policyId: z.string().uuid().nullable(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [doc] = await db
+          .select({ id: documents.id })
+          .from(documents)
+          .where(and(eq(documents.id, input.documentId), eq(documents.orgId, org!.id)));
+        if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+
+        if (input.policyId) {
+          const [policy] = await db
+            .select({ id: documentRetentionPolicies.id })
+            .from(documentRetentionPolicies)
+            .where(
+              and(
+                eq(documentRetentionPolicies.id, input.policyId),
+                eq(documentRetentionPolicies.orgId, org!.id),
+              ),
+            );
+          if (!policy) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Retention policy not found" });
+          }
+        }
+
+        await db
+          .update(documents)
+          .set({ retentionPolicyId: input.policyId, updatedAt: new Date() })
+          .where(and(eq(documents.id, input.documentId), eq(documents.orgId, org!.id)));
+        return { ok: true };
+      }),
+  }),
 
   /**
    * Admin trigger — run the retention sweeper on demand. Hard-deletes every

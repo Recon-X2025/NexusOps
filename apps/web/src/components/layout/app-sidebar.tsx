@@ -56,6 +56,7 @@ import {
   Globe,
   KeyRound,
   Plug,
+  Archive,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -118,6 +119,7 @@ const SIDEBAR_ICONS: Record<string, LucideIcon> = {
   Globe,
   KeyRound,
   Plug,
+  Archive,
   Sparkles,
   UserPlus,
   Wallet,
