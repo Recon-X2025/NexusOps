@@ -422,6 +422,10 @@ export const financialRouter = router({
         .select({ gstin: vendors.gstin, state: vendors.state })
         .from(vendors)
         .where(and(eq(vendors.id, input.customerVendorId), eq(vendors.orgId, org!.id)));
+      // Guarded like legalEntityId above. Unchecked, a foreign customer id left
+      // customerRow undefined, the buyer state unknown, and the GST engine
+      // silently fell back to an intra-state CGST/SGST split.
+      if (!customerRow) throw new TRPCError({ code: "BAD_REQUEST", message: "Customer not found" });
         
       const { gstinRegistry } = await import("@coheronconnect/db");
       let orgGstin;

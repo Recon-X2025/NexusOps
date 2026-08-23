@@ -581,6 +581,10 @@ export const procurementRouter = router({
             .from(vendors)
             .where(and(eq(vendors.id, input.vendorId), eq(vendors.orgId, org!.id)))
             .limit(1);
+          // Unchecked, `vendorRow?.state ?? null` below resolved to the org's own
+          // state and the PO was priced with an intra-state split on a vendor
+          // this tenant does not own.
+          if (!vendorRow) throw new TRPCError({ code: "BAD_REQUEST", message: "Vendor not found" });
           const orgState = normaliseGstStateOrWarn(await resolveOrgGstState(tx, org!.id), "org");
           const vendorState = normaliseGstStateOrWarn(vendorRow?.state ?? null, "counterparty") ?? orgState;
 
