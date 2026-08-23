@@ -209,13 +209,20 @@ services:
     restart: unless-stopped
     environment:
       SWEEP_INTERVAL_SECONDS: ${DPDP_SWEEP_INTERVAL_SECONDS:-3600}
+      # Must match the api service's INTERNAL_API_TOKEN (set in .env.production).
+      # Setting it on the api ALONE switches the /internal/ guard from its
+      # source-IP fallback to a token check, and this sweeper — which sends no
+      # token — then 401s. It fails QUIETLY: the loop logs "sweep failed" and
+      # keeps going, so DPDP data-subject, breach and consent-expiry sweeps stop
+      # with no alert. Set both or neither.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
     entrypoint:
       - sh
       - -c
       - |
         while true; do
           sleep "$$SWEEP_INTERVAL_SECONDS"
-          if curl -fsS -m 300 -X POST http://api:3001/internal/dpdp/sweep -H 'Content-Type: application/json' -d '{}'; then
+          if curl -fsS -m 300 -X POST http://api:3001/internal/dpdp/sweep -H 'Content-Type: application/json' -H "x-internal-token: $$INTERNAL_API_TOKEN" -d '{}'; then
             echo "[dpdp-sweeper] sweep ok $$(date -u +%FT%TZ)"
           else
             echo "[dpdp-sweeper] sweep failed $$(date -u +%FT%TZ)"
