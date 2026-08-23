@@ -388,14 +388,16 @@ export default function TicketDetailPage() {
                         disabled={!resolveNote.trim() || updateTicket.isPending}
                         onClick={() => {
                           const statusId = statusCounts?.find(s => s.name.toLowerCase() === "resolved")?.statusId;
-                          updateTicket.mutate({ 
-                            id, 
-                            data: { 
-                              statusId,
-                              resolvedAt: new Date().toISOString()
-                            } as any,
-                            comment: resolveNote
-                          } as any);
+                          if (!statusId) return;
+                          // `resolutionNotes` is a real field on UpdateTicketSchema. This
+                          // used to send the note as a top-level `comment`, which zod
+                          // stripped — the ticket resolved and the note was thrown away.
+                          // `resolvedAt` is stamped server-side on the resolved category,
+                          // so it is not sent from here.
+                          updateTicket.mutate({
+                            id,
+                            data: { statusId, resolutionNotes: resolveNote },
+                          });
                         }}
                         className="px-6 py-2 bg-green-600 text-white rounded-lg text-body-sm font-bold hover:bg-green-700 shadow-lg shadow-green-500/20 disabled:opacity-50"
                       >

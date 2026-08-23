@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { generateUUID } from "@/lib/uuid";
+import { itilPriorityLevel } from "@coheronconnect/types";
 
 const TICKET_TYPES = [
   { value: "incident",        label: "Incident",         desc: "Unplanned interruption or reduction in quality of service" },
@@ -45,11 +46,12 @@ const URGENCY_OPTIONS = [
   { value: "4_low",      label: "4 – Low (minor inconvenience)" },
 ];
 
-const PRIORITY_MATRIX: Record<string, Record<string, string>> = {
-  "1_enterprise":  { "1_critical": "1 – Critical", "2_high": "1 – Critical", "3_medium": "2 – High",   "4_low": "3 – Moderate" },
-  "2_multiple":    { "1_critical": "1 – Critical", "2_high": "2 – High",     "3_medium": "3 – Moderate","4_low": "3 – Moderate" },
-  "3_department":  { "1_critical": "2 – High",     "2_high": "3 – Moderate", "3_medium": "3 – Moderate","4_low": "4 – Low" },
-  "4_individual":  { "1_critical": "3 – Moderate", "2_high": "3 – Moderate", "3_medium": "4 – Low",    "4_low": "4 – Low" },
+/** Display labels for the shared ITIL tiers (1 = Critical … 4 = Low). */
+const PRIORITY_LABELS: Record<number, string> = {
+  1: "1 – Critical",
+  2: "2 – High",
+  3: "3 – Moderate",
+  4: "4 – Low",
 };
 
 const CATEGORIES = [
@@ -185,10 +187,16 @@ export default function NewTicketPage() {
   // A new key is generated only after a successful create (form resets).
   const idempotencyKeyRef = useRef<string>(generateUUID());
 
-  const calculatedPriority =
-    form.impact && form.urgency
-      ? PRIORITY_MATRIX[form.impact]?.[form.urgency] ?? "—"
-      : "—";
+  // Derived from the SHARED matrix in @coheronconnect/types — the same table the
+  // server uses to pick the priority tier — so what this page displays and what
+  // gets stored can never drift apart again.
+  const calculatedPriority = (() => {
+    const level = itilPriorityLevel(
+      Number(form.impact.split("_")[0]) || undefined,
+      Number(form.urgency.split("_")[0]) || undefined,
+    );
+    return level ? PRIORITY_LABELS[level] ?? "—" : "—";
+  })();
 
   // Map form select values ("1_enterprise", "3_medium", etc.) to the DB enum values
   const impactForApi: "high" | "medium" | "low" =
@@ -200,6 +208,13 @@ export default function NewTicketPage() {
     form.urgency === "1_critical" || form.urgency === "2_high" ? "high"
     : form.urgency === "4_low" ? "low"
     : "medium";
+
+  // The coarse enums above cannot distinguish "2_multiple x 2_high" (a 2 - High)
+  // from "1_enterprise x 1_critical" (a 1 - Critical) — both flatten to high/high.
+  // Send the full ITIL grade too, so the server stores the tier this page shows
+  // instead of re-deriving a different one and stamping the wrong SLA clocks.
+  const impactGrade = Number(form.impact.split("_")[0]) || undefined;
+  const urgencyGrade = Number(form.urgency.split("_")[0]) || undefined;
 
   const utils = trpc.useUtils();
 
@@ -236,6 +251,8 @@ export default function NewTicketPage() {
       idempotencyKey: idempotencyKeyRef.current,
       impact: impactForApi,
       urgency: urgencyForApi,
+      impactGrade,
+      urgencyGrade,
       isMajorIncident: form.isMajorIncident,
       customFields: {
         impact: form.impact,

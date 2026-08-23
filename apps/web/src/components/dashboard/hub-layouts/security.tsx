@@ -17,10 +17,10 @@ export function SecurityPrimary({ payload, granularity }: HubPrimaryProps) {
 
   const threatRows = incidents && incidents.series && incidents.series.length > 1
     ? incidents.series.map((p) => ({
-      x: new Date(p.t).toLocaleDateString("en-US", {
-        month: "short",
-        ...(granularity === "month" ? { year: "2-digit" } : { day: "numeric" }),
-      }),
+      // `p.t` is ALREADY a formatted bucket label from the server ("Feb", "Mar"),
+      // not a date string. Passing it through `new Date()` produced "Invalid Date"
+      // on every axis tick. `people.tsx` uses it directly, which is correct.
+      x: p.t,
       volume: p.v,
     }))
     : [];

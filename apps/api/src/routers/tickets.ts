@@ -95,6 +95,7 @@ import {
   UpdateTicketSchema,
   AddCommentSchema,
   TicketListFiltersSchema,
+  itilPriorityLevel,
 } from "@coheronconnect/types";
 import { getSlaPauseReasonsCatalog } from "../lib/org-settings";
 
@@ -920,9 +921,16 @@ export const ticketsRouter = router({
     // ── Resolve impact/urgency → priorityId ─────────────────────────────────
     // Map the ITIL impact × urgency matrix to a numeric priority level (1=critical … 4=low),
     // then look up the org's matching priority tier by sort_order so SLA targets apply.
+    // Prefer the caller's full ITIL grades (1-4 per axis). Averaging the coarse
+    // three-value enums cannot distinguish "multiple groups x high" (2 - High)
+    // from "enterprise-wide x critical" (1 - Critical), so it stored Critical
+    // for both and stamped the wrong SLA clocks. Fall back to the old averaging
+    // only when a caller sends no grades.
     const impactLevel  = input.impact  === "high" ? 1 : input.impact  === "low" ? 3 : 2;
     const urgencyLevel = input.urgency === "high" ? 1 : input.urgency === "low" ? 3 : 2;
-    const priorityLevel = Math.min(Math.round((impactLevel + urgencyLevel) / 2), 4);
+    const priorityLevel =
+      itilPriorityLevel(input.impactGrade, input.urgencyGrade) ??
+      Math.min(Math.round((impactLevel + urgencyLevel) / 2), 4);
 
     let resolvedPriorityId = input.priorityId ?? null;
     if (!resolvedPriorityId && (input.impact || input.urgency)) {
@@ -1210,6 +1218,18 @@ export const ticketsRouter = router({
         changes["title"] = { from: existing.title, to: input.data.title };
         updateData.title = input.data.title;
         embeddingReason = embeddingReason ?? "updated";
+      }
+      // The resolve dialog marks this required; it used to arrive as a stray
+      // top-level `comment` key that zod stripped, so every note was discarded.
+      if (
+        input.data.resolutionNotes !== undefined &&
+        input.data.resolutionNotes !== existing.resolutionNotes
+      ) {
+        changes["resolutionNotes"] = {
+          from: existing.resolutionNotes,
+          to: input.data.resolutionNotes,
+        };
+        updateData.resolutionNotes = input.data.resolutionNotes;
       }
       if (input.data.statusId !== undefined && input.data.statusId !== existing.statusId) {
         changes["statusId"] = { from: existing.statusId, to: input.data.statusId };
@@ -1639,6 +1659,27 @@ export const ticketsRouter = router({
         userId: user!.id,
         action: input.isInternal ? "note_added" : "comment_added",
       });
+
+      // First response stops the response-SLA clock. Nothing used to write this
+      // column, so the breach sweep — which marks a ticket breached precisely
+      // BECAUSE it is null past the deadline — flagged every open ticket no
+      // matter how fast an agent replied.
+      //
+      // Only a PUBLIC reply from someone other than the requester counts: an
+      // internal note is not a response to the customer, and the requester
+      // chasing their own ticket is not the desk responding. Stamped inside the
+      // same transaction as the comment, and only when still null so the FIRST
+      // response is what is measured, not the latest.
+      if (
+        !input.isInternal &&
+        ticket.slaRespondedAt == null &&
+        ticket.requesterId !== user!.id
+      ) {
+        await tx
+          .update(tickets)
+          .set({ slaRespondedAt: new Date() })
+          .where(and(eq(tickets.id, input.ticketId), isNull(tickets.slaRespondedAt)));
+      }
 
       return comment;
     });

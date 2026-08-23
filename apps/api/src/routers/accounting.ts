@@ -186,7 +186,24 @@ export const accountingRouter = router({
       openingBalance: z.number().default(0),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts } = await import("@coheronconnect/db");
+      const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+
+      // `coa_org_code_idx` is UNIQUE per org. Re-using a code is an everyday
+      // mistake, and without this the raw Postgres violation escaped as a 500
+      // with the constraint name as the user-facing message. Report the clash
+      // naming the field to fix.
+      const [clash] = await db
+        .select({ id: chartOfAccounts.id, name: chartOfAccounts.name })
+        .from(chartOfAccounts)
+        .where(dbAnd(dbEq(chartOfAccounts.orgId, org!.id), dbEq(chartOfAccounts.code, input.code)))
+        .limit(1);
+      if (clash) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Account code ${input.code} is already used by "${clash.name}". Choose a different code.`,
+        });
+      }
+
       const [acct] = await db.insert(chartOfAccounts).values({
         ...input,
         orgId: org!.id,
