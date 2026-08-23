@@ -117,6 +117,14 @@ jobs:
       - name: Metric drill-through check
         run: pnpm check:metric-links
 
+      # Every link a notification emits must land on a real page. Same blind
+      # spot as the metric drill-throughs: the link is a string, so typecheck
+      # cannot see it and nothing navigates there in tests. Found because the
+      # audit-chain integrity alert — "investigate immediately" — linked to a
+      # page that did not exist. Needs no database.
+      - name: Notification link check
+        run: pnpm check:notification-links
+
       - name: Cross-tenant FK scan
         env:
           DATABASE_URL: postgresql://coheronconnect:coheronconnect_test@localhost:5432/coheronconnect_test

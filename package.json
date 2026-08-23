@@ -59,7 +59,8 @@
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
     "docker:test:reset": "docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d --wait",
-    "check:metric-links": "node scripts/check-metric-drill-urls.mjs"
+    "check:metric-links": "node scripts/check-metric-drill-urls.mjs",
+    "check:notification-links": "node scripts/check-notification-links.mjs"
   },
   "devDependencies": {
     "@coheronconnect/db": "workspace:*",

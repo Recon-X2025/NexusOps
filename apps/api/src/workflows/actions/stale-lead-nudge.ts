@@ -48,7 +48,7 @@ export const staleLeadNudgeAction: WorkflowAction<Input> = {
         userId: l.ownerId,
         title: `Stale lead: ${l.firstName} ${l.lastName}`,
         body: `No activity for ${input.staleAfterDays ?? 7} days. Reach out or close the lead.`,
-        link: `/app/crm/leads/${l.id}`,
+        link: `/app/crm`,
         sourceType: "lead",
         sourceId: l.id,
         type: "info",

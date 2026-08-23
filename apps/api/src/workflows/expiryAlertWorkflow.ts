@@ -248,7 +248,7 @@ export async function sweepWarrantyExpiries(db: Db): Promise<ExpirySweepResult> 
         userId: a.ownerId!,
         title: `Warranty expiring: ${a.name}`,
         body: `Warranty for asset "${a.name}" (${a.assetTag}) ${days < 0 ? "expired" : "expires"} ${when}.`,
-        link: `/app/assets/${a.id}`,
+        link: `/app/ham`,
         sourceType: WARRANTY_SOURCE,
         sourceId: a.id,
       });

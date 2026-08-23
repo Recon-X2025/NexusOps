@@ -74,7 +74,7 @@ export function startApprovalWorker(db: Db): Worker<ApprovalJobData> {
         message: `Your ${resourceType.toLowerCase()} "${resourceTitle}" has been ${decision}${comment ? `: ${comment}` : "."}`,
         resourceType,
         resourceId,
-        link: `/${resourceType.toLowerCase()}s/${resourceId}`,
+        link: `/app/approvals`,
       });
 
       // Write workflow audit trail
