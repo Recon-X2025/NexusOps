@@ -175,6 +175,15 @@ dry run. So those two were one `triggerData` field from live, in activities
 called "assign ticket" and "update ticket field". The notification path had no
 such guard and was live. READ IN CODE ONLY — zero workflows exist on 5434/DEV.
 
+### 0h. Layer survey — see `docs/WIRING-01.md`
+
+The product was walked bottom-up on 2026-08-23: data → write paths → read paths →
+screens → workbenches → command centre. **Two genuine breaks, both at Layer 2**
+(GRC controls/findings cannot be created; document permissions written and never
+read), plus two command-centre faults that are **inherited from Layer 1 and Layer
+4** and must not be fixed at the top. Full plan, evidence and sequencing live in
+`docs/WIRING-01.md`. Layer 5 (12 workbenches) was counted, not opened.
+
 ### 0c. Isolation surfaces never swept
 
 `apps/web` client-side guards and **nested sub-routers** — CLAUDE.md notes the RBAC
