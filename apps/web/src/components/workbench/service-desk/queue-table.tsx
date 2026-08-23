@@ -18,7 +18,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCENT_BORDER } from "../shared/accent";
 import { WorkbenchSection, WorkbenchEmpty } from "../shared/workbench-section";
-import { formatRelativeMs } from "../shared/format";
+import { formatDurationMs, formatRelativeMs } from "../shared/format";
 
 export interface QueueRow {
   id: string;
@@ -137,8 +137,13 @@ function SlaCell({ slaInMs, bucket }: { slaInMs: number | null; bucket: QueueRow
           : "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200";
   return (
     <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold", tone)}>
-      {bucket === "breach" ? "Breached " : ""}
-      {formatRelativeMs(slaInMs)}
+      {/* A breached SLA is already in the past, so the remaining time is
+          negative and "Breached " + a signed value rendered as
+          "Breached -357d 11h". Say how long ago instead — the word already
+          carries the direction. */}
+      {bucket === "breach"
+        ? `Breached ${formatDurationMs(slaInMs)} ago`
+        : formatRelativeMs(slaInMs)}
     </span>
   );
 }

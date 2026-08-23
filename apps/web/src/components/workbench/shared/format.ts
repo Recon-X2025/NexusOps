@@ -1,16 +1,26 @@
 /** Shared display formatters used by workbench primary visuals + panels. */
 
-export function formatRelativeMs(ms: number | null): string {
+/**
+ * How LONG, with no direction. Use where the caller's own wording already says
+ * which way time runs ("Breached 357d ago"), so the reader is never shown a
+ * negative duration — there is no such thing as minus 357 days.
+ */
+export function formatDurationMs(ms: number | null): string {
   if (ms == null) return "—";
-  const sign = ms < 0 ? "-" : "";
   const abs = Math.abs(ms);
   const m = Math.floor(abs / 60_000);
-  if (m < 60) return `${sign}${m}m`;
+  if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  if (h < 24) return `${sign}${h}h ${rem}m`;
+  if (h < 24) return `${h}h ${rem}m`;
   const d = Math.floor(h / 24);
-  return `${sign}${d}d ${h % 24}h`;
+  return `${d}d ${h % 24}h`;
+}
+
+/** Signed remaining time. Negative means the deadline has already passed. */
+export function formatRelativeMs(ms: number | null): string {
+  if (ms == null) return "—";
+  return `${ms < 0 ? "-" : ""}${formatDurationMs(ms)}`;
 }
 
 export function formatDate(iso: string | null): string {

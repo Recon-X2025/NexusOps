@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Primary visual: compliance calendar (next 60 days, week-of-year strip).
+ * Primary visual: compliance calendar (overdue + the next 60 days).
  *
  * Q1: CS sees statutory deadlines and board events on a single timeline so
  *     a missed filing becomes visually unmissable.
- * Q2: 60-DAY ROLLING CALENDAR (week strip with deadline markers). Distinct
+ * Q2: ROLLING CALENDAR (week strip with deadline markers). Distinct
  *     from Change & Release's 14-day grid (different cadence, regulatory
  *     marker shapes, days-to-deadline emphasis).
  * Q3: Pulls from `secretarialFilings`, `boardMeetings`, `boardResolutions`.
@@ -57,13 +57,13 @@ export function ComplianceCalendar({
   return (
     <WorkbenchSection
       title="Compliance calendar"
-      hint="Next 60 days · statutory filings + board events"
+      hint="Overdue and next 60 days · statutory filings + board events"
       accentEdgeClassName={cn("border-l", ACCENT_BORDER.violet, "bg-violet-400/70")}
     >
       {state !== "ok" || (!filings?.length && !meetings?.length) ? (
         <WorkbenchEmpty
           state={state === "ok" ? "no_data" : state}
-          message={state === "no_data" ? "No filings or board events scheduled in the next 60 days." : undefined}
+          message={state === "no_data" ? "No open filings or board events — nothing overdue or due in the next 60 days." : undefined}
         />
       ) : (
         <Timeline filings={filings ?? []} meetings={meetings ?? []} />
@@ -86,7 +86,13 @@ function Timeline({ filings, meetings }: { filings: FilingMarker[]; meetings: Me
     markers.push({
       id: `f-${f.id}`,
       label: f.formNumber,
-      sub: `${f.authority} · ${f.daysToDeadline}d`,
+      // A past-due filing has a NEGATIVE days-to-deadline, which rendered as
+      // "AOC-4 MCA · -61d". There is no such thing as minus 61 days: say it is
+      // overdue and give the magnitude.
+      sub:
+        f.daysToDeadline < 0
+          ? `${f.authority} · ${Math.abs(f.daysToDeadline)}d overdue`
+          : `${f.authority} · due in ${f.daysToDeadline}d`,
       daysFromNow: Math.max(0, Math.floor((d - today.getTime()) / (24 * 60 * 60 * 1000))),
       tone: STATUS_TONE[f.status] ?? "bg-violet-500",
       kind: "filing",
