@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import {
   projects,
   projectStatusEnum,
@@ -380,7 +381,11 @@ export const projectsRouter = router({
   getAgileBoard: permissionProcedure("projects", "read")
     .input(z.object({ projectId: z.string().uuid(), sprint: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const { db } = ctx;
+      const { db, org } = ctx;
+      // `project_tasks` carries no org_id, so RLS cannot scope this read — the
+      // parent check IS the isolation. `work-orders.get` next door does the same
+      // thing; this procedure omitted it and leaked another tenant's board.
+      await assertSameOrg(db, projects, input.projectId, org!.id, "Project");
       const conditions = [eq(projectTasks.projectId, input.projectId)];
       if (input.sprint) conditions.push(eq(projectTasks.sprint, input.sprint));
       const tasks = await db.select().from(projectTasks).where(and(...conditions)).orderBy(asc(projectTasks.createdAt));

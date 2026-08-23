@@ -5,7 +5,7 @@ import { postAssetAcquisitionEntry } from "../lib/asset-acquisition-journal";
 import { currentFY } from "./accounting";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertSameOrgIfPresent } from "../lib/assert-same-org";
+import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
 import {
   assets,
   assetStatusEnum,
@@ -683,6 +683,9 @@ export const assetsRouter = router({
       .input(z.object({ ciId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        // ci_relationships has no org_id; without this the traversal walks
+        // another tenant's dependency graph and returns their CI ids.
+        await assertSameOrg(db, ciItems, input.ciId, org!.id, "CI");
 
         // Find all downstream CIs (things that depend on this CI)
         const upstream: string[] = [];

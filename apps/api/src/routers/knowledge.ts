@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import { kbArticles, kbArticleStatusEnum, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@coheronconnect/db";
 
 export const knowledgeRouter = router({
@@ -152,7 +153,10 @@ export const knowledgeRouter = router({
   recordFeedback: permissionProcedure("knowledge", "write")
     .input(z.object({ articleId: z.string().uuid(), helpful: z.boolean(), comment: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { db, user } = ctx;
+      const { db, org, user } = ctx;
+      // kb_feedback has no org_id, so RLS cannot catch a foreign articleId and
+      // the counter updates below would credit another tenant's article.
+      await assertSameOrg(db, kbArticles, input.articleId, org!.id, "Article");
       const [fb] = await db.insert(kbFeedback).values({ ...input, userId: user?.id }).returning();
       if (input.helpful) {
         await db.update(kbArticles).set({ helpfulCount: sql`helpful_count + 1` }).where(eq(kbArticles.id, input.articleId));

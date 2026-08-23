@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import {
   workflows,
   workflowVersions,
@@ -365,7 +366,9 @@ export const workflowsRouter = router({
     list: permissionProcedure("flows", "read")
       .input(z.object({ workflowId: z.string().uuid(), limit: z.coerce.number().default(20) }))
       .query(async ({ ctx, input }) => {
-        const { db } = ctx;
+        const { db, org } = ctx;
+        // workflow_runs has no org_id — verify the parent workflow instead.
+        await assertSameOrg(db, workflows, input.workflowId, org!.id, "Workflow");
         return db
           .select()
           .from(workflowRuns)
@@ -377,7 +380,7 @@ export const workflowsRouter = router({
     get: permissionProcedure("flows", "read")
       .input(z.object({ id: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-      const { db } = ctx;
+      const { db, org } = ctx;
 
       const [run] = await db
         .select()
@@ -385,6 +388,10 @@ export const workflowsRouter = router({
         .where(eq(workflowRuns.id, input.id));
 
       if (!run) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Neither workflow_runs nor workflow_step_runs carries org_id, so the run
+      // is reachable by id from any tenant until its parent workflow is checked.
+      await assertSameOrg(db, workflows, run.workflowId, org!.id, "Workflow");
 
       const steps = await db
         .select()

@@ -1121,6 +1121,10 @@ export const adminRouter = router({
         .from(roles)
         .where(eq(roles.isSystem, false));
 
+      // NOT a leak — the return below filters these against `customRoles`,
+      // which RLS has already scoped. But role_permissions has no org_id, so
+      // this reads every tenant's rows into memory to discard them. Join through
+      // `roles` so the database does the scoping.
       const perms = await db
         .select({
           roleId: rolePermissions.roleId,
@@ -1128,7 +1132,8 @@ export const adminRouter = router({
           action: permissions.action,
         })
         .from(rolePermissions)
-        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id));
+        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+        .innerJoin(roles, eq(rolePermissions.roleId, roles.id));
         
       const counts = await db
         .select({ roleId: users.matrixRole, count: count() })
