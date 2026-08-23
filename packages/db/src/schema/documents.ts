@@ -136,6 +136,28 @@ export const documentAcls = pgTable(
     principalType: documentAclPrincipalEnum("principal_type").notNull(),
     principalId: uuid("principal_id"), // null when principalType = everyone_in_org
     permission: documentAclPermEnum("permission").notNull(),
+    /**
+     * A DENY rather than a grant.
+     *
+     * The model was grant-only, which cannot express "this person specifically
+     * must not see it". That matters because the uploader keeps access to their
+     * own document by default — without a deny there is no way to take it away,
+     * and "unless explicitly removed" would be unimplementable.
+     *
+     * Deny beats grant. A boolean column rather than a new enum value because
+     * adding to a Postgres enum is a migration either way and this reads
+     * plainly at every call site: `if (row.isDeny) ...`.
+     */
+    isDeny: boolean("is_deny").notNull().default(false),
+    /**
+     * When this rule STARTS applying. Null means immediately.
+     *
+     * The model had an end (`expiresAt`) and no beginning, so a decision could
+     * only ever take effect now. With both, a row describes a WINDOW: grant a
+     * contractor access for next month, or deny someone from the date they hand
+     * in their notice, decided once and correct without anyone remembering.
+     */
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }),
     grantedById: uuid("granted_by_id").references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

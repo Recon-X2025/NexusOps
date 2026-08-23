@@ -1,6 +1,7 @@
 import { router, permissionProcedure, protectedProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { resolveDocumentAccess, resolveDocumentAccessBatch } from "../lib/document-access";
 import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
 import {
   documents,
@@ -34,6 +35,34 @@ import { checkDbUserPermission } from "../lib/rbac-db";
  *      `document_versions` row, enqueues virus scan, returns the doc id.
  *   3. Source modules (tickets, contracts, …) reference the doc id.
  */
+/**
+ * Record that an org owner opened a document they were not otherwise entitled
+ * to. The whole point of a break-glass is that using it leaves a mark — an
+ * override nobody can see afterwards is indistinguishable from no restriction.
+ *
+ * Non-fatal: failing to write the audit row must not deny the owner access,
+ * because the access decision has already been made. It is logged instead.
+ */
+async function auditBypass(
+  ctx: { db: unknown; org: { id: unknown } | null; user: { id: unknown } | null },
+  documentId: string,
+  route: string,
+): Promise<void> {
+  try {
+    const { appendAuditEntry } = await import("../lib/audit-hash.js");
+    await appendAuditEntry(ctx.db, {
+      orgId: ctx.org!.id as string,
+      actorId: ctx.user!.id as string,
+      action: "document.access.owner_bypass",
+      resourceType: "document",
+      resourceId: documentId,
+      changes: { route, reason: "org owner opened a restricted document" },
+    } as never);
+  } catch (err) {
+    console.warn("[documents] owner-bypass audit failed:", (err as Error).message);
+  }
+}
+
 export const documentsRouter = router({
   list: protectedProcedure
     .input(
@@ -62,24 +91,59 @@ export const documentsRouter = router({
       if (input.sourceType) conditions.push(eq(documents.sourceType, input.sourceType));
       if (input.sourceId) conditions.push(eq(documents.sourceId, input.sourceId));
       if (input.folderPath) conditions.push(eq(documents.folderPath, input.folderPath));
-      return db
+      const rows = await db
         .select()
         .from(documents)
         .where(and(...conditions))
         .orderBy(desc(documents.createdAt))
         .limit(input.limit);
+
+      // VISIBILITY IS NOT ACCESS. A restricted document stays in the listing —
+      // "can see, but can't open without permission". Hiding it would make a
+      // folder lie about what it contains, and someone who cannot see a
+      // document cannot ask for access to it. The flags let the UI show a
+      // padlock instead of a download button.
+      const access = await resolveDocumentAccessBatch(
+        db,
+        rows.map((r) => ({ id: r.id, ownerId: r.ownerId })),
+        {
+          userId: user!.id as string, role: user!.role as string,
+          matrixRole: user!.matrixRole as string | null, orgId: org!.id as string,
+        },
+      );
+      return rows.map((r) => {
+        const a = access.get(r.id);
+        return { ...r, restricted: a?.restricted ?? false, canOpen: a?.canOpen ?? true };
+      });
     }),
 
   get: permissionProcedure("settings", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const [doc] = await db
         .select()
         .from(documents)
         .where(and(eq(documents.id, input.id), eq(documents.orgId, org!.id)))
         .limit(1);
       if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Opening is the thing an ACL controls. FORBIDDEN, not NOT_FOUND: the
+      // caller can already SEE this document in a listing, so pretending it
+      // does not exist would contradict what we just showed them — and they
+      // need to know it exists to ask for access.
+      const access = await resolveDocumentAccess(db, doc, {
+        userId: user!.id as string, role: user!.role as string,
+        matrixRole: user!.matrixRole as string | null, orgId: org!.id as string,
+      });
+      if (!access.canOpen) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This document is restricted. Ask its owner for access.",
+        });
+      }
+      if (access.via === "owner-bypass") await auditBypass(ctx, doc.id, "documents.get");
+
       const versions = await db
         .select()
         .from(documentVersions)
@@ -223,7 +287,7 @@ export const documentsRouter = router({
   getDownloadUrl: permissionProcedure("settings", "read")
     .input(z.object({ id: z.string().uuid(), ttlSeconds: z.number().min(30).max(3600).default(300) }))
     .query(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const [doc] = await db
         .select()
         .from(documents)
@@ -233,6 +297,20 @@ export const documentsRouter = router({
       if (doc.scanStatus === "infected") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Document failed virus scan" });
       }
+      // The bytes themselves. A signed URL outlives the check that produced it,
+      // so this must be gated even though `get` already was — otherwise the
+      // restriction is one API call deep.
+      const dlAccess = await resolveDocumentAccess(db, doc, {
+        userId: user!.id as string, role: user!.role as string,
+        matrixRole: user!.matrixRole as string | null, orgId: org!.id as string,
+      });
+      if (!dlAccess.canOpen) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This document is restricted. Ask its owner for access.",
+        });
+      }
+      if (dlAccess.via === "owner-bypass") await auditBypass(ctx, doc.id, "documents.getDownloadUrl");
       const url = await signedDownloadUrl(doc.storageKey, input.ttlSeconds);
       return { url, expiresIn: input.ttlSeconds };
     }),
@@ -268,6 +346,15 @@ export const documentsRouter = router({
         principalType: z.enum(["user", "role", "team", "everyone_in_org"]),
         principalId: z.string().uuid().optional(),
         permission: z.enum(["read", "write", "delete", "share"]),
+        /**
+         * GRANT (default) or DENY. Deny beats grant, and is the only way to
+         * take access away from someone who would otherwise have it — notably
+         * the uploader, who keeps their own document unless explicitly removed.
+         */
+        isDeny: z.boolean().default(false),
+        /** When the rule STARTS. Omit for immediately. */
+        effectiveFrom: z.string().datetime().optional(),
+        /** When it STOPS. Omit for never. */
         expiresAt: z.string().datetime().optional(),
       }),
     )
@@ -298,13 +385,27 @@ export const documentsRouter = router({
         }
       }
 
+      // A window that ends before it starts can never apply. Refuse it rather
+      // than storing a rule that silently does nothing — a restriction someone
+      // believes they set is worse than one they know they have not.
+      const from = input.effectiveFrom ? new Date(input.effectiveFrom) : null;
+      const until = input.expiresAt ? new Date(input.expiresAt) : null;
+      if (from && until && from >= until) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The rule would expire before it takes effect.",
+        });
+      }
+
       await db.insert(documentAcls).values({
         documentId: input.documentId,
         principalType: input.principalType,
         principalId: input.principalId ?? null,
         permission: input.permission,
+        isDeny: input.isDeny,
         grantedById: user!.id,
-        expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+        effectiveFrom: from,
+        expiresAt: until,
       });
       return { ok: true };
     }),
