@@ -91,3 +91,4 @@ export {
 } from "drizzle-orm";
 
 export type { SQL } from "drizzle-orm";
+export * from "./metrics";

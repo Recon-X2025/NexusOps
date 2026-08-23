@@ -119,6 +119,11 @@ import {
   startAuditVerifyWorker,
   type AuditVerifyJobData,
 } from "../workflows/auditVerifyWorkflow";
+import {
+  createMetricSnapshotQueue,
+  scheduleMetricSnapshotSweep,
+  startMetricSnapshotWorker,
+} from "../workflows/metricSnapshotWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -170,6 +175,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const ptChallanQueue = createPtChallanQueue();
   const hrPeriodicQueue = createHrPeriodicQueue();
   const auditVerifyQueue = createAuditVerifyQueue();
+  const metricSnapshotQueue = createMetricSnapshotQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -191,6 +197,14 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const ptChallanWorker = startPtChallanWorker(db);
   const hrPeriodicWorker = startHrPeriodicWorker();
   const auditVerifyWorker = startAuditVerifyWorker(db);
+  const metricSnapshotWorker = startMetricSnapshotWorker(db);
+
+  // Daily metric capture. Without it, sixteen of thirty metrics render a number
+  // and an empty trend line — there is nowhere to read yesterday's figure from.
+  // Non-fatal to register: the workers still serve one-shot enqueues.
+  scheduleMetricSnapshotSweep(metricSnapshotQueue).catch((err) => {
+    console.warn("[workflow:metric-snapshot] Failed to register sweeper:", err);
+  });
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);

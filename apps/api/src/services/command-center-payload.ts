@@ -1,3 +1,4 @@
+import { readMetricSeriesBatch } from "../workflows/metricSnapshotWorkflow";
 import {
   ALL_FUNCTION_KEYS,
   ALL_METRIC_DIMENSIONS,
@@ -57,15 +58,56 @@ function withResolverTimeout(def: MetricDefinition, ctx: MetricResolveCtx): Prom
   });
 }
 
+/**
+ * Fill in trend lines the resolvers could not provide.
+ *
+ * Sixteen of thirty metrics are point-in-time counts — "tickets currently open"
+ * cannot be reconstructed for last Tuesday, so their resolvers correctly return
+ * an empty series rather than inventing one. `metric_snapshots` records the
+ * figure daily, and this reads it back.
+ *
+ * Done HERE, once, rather than in sixteen resolvers: this is the single path
+ * every command-centre metric passes through, so a metric added tomorrow gets
+ * history without touching this file. A resolver that DOES compute its own
+ * series keeps it — this only fills what is empty.
+ */
+async function hydrateSeriesFromSnapshots(
+  defs: MetricDefinition[],
+  values: MetricValue[],
+  ctx: MetricResolveCtx,
+): Promise<void> {
+  const needy = defs
+    .map((d, i) => ({ id: d.id, i }))
+    .filter(({ i }) => (values[i]?.series?.length ?? 0) === 0);
+  if (needy.length === 0) return;
+  try {
+    const history = await readMetricSeriesBatch(
+      ctx.services.db as never,
+      ctx.tenantId,
+      needy.map((n) => n.id),
+    );
+    for (const { id, i } of needy) {
+      const series = history.get(id);
+      if (series && series.length > 0) values[i] = { ...values[i]!, series };
+    }
+  } catch (err) {
+    // History is an enhancement. A dashboard renders without it; it must not
+    // fail because the snapshot table is unreachable.
+    console.warn("[command-center] snapshot history unavailable:", (err as Error).message);
+  }
+}
+
 async function resolveMetricsSafe(defs: MetricDefinition[], ctx: MetricResolveCtx): Promise<MetricValue[]> {
   const results = await Promise.allSettled(defs.map((d) => withResolverTimeout(d, ctx)));
-  return results.map((r, i) => {
+  const values = results.map((r, i) => {
     const def = defs[i]!;
     if (r.status === "fulfilled") return r.value;
     const reason = r.reason;
     console.warn(`[command-center] metric ${def.id} resolver failed:`, reason);
     return { ...emptyMetricValue("no_data"), lastUpdated: new Date() };
   });
+  await hydrateSeriesFromSnapshots(defs, values, ctx);
+  return values;
 }
 
 const STATE_SCORE: Record<MetricValue["state"], number> = {
