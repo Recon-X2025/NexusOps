@@ -29,6 +29,8 @@ const COUNTER_SPECS: ReadonlyArray<{
   { entity: "PR",   table: "purchase_requests",  column: "number"          },
   { entity: "PO",   table: "purchase_orders",    column: "po_number"       },
   { entity: "HRC",  table: "hr_cases",           column: "number"          },
+  { entity: "CTL",  table: "risk_controls",      column: "control_number"  },
+  { entity: "FND",  table: "audit_findings",     column: "finding_number"  },
 ] as const;
 
 /**

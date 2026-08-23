@@ -8,6 +8,9 @@ import {
   vendorRisks,
   riskControlEvidence,
   riskControls,
+  auditFindings,
+  controlTypeEnum,
+  findingSeverityEnum,
   riskStatusEnum,
   riskCategoryEnum,
   riskTreatmentEnum,
@@ -19,6 +22,8 @@ import {
   count,
 } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
+import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
+import { users } from "@coheronconnect/db";
 
 export const grcRouter = router({
   // ── Risks ─────────────────────────────────────────────────────────────────
@@ -155,6 +160,123 @@ export const grcRouter = router({
         .where(eq(riskControls.orgId, ctx.org!.id))
         .orderBy(riskControls.controlNumber)
         .limit(input?.limit ?? 200);
+    }),
+
+  /**
+   * Create a control.
+   *
+   * `risk_controls` held 40 rows on 5434/DEV with no writer anywhere in the repo
+   * — not in a router, a seed or a migration — while `addControlEvidence` let
+   * evidence be attached to them. Evidence could be filed against a control no
+   * tenant was able to create. This closes that.
+   */
+  createControl: permissionProcedure("grc", "write")
+    .input(z.object({
+      title: z.string().min(1).max(200),
+      description: z.string().max(2000).optional(),
+      controlType: z.enum(controlTypeEnum.enumValues).default("preventive"),
+      controlCategory: z.string().min(1).max(60).default("manual"),
+      controlFrequency: z.string().min(1).max(60).default("monthly"),
+      controlOwnerId: z.string().uuid().optional(),
+      /** Risks this control mitigates. Stored as text ids on the row. */
+      mappedRiskIds: z.array(z.string().uuid()).default([]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      // Both references arrive from the caller. `users` and `risks` are
+      // org-scoped, so an unchecked id would attach this control to another
+      // tenant's owner or risk — a row RLS accepts, because its own org_id is
+      // legitimately ours.
+      await assertSameOrgIfPresent(db, users, input.controlOwnerId, org!.id, "Control owner");
+      for (const riskId of input.mappedRiskIds) {
+        await assertSameOrg(db, risks, riskId, org!.id, "Mapped risk");
+      }
+
+      const controlNumber = await getNextNumber(db, org!.id, "CTL");
+      const [control] = await db.insert(riskControls).values({
+        orgId: org!.id,
+        controlNumber,
+        title: input.title,
+        description: input.description ?? null,
+        controlType: input.controlType,
+        controlCategory: input.controlCategory,
+        controlFrequency: input.controlFrequency,
+        controlOwnerId: input.controlOwnerId ?? null,
+        mappedRiskIds: input.mappedRiskIds,
+      }).returning();
+      return control;
+    }),
+
+  /**
+   * List findings for an audit.
+   *
+   * There was no read path for `audit_findings` through the API at all — the GRC
+   * workbench payload queried the table directly, so findings were visible on a
+   * dashboard and reachable nowhere else. Adding a create path without this
+   * would have reproduced the same fault in the opposite direction.
+   */
+  listFindings: permissionProcedure("grc", "read")
+    .input(z.object({ auditPlanId: z.string().uuid().optional() }).default({}))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(auditFindings.orgId, org!.id)];
+      if (input.auditPlanId) conditions.push(eq(auditFindings.auditPlanId, input.auditPlanId));
+      return db
+        .select()
+        .from(auditFindings)
+        .where(and(...conditions))
+        .orderBy(desc(auditFindings.createdAt));
+    }),
+
+  /**
+   * Raise a finding against an audit.
+   *
+   * The four narrative fields are required by the table and by audit practice:
+   * criteria (what should be true), condition (what is), cause (why), effect
+   * (what it means). A finding missing any of them is not reviewable, so they
+   * are required here rather than defaulted to an empty string.
+   */
+  createFinding: permissionProcedure("grc", "write")
+    .input(z.object({
+      auditPlanId: z.string().uuid(),
+      title: z.string().min(1).max(200),
+      findingSeverity: z.enum(findingSeverityEnum.enumValues).default("medium"),
+      criteria: z.string().min(1),
+      condition: z.string().min(1),
+      cause: z.string().min(1),
+      effect: z.string().min(1),
+      recommendation: z.string().optional(),
+      actionOwnerId: z.string().uuid().optional(),
+      linkedRiskId: z.string().uuid().optional(),
+      targetRemediationDate: z.string().datetime().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      // The audit is the parent and arrives from the caller — without this the
+      // finding attaches to another tenant's audit while carrying our org_id.
+      await assertSameOrg(db, auditPlans, input.auditPlanId, org!.id, "Audit");
+      await assertSameOrgIfPresent(db, users, input.actionOwnerId, org!.id, "Action owner");
+      await assertSameOrgIfPresent(db, risks, input.linkedRiskId, org!.id, "Linked risk");
+
+      const findingNumber = await getNextNumber(db, org!.id, "FND");
+      const [finding] = await db.insert(auditFindings).values({
+        orgId: org!.id,
+        auditPlanId: input.auditPlanId,
+        findingNumber,
+        title: input.title,
+        findingSeverity: input.findingSeverity,
+        criteria: input.criteria,
+        condition: input.condition,
+        cause: input.cause,
+        effect: input.effect,
+        recommendation: input.recommendation ?? null,
+        actionOwnerId: input.actionOwnerId ?? null,
+        linkedRiskId: input.linkedRiskId ?? null,
+        targetRemediationDate: input.targetRemediationDate ? new Date(input.targetRemediationDate) : null,
+      }).returning();
+      return finding;
     }),
 
   createVendorRisk: permissionProcedure("grc", "write")
