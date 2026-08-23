@@ -196,6 +196,13 @@ export function createActivities(pool: Pool): WorkflowActivities {
       try {
         const ticketId = context["ticketId"] as string | undefined;
         if (ticketId) {
+          // Verify the TICKET, not just the ids being written onto it. Without
+          // this the org predicate below matches zero rows and the activity
+          // resolves successfully having changed nothing — the step is marked
+          // `completed` and the workflow believes it assigned the ticket.
+          if (!(await belongsToOrg(pool, "tickets", ticketId, orgId))) {
+            throw new Error("ticketId does not belong to this organisation");
+          }
           const updates: string[] = [];
           const params: unknown[] = [];
           // `assigneeId` and `teamId` come from the workflow NODE's own config,
@@ -293,6 +300,11 @@ export function createActivities(pool: Pool): WorkflowActivities {
         if (!column) throw new Error(`Field '${field ?? ""}' is not an allowed updatable ticket field`);
 
         if (ticketId) {
+          // Same reason as assignTicket: a foreign ticket id must fail loudly,
+          // not silently update zero rows and report the step completed.
+          if (!(await belongsToOrg(pool, "tickets", ticketId, orgId))) {
+            throw new Error("ticketId does not belong to this organisation");
+          }
           await pool.query(
             `UPDATE tickets SET "${column}" = $1, updated_at = now()
               WHERE id = $2 AND org_id = $3`,
