@@ -395,7 +395,9 @@ Some need a token (invite, survey, password reset). If you cannot reach one,
 put it in NOT-CHECKED with the reason — do not silently drop it.
 
 ```
-
+/                     <- the ROOT page (apps/web/src/app/page.tsx). It rendered as a
+                      blank line when this list was generated, which is exactly how a
+                      page gets silently skipped. Check where it redirects to.
 /forgot-password
 /invite/[token]
 /login
