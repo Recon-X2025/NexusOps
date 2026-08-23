@@ -41,8 +41,7 @@
     "db:studio": "drizzle-kit studio",
     "lint": "tsc --noEmit && pnpm run check:migrations",
     "check:migrations": "node ../../scripts/verify-migration-journal.mjs",
-    "test": "vitest run --passWithNoTests",
-    "db:seed:tenants": "tsx src/seed-tenants.ts"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@coheronconnect/payroll-math": "workspace:*",

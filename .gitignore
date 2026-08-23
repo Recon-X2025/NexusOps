@@ -101,3 +101,6 @@ qa-run/
 # Business / fundraising documents (kept local, not in the repo)
 NexusOps_Investor_*
 NexusOps_Believers_*
+
+# Local-only tenant seed — never ships. See docs/PLAN-*.md.
+packages/db/src/seed-tenants.ts
