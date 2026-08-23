@@ -11,6 +11,10 @@ re-verified here.
 
 - **Updated at the END of every run.** A run that changes nothing still gets a log
   entry saying so.
+- **A queue item that wires a PRODUCER must name its CONSUMER and how the loop was
+  verified.** "Raises an approval" is not a deliverable; "the requisition moves when
+  approved" is. Item 4 shipped as "wired end to end" having verified the chain only
+  as far as the approver's queue — see its own entry for what that cost.
 - **Hard cap 500 lines.** At the cap create `docs/PLAN-05.md`, carry CURRENT STATE +
   THE QUEUE forward, leave the RUN LOG behind, and put a pointer at the top of the
   retired file.
@@ -166,40 +170,72 @@ added to its curl. Proof it is live: the 401 body changes from "set
 INTERNAL_API_TOKEN env var for remote access" to "Valid X-Internal-Token header
 required".
 
-### 4. Approvals — wired end to end; two pieces left
+### 4. Approvals — THE ITEM AS PREVIOUSLY WRITTEN WAS WRONG. Do not build it.
 
-**Done:** `raise` + chains (`61a0af9`) · `decide` advances the chain (`3b5415b`) ·
-chains admin screen + `eligibleApprovers` (`d14ad04`) · **procurement raises**
-(`425b3e6`) · chain editing + atomic raise (`e74b69f`).
+**Superseded 2026-08-23 (run 14).** This item used to read "wired end to end; two
+pieces left" and told the next session to wire contracts, expense claims, change
+requests and leave to `raiseApproval`. **Building that would have made the product
+worse.** What follows replaces it.
 
-A requisition over the tier now creates a real approval request, routed through the
-chain, visible in the approver's queue, advancing approver by approver.
+**There are TWO parallel approval systems.** Swept all 20 decision-shaped procedures
+and listed what each writes:
 
-**Correction to an earlier finding (item 12):** the auto-`approved` on a new
-requisition is NOT a missing gate. `determineApproval` implements configured tiers —
-auto below 75,000, dept_head below 750,000, vp_finance above. The defect was only
-ever the un-routed `pending` case, which is now fixed.
+- **Module-local, and it WORKS** — each transitions its own record:
+  `changes.approve`/`reject` (:337/:408) → `changeApprovals` + `changeRequests` ·
+  `hr.leave.approve`/`reject` (:1034/:1118) → `leaveRequests` + `leaveBalances` +
+  `attendanceRecords` · `hr.expenses.approve` (:2715) → `expenseClaims` ·
+  `payroll.approve` (:745) → `payrollRuns` · `procurement.approve`/`reject`
+  (:382/:432) → `purchaseRequests`.
+- **Generic, and it transitions NOTHING** — `approvals.decide` (:374) writes only
+  `approvalRequests` and `approvalSteps`. Every write inside it was enumerated.
 
-**Remaining:**
+**Three of the four callers the old item named ALREADY approve correctly.** Wiring
+them would add a competing path beside a working one — the deprecated-twins defect
+at architectural scale. Only **contracts** genuinely lacks any approval verb.
 
-1. **Other callers** — contracts, expense claims, change requests, leave. Each is its
-   own reviewable change. `lib/raise-approval.ts` is the one write site; call it and
-   the org check, approve-permission check and idempotency come with it.
-2. **Parallel chains.** `sequential: false` is not honoured — the request does not
-   record which chain produced it, so the mode is unknown at decision time. Needs a
-   column on the request.
+**A divergence already exists in production.** `procurement` is wired to both and
+they share no state: `procurement.approve` sets `purchase_requests.status` and never
+reads `approval_requests`. A requisition can therefore be approved in one system
+while the other still reads pending. READ IN CODE ONLY — the write sets do not
+overlap, so there is no mechanism by which they could agree.
 
-**Two conventions this work established, neither pre-existing:**
+**THE OWNER DECISION THAT GATES ALL OF IT.** Is the generic subsystem meant to
+*replace* the module-local approvals — one approvals inbox across the product — or
+is it a *reporting layer* over them? The two answers produce opposite code. If it is
+a replacement, the module-local approves are what to retire. If it is a reporting
+layer, `decide` should not have a decision UI at all. **Do not write approval code
+until this is answered.**
 
-- `purchase_request:<prId>` is the only SERVER-generated idempotency key in the
-  codebase; every other comes from the caller.
-- The raise is resolved read-only BEFORE the transaction and written INSIDE it, so a
-  configuration gap (no chain) and a real database failure are not caught
-  identically. Precedent: the codebase uses non-fatal-after for notifications and
-  workflow enqueues, but puts the PO accrual journal inside the transaction. An
-  approval is a control, not a notification.
+**The two real items underneath, once it is:**
+
+1. **Contracts has no approval mechanism.** It has a state machine
+   (`draft → under_review → legal_review → awaiting_signature → active`) and a
+   `submitForReview` boolean on create (`:106`, `:135`) that sets `under_review`,
+   and nothing drives it further. This is the one genuine gap, and it is clean.
+2. **Procurement's double-wiring** — the divergence above. Whatever the answer to
+   the architecture question, the two systems must stop being able to disagree.
+
+**Why the old item was wrong, kept because the failure is instructive.** The work
+was scoped from the subsystem outward — "who should call `raiseApproval`?" — rather
+than from the domain inward — "how does approval work in this product today?". The
+first question has an obvious four-item answer; the second has a completely
+different one. The old item also never asked what happens AFTER a decision; it was
+entirely about the raise side. Its own wording contained the tell: "creates a real
+approval request, routed through the chain, visible in the approver's queue,
+advancing approver by approver" — every clause true, and the sentence stops exactly
+where the gap begins. "End to end" was defined as the subsystem's edge rather than
+the user's outcome. The run-7 audit passed this item by checking that the SHAs
+existed and the raise path worked.
+
+**Also parked, unrelated to the architecture question:** `sequential: false` on a
+chain is not honoured — the request does not record which chain produced it, so the
+mode is unknown at decision time. Needs a column.
+
 
 ### 4b. Four approval chains route to nobody — OWNER DECISION
+
+**Downstream of item 4's architecture question.** Deciding who approves matters
+only once it is settled which system does the approving.
 
 `change_request`, `contract`, `expense_claim`, `purchase_request` sit in the dev
 database marked **active** with `rules: []`. No migration or seed inserts them; like
@@ -344,6 +380,46 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-23 — run 14 (started building item 4, found the item was wrong)
+
+**No code written.** Began item 4.1 — wire the remaining approval callers — and
+stopped before the first edit. Item 4 has been rewritten in place; this entry
+records why.
+
+**What the deeper read found.** Twenty decision-shaped procedures swept, each with
+its actual write set enumerated. The product has TWO approval systems: module-local
+ones that transition their own records and work, and the generic subsystem whose
+`decide` writes only `approvalRequests` and `approvalSteps`. Three of the four
+callers the old item named already approve correctly; only contracts lacks any
+approval verb. Procurement is wired to both and they share no state, so a
+requisition can be approved in one while the other reads pending.
+
+**What stopped it being built.** The pattern would not have failed loudly:
+procurement resolves approvers read-only before its transaction and, when none
+resolve, still creates the record with `approvalRaised: false` and an honest
+`approvalIssue`. So wiring three more would have produced three plausible-looking
+queues where approving changes nothing — an audit trail asserting a control that
+does not exist. That is precisely what the standing directive exists to stop.
+
+**Two false starts worth recording.** First I read the four hollow chains as a
+blocker; they are not — the resolve-first pattern degrades honestly. Then I framed
+the problem as "the approvals loop is unclosed"; it is not that either. The loop was
+never open, because every one of these modules already had its own working approval
+and the generic subsystem was built alongside them, not into them.
+
+**A rule added to HOW THIS FILE WORKS**: a queue item that wires a producer must
+name its consumer and how the loop was verified. Item 4 shipped as "wired end to
+end" having verified as far as the approver's queue and no further — and the run-7
+audit passed it by checking that the SHAs existed and the raise path worked.
+
+**NOT VERIFIED:** the procurement divergence is READ IN CODE ONLY — the write sets
+do not overlap, but I have not driven both paths through the UI to watch them
+disagree. Worth doing before anyone acts on item 4.
+
+**Next:** the owner answers item 4's architecture question. Until then the buildable
+items are 5 (`workflowStepRuns`) and 6 (GRC create paths), neither of which touches
+approvals.
 
 ## 2026-08-23 — run 13 (user-reference gap, and the scan committed)
 
