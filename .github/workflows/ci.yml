@@ -100,6 +100,21 @@ jobs:
           NODE_ENV: test
         run: pnpm test
 
+      # Cross-tenant FK scan. This class is invisible to every other gate: RLS
+      # ACCEPTS the rows (the child's own org_id is legitimately the caller's),
+      # typecheck cannot see them, and E2E would never construct one. The script
+      # is read-only (BEGIN TRANSACTION READ ONLY) and fails the build on any
+      # cross-tenant row. It also fails if its own control matches nothing, so a
+      # broken scan reports itself rather than a false clean.
+      #
+      # NOTE: the CI database is seeded by the suite above and may hold few
+      # tenants. A clean result here means "the tests did not create one", not
+      # "production is clean" — production must be scanned separately.
+      - name: Cross-tenant FK scan
+        env:
+          DATABASE_URL: postgresql://coheronconnect:coheronconnect_test@localhost:5432/coheronconnect_test
+        run: pnpm check:cross-tenant
+
   # ── E2E (Playwright) — full app smoke; globalSetup uses db:migrate + seed ─────
   e2e:
     name: E2E (Playwright)

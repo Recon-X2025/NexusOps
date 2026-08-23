@@ -44,6 +44,7 @@
     "lint": "turbo run lint",
     "lint:cold": "turbo run lint --force",
     "check:migrations": "node scripts/verify-migration-journal.mjs",
+    "check:cross-tenant": "node scripts/check-cross-tenant-fks.mjs",
     "coverage": "pnpm --filter @coheronconnect/api exec vitest run --coverage",
     "check:coverage": "node scripts/coverage-floor.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
