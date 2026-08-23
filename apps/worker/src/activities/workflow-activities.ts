@@ -44,6 +44,35 @@ interface StepHandle {
 }
 
 /**
+ * "Does this id belong to that org?" for the Temporal worker.
+ *
+ * This process connects with its own `pg` Pool as the application database
+ * user, which is a superuser and BYPASSRLS — so row-level security constrains
+ * NOTHING here. Every predicate on this connection is load-bearing, and unlike
+ * `apps/api` there is no second wall behind it.
+ *
+ * `apps/api` has `lib/assert-same-org.ts` for this, but it is built on Drizzle
+ * table objects; this worker speaks raw SQL to a `pg` Pool, so the rule is
+ * re-expressed rather than imported. Keep the two in step.
+ *
+ * The table name is NOT caller-supplied — it is a literal at each call site —
+ * so interpolating it does not create an injection point. The id and org are
+ * bound as parameters.
+ */
+async function belongsToOrg(
+  pool: Pool,
+  table: "users" | "teams" | "tickets",
+  id: string,
+  orgId: string,
+): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM ${table} WHERE id = $1 AND org_id = $2 LIMIT 1`,
+    [id, orgId],
+  );
+  return rows.length > 0;
+}
+
+/**
  * Idempotently begin a step for (runId, nodeId).
  *
  * Relies on the UNIQUE(run_id, node_id) index: on Temporal retry the same step
@@ -161,7 +190,7 @@ export function createActivities(pool: Pool): WorkflowActivities {
     },
 
     // ── assignTicket ────────────────────────────────────────────────────────
-    async assignTicket({ orgId: _orgId, runId, nodeId, data, context }) {
+    async assignTicket({ orgId, runId, nodeId, data, context }) {
       const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "ASSIGN", { data });
       if (alreadyCompleted) return;
       try {
@@ -169,18 +198,29 @@ export function createActivities(pool: Pool): WorkflowActivities {
         if (ticketId) {
           const updates: string[] = [];
           const params: unknown[] = [];
+          // `assigneeId` and `teamId` come from the workflow NODE's own config,
+          // which an author types in. Neither is validated upstream, so resolve
+          // each against this org before it is written onto a ticket.
           if (data["assigneeId"]) {
+            if (!(await belongsToOrg(pool, "users", data["assigneeId"] as string, orgId))) {
+              throw new Error("assigneeId does not belong to this organisation");
+            }
             params.push(data["assigneeId"]);
             updates.push(`assignee_id = $${params.length}`);
           }
           if (data["teamId"]) {
+            if (!(await belongsToOrg(pool, "teams", data["teamId"] as string, orgId))) {
+              throw new Error("teamId does not belong to this organisation");
+            }
             params.push(data["teamId"]);
             updates.push(`team_id = $${params.length}`);
           }
           if (updates.length > 0) {
             params.push(ticketId);
+            params.push(orgId);
             await pool.query(
-              `UPDATE tickets SET ${updates.join(", ")}, updated_at = now() WHERE id = $${params.length}`,
+              `UPDATE tickets SET ${updates.join(", ")}, updated_at = now()
+                WHERE id = $${params.length - 1} AND org_id = $${params.length}`,
               params,
             );
           }
@@ -205,7 +245,14 @@ export function createActivities(pool: Pool): WorkflowActivities {
 
         // user_id is NOT NULL on `notifications`; without a recipient there is
         // nothing to deliver, so record the step as completed without inserting.
+        // The row is stamped with OUR org_id, so RLS would accept it whoever the
+        // recipient is — the notification would simply be delivered to another
+        // tenant's user. `userId` comes from trigger context or node config and
+        // is not validated upstream, so it is resolved here.
         if (userId) {
+          if (!(await belongsToOrg(pool, "users", userId, orgId))) {
+            throw new Error("notification recipient does not belong to this organisation");
+          }
           await pool.query(
             `INSERT INTO notifications (org_id, user_id, title, body, type, is_read, created_at)
              VALUES ($1, $2, $3, $4, 'info', false, now())`,
@@ -220,7 +267,7 @@ export function createActivities(pool: Pool): WorkflowActivities {
     },
 
     // ── updateTicketField ───────────────────────────────────────────────────
-    async updateTicketField({ orgId: _orgId, runId, nodeId, data, context }) {
+    async updateTicketField({ orgId, runId, nodeId, data, context }) {
       const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "UPDATE_FIELD", { data });
       if (alreadyCompleted) return;
       try {
@@ -247,8 +294,9 @@ export function createActivities(pool: Pool): WorkflowActivities {
 
         if (ticketId) {
           await pool.query(
-            `UPDATE tickets SET "${column}" = $1, updated_at = now() WHERE id = $2`,
-            [value, ticketId],
+            `UPDATE tickets SET "${column}" = $1, updated_at = now()
+              WHERE id = $2 AND org_id = $3`,
+            [value, ticketId, orgId],
           );
         }
         await finishStep(pool, stepId, { updated: !!ticketId, field: column });
