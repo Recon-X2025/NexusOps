@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import {
   changeRequests,
   changeApprovals,
@@ -229,6 +230,7 @@ export const changesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      await assertSameOrgIfPresent(db, releases, input.releaseId, org!.id, "Release");
       
       const scheduledStart = input.scheduledStart ? new Date(input.scheduledStart) : undefined;
       const scheduledEnd = input.scheduledEnd ? new Date(input.scheduledEnd) : undefined;

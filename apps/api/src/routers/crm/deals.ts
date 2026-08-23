@@ -7,6 +7,7 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../../lib/assert-same-org";
 import { crmDeals, crmQuotes, crmPipelineStages, organizations, users, dealStageEnum, quoteStatusEnum, eq, and, asc, desc, type DbOrTx } from "@coheronconnect/db";
 import { getNextNumber } from "../../lib/auto-number";
 import {
@@ -582,6 +583,7 @@ export const crmDealsRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrgIfPresent(db, crmDeals, input.dealId, org!.id, "Deal");
         assertQuoteHasValue(input.items as QuoteLine[]);
         const quoteNumber = await getNextNumber(db, org!.id, "QT");
         // G7 — GST: discount applies before tax; per-line CGST/SGST/IGST rolled up.

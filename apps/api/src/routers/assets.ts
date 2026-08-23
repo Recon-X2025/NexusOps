@@ -101,6 +101,8 @@ export const assetsRouter = router({
     .input(CreateAssetSchema)
     .mutation(async ({ ctx, input }) => {
     const { db, org, user } = ctx;
+    await assertSameOrgIfPresent(db, users, input.ownerId, org!.id, "Owner");
+    await assertSameOrgIfPresent(db, assetTypes, input.typeId, org!.id, "Asset type");
 
     /*
      * The GL accounts this asset will post to, resolved BEFORE anything is

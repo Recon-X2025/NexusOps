@@ -1,8 +1,8 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertSameOrg } from "../lib/assert-same-org";
-import { kbArticles, kbArticleStatusEnum, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@coheronconnect/db";
+import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
+import { ticketCategories, legalMatters, kbArticles, kbArticleStatusEnum, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@coheronconnect/db";
 
 export const knowledgeRouter = router({
   list: permissionProcedure("knowledge", "read")
@@ -51,6 +51,8 @@ export const knowledgeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      await assertSameOrgIfPresent(db, ticketCategories, input.categoryId, org!.id, "Category");
+      await assertSameOrgIfPresent(db, legalMatters, input.matterId, org!.id, "Matter");
       const [article] = await db
         .insert(kbArticles)
         .values({

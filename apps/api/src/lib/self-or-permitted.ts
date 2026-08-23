@@ -51,6 +51,23 @@ export async function assertSelfOrPermitted(
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }
 
+  // TENANCY FIRST, BEFORE PRIVILEGE. Holding `hr:write` authorises the ACTION;
+  // it says nothing about whose employee this is. Until 2026-08-23 a privileged
+  // caller returned early below without this check, so an HR/payroll/finance
+  // user could pass another tenant's employeeId and the row that followed was
+  // written stamped with the CALLER's org_id — a cross-tenant foreign key that
+  // RLS cannot reject, because the row's own org_id is legitimately theirs.
+  // NOT_FOUND, never FORBIDDEN: the two must be indistinguishable or the error
+  // becomes a cross-tenant existence oracle.
+  const [target] = await ctx.db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(and(eq(employees.id, employeeId), eq(employees.orgId, ctx.org.id)))
+    .limit(1);
+  if (!target) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+  }
+
   const role = String(user.role ?? "");
   const matrixRole = (user.matrixRole as string | null | undefined) ?? null;
   for (const [module, action] of permitted) {

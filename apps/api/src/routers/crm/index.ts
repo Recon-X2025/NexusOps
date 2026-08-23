@@ -21,6 +21,7 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../../lib/assert-same-org";
 import {
   crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmQuotes,
   organizations,
@@ -497,6 +498,7 @@ export const crmRouter = router({
     .input(z.object({ dealId: z.string().uuid(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional(), discountPct: z.coerce.number().min(0).max(100).optional() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      await assertSameOrgIfPresent(db, crmDeals, input.dealId, org!.id, "Deal");
       // Same validity rule as the canonical path — a ₹0 quote is not a quote,
       // and leaving the hole open here would only move it.
       assertQuoteHasValue(input.items as QuoteLine[]);

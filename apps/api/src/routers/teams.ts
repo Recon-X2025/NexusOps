@@ -1,5 +1,6 @@
 import { router, adminProcedure } from "../lib/trpc";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import { TRPCError } from "@trpc/server";
 import {
   teams,
@@ -161,8 +162,13 @@ export const teamsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { db } = ctx;
-      
+      const { db, org } = ctx;
+
+      // team_members carries no org_id at all, so unlike most sites in this
+      // sweep there is no RLS behind these two checks — they are the only wall.
+      await assertSameOrg(db, teams, input.teamId, org!.id, "Team");
+      await assertSameOrg(db, users, input.userId, org!.id, "User");
+
       await db
         .insert(teamMembers)
         .values({

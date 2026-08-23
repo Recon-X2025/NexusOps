@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import { TRPCError } from "@trpc/server";
 import {
   payrollRuns,
@@ -1587,6 +1588,7 @@ const arrearsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      await assertSameOrgIfPresent(db, salaryStructures, input.sourceStructureId, org!.id, "Source structure");
       // Employee must belong to THIS org — a foreign uuid must 404, not write a cross-tenant row.
       const [emp] = await db
         .select({ id: employees.id })

@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import {
   oncallSchedules,
   oncallIncidents,
@@ -113,6 +114,7 @@ export const oncallRouter = router({
       .input(z.object({ scheduleId: z.string().uuid(), userId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+      await assertSameOrg(db, oncallSchedules, input.scheduleId, org!.id, "Schedule");
         const [incident] = await db.insert(oncallIncidents).values({
           orgId: org!.id,
           scheduleId: input.scheduleId,

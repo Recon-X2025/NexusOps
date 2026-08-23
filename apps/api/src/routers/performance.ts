@@ -2,6 +2,7 @@ import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import {
   reviewCycles,
   performanceReviews,
@@ -141,6 +142,9 @@ export const performanceRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      await assertSameOrgIfPresent(db, reviewCycles, input.cycleId, org!.id, "Cycle");
+      await assertSameOrgIfPresent(db, users, input.revieweeId, org!.id, "Reviewee");
+      await assertSameOrgIfPresent(db, users, input.reviewerId, org!.id, "Reviewer");
       const [review] = await db
         .insert(performanceReviews)
         .values({
@@ -247,6 +251,7 @@ export const performanceRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      await assertSameOrgIfPresent(db, reviewCycles, input.cycleId, org!.id, "Cycle");
       const [goal] = await db
         .insert(goals)
         .values({

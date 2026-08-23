@@ -2,6 +2,7 @@ import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { sendNotification } from "../services/notifications";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import { getTableColumns } from "drizzle-orm";
 import { getNextNumber } from "../lib/auto-number";
 import { raiseApproval, resolveApprovers } from "../lib/raise-approval";
@@ -541,6 +542,7 @@ export const procurementRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrgIfPresent(db, legalEntities, input.legalEntityId, org!.id, "Legal entity");
 
         // ── PO-GATE: creation-time value control on Direct POs ──────────────
         // A Direct PO bypasses the requisition approval flow entirely, so it may be raised WITHOUT a
@@ -708,6 +710,7 @@ export const procurementRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrgIfPresent(db, vendors, input.vendorId, org!.id, "Vendor");
 
         if (input.legalEntityId) {
           const [leRow] = await db

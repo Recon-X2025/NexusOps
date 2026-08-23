@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { assertSelfOrPermitted, type SelfServiceCtx as SharedSelfServiceCtx } from "../lib/self-or-permitted";
 import { z } from "zod";
+import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
 import { resolveAssignment } from "../services/assignment";
 import { evaluateExpenseClaim } from "../lib/expense-policy";
 import { extractReceipt } from "../services/ai-receipt-ocr";
@@ -44,6 +45,7 @@ import {
   inArray,
   type SQL,
   type DbOrTx,
+  salaryStructures,
 } from "@coheronconnect/db";
 import { getTableColumns } from "drizzle-orm";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
@@ -417,6 +419,7 @@ export const hrRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrgIfPresent(db, salaryStructures, input.salaryStructureId, org!.id, "Salary structure");
 
         let finalUserId = input.userId;
 
@@ -897,6 +900,7 @@ export const hrRouter = router({
       .input(z.object({ employeeId: z.string().uuid(), templateId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrg(db, employees, input.employeeId, org!.id, "Employee");
 
         const [template] = await db
           .select()
@@ -1604,6 +1608,7 @@ export const hrRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrg(db, employees, input.employeeId, org!.id, "Employee");
         const [event] = await db
           .insert(lifecycleEvents)
           .values({

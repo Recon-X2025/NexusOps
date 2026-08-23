@@ -1,7 +1,7 @@
 import { router, permissionProcedure, adminProcedure, mfaGate, stepUpGate } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertSameOrg } from "../lib/assert-same-org";
+import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
 import { getTableColumns } from "drizzle-orm";
 import {
   budgetLines,
@@ -1386,6 +1386,7 @@ export const financialRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      await assertSameOrgIfPresent(db, purchaseOrders, input.poId, org!.id, "Purchase order");
       const { computeGST, isEInvoiceRequired, isEWayBillRequired } = await import("../lib/india/gst-engine.js");
       const { validateGSTIN } = await import("../lib/india/validators.js");
 

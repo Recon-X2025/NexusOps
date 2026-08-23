@@ -15,6 +15,7 @@
  * reconciliation rather than mis-withheld here at a guessed slab.
  */
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import { TRPCError } from "@trpc/server";
 import {
   employees,
@@ -283,6 +284,7 @@ export const settlementRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      await assertSameOrg(db, employees, input.employeeId, org!.id, "Employee");
       return db.transaction(async (tx) => {
         // Idempotency FIRST: a settlement already recorded ⇒ CONFLICT, before anything is drawn.
         const [dup] = await tx

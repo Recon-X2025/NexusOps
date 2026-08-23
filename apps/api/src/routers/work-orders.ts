@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import { TRPCError } from "@trpc/server";
 import { router, permissionProcedure } from "../lib/trpc";
 import { sendNotification } from "../services/notifications";
@@ -291,6 +292,11 @@ export const workOrdersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
       const { org } = ctx;
+
+      // The task row carries orgId: org.id, so RLS accepts it whoever the
+      // parent belongs to — the row is legitimately this tenant's. Only this
+      // check stops a task being attached to another tenant's work order.
+      await assertSameOrg(db, workOrders, input.workOrderId, org!.id, "Work order");
 
       const existing = await db
         .select({ count: sql<number>`count(*)` })

@@ -1,7 +1,7 @@
 import { router, permissionProcedure, protectedProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertSameOrg } from "../lib/assert-same-org";
+import { assertSameOrg, assertSameOrgIfPresent } from "../lib/assert-same-org";
 import {
   documents,
   users,
@@ -109,6 +109,7 @@ export const documentsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      await assertSameOrgIfPresent(db, documentRetentionPolicies, input.retentionPolicyId, org!.id, "Retention policy");
       const body = Buffer.from(input.contentBase64, "base64");
       if (body.length > 25 * 1024 * 1024) {
         throw new TRPCError({

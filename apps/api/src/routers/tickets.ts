@@ -858,6 +858,7 @@ export const ticketsRouter = router({
     .input(CreateTicketSchema)
     .mutation(async ({ ctx, input }) => {
     const { db, org, user } = ctx;
+    await assertSameOrgIfPresent(db, ticketCategories, input.categoryId, org!.id, "Category");
 
     // Resolve idempotency key: header > input > auto-generated 5s window hash.
     // A client that sends X-Idempotency-Key OR input.idempotencyKey gets exact

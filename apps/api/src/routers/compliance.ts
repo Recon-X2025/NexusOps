@@ -9,6 +9,7 @@
  */
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
+import { assertSameOrgIfPresent } from "../lib/assert-same-org";
 import { TRPCError } from "@trpc/server";
 import { executeErasureForDsr } from "../lib/dpdp-erasure";
 import { getNextYearScopedSeq } from "../lib/auto-number";
@@ -31,6 +32,9 @@ import {
   desc,
   asc,
   sql,
+  users,
+  legalMatters,
+  securityIncidents,
 } from "@coheronconnect/db";
 
 // DSR state machine — allowed transitions. Terminal states (closed) accept none.
@@ -154,6 +158,8 @@ export const complianceRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
+        await assertSameOrgIfPresent(db, users, input.assignedToUserId, org!.id, "Assignee");
+        await assertSameOrgIfPresent(db, legalMatters, input.linkedPrivacyMatterId, org!.id, "Privacy matter");
         const receivedAt = input.receivedAt ? new Date(input.receivedAt) : new Date();
         const dueAt = new Date(
           receivedAt.getTime() + input.responseWindowDays * 24 * 60 * 60 * 1000,
@@ -433,6 +439,7 @@ export const complianceRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
+        await assertSameOrgIfPresent(db, dpdpProcessingActivities, input.processingActivityId, org!.id, "Processing activity");
         const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
         return db.transaction(async (tx) => {
           const [existing] = await tx
@@ -658,6 +665,8 @@ export const complianceRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
+        await assertSameOrgIfPresent(db, securityIncidents, input.linkedSecurityIncidentId, org!.id, "Security incident");
+        await assertSameOrgIfPresent(db, users, input.assignedToUserId, org!.id, "Assignee");
         const detectedAt = input.detectedAt ? new Date(input.detectedAt) : new Date();
 
         // Resolve the notification window: explicit override → jurisdiction
@@ -975,6 +984,7 @@ export const complianceRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        await assertSameOrgIfPresent(db, legalMatters, input.linkedPrivacyMatterId, org!.id, "Privacy matter");
         const [row] = await db
           .insert(dpdpProcessingActivities)
           .values({

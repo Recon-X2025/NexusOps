@@ -19,6 +19,7 @@
  * persistence, tenancy and the leave-balance projection.
  */
 import { z } from "zod";
+import { assertSameOrg } from "../lib/assert-same-org";
 import { TRPCError } from "@trpc/server";
 import {
   employees,
@@ -845,6 +846,9 @@ export const leaveAccrualRouter = router({
       .input(z.object({ employeeId: z.string().uuid(), asOf: z.coerce.date().optional() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
+        // The leave POLICY was org-checked below; the employee never was, so a
+        // lapse event was written under this org for another tenant's employee.
+        await assertSameOrg(db, employees, input.employeeId, org!.id, "Employee");
         const [policy] = await db.select().from(leavePolicies)
           .where(and(eq(leavePolicies.orgId, org!.id), eq(leavePolicies.type, "compensatory_off"))).limit(1);
         if (!policy) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No compensatory_off leave policy configured" });
