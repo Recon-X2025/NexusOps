@@ -11,6 +11,7 @@ import {
   invoiceStatusEnum,
   journalEntries,
   vendors,
+  goodsReceiptNotes,
   legalEntities,
   purchaseOrders,
   gstinRegistry,
@@ -243,6 +244,14 @@ export const financialRouter = router({
       notes: z.string().optional(),
       legalEntityId: z.string().uuid().optional(),
       gstinId: z.string().uuid().optional(),
+      /**
+       * The goods receipt this bill is for. Without it the three-way match has
+       * no third leg: `computeInvoicePoMatch` gates the whole GRN comparison on
+       * `invoices.grnId`, and nothing used to populate it — so a bill for goods
+       * that were REJECTED on receipt reconciled against the full PO, and a bill
+       * for only the accepted quantity was refused.
+       */
+      grnId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -263,6 +272,10 @@ export const financialRouter = router({
           .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
         if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
       }
+      // Tenancy before use — a caller must not bill against another tenant's
+      // goods receipt. Uses the single shared helper, not a second hand-rolled
+      // lookup.
+      await assertSameOrgIfPresent(db, goodsReceiptNotes, input.grnId, org!.id, "Goods receipt");
       // Resolve both states so we split CGST/SGST vs IGST correctly, then let
       // the GST engine derive tax + gross total from the taxable `amount`.
       const [vendorRow] = await db
@@ -337,6 +350,7 @@ export const financialRouter = router({
           orgId: org!.id,
           vendorId: input.vendorId,
           legalEntityId: input.legalEntityId ?? null,
+          grnId: input.grnId ?? null,
           invoiceFlow: "payable",
           invoiceNumber: input.invoiceNumber,
           invoiceType: "tax_invoice",
