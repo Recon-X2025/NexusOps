@@ -154,19 +154,23 @@ export default function InvoiceDetailPage() {
                 }
                 actions={
                   <div className="flex items-center gap-2">
-                    {/* A tax invoice is OUR document, issued only on the receivable
-                        flow. Offering it on a payable invites us to render someone
-                        else's invoice under our letterhead — the server refuses with
-                        409, so the button could only ever fail here anyway. */}
-                    {direction === "receivable" && (
-                      <button
-                        data-testid="invoice-download-pdf"
-                        onClick={() => downloadInvoicePdf(id, inv.invoiceNumber ?? "")}
-                        className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all"
-                      >
-                        <FileDown className="w-4 h-4" /> Download Tax Invoice
-                      </button>
-                    )}
+                    {/* Deliberately NOT hidden on the payable flow. The server
+                        refuses with a 409 naming the reason, and the proxy passes
+                        that body through unchanged so the user is TOLD why rather
+                        than finding the action silently missing — the behaviour
+                        `e2e/invoice-document.spec.ts` pins.
+
+                        Gating this on `direction` was tried and reverted: the page
+                        computes `inv.direction || "payable"` and `getInvoice` does
+                        not return that field, so the gate hid the button on every
+                        invoice, receivables included. */}
+                    <button
+                      data-testid="invoice-download-pdf"
+                      onClick={() => downloadInvoicePdf(id, inv.invoiceNumber ?? "")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all"
+                    >
+                      <FileDown className="w-4 h-4" /> Download Tax Invoice
+                    </button>
                     <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all">
                       <Printer className="w-4 h-4" /> Print
                     </button>
