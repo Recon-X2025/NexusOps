@@ -17,7 +17,7 @@ registerMetric({
   unit: "months",
   description:
     "Liquid cash (bank + cash accounts) divided by average monthly burn from posted expense journals over the trailing 3 months.",
-  drillUrl: "/app/accounting",
+  drillUrl: "/app/finance/accounting/balance-sheet",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
 
@@ -82,7 +82,7 @@ registerMetric({
   direction: "lower_is_better",
   unit: "currency_inr",
   description: "Sum of expense account balances — proxy burn until cash actuals feed this metric.",
-  drillUrl: "/app/accounting",
+  drillUrl: "/app/finance/accounting/pnl",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
     const accounts = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.orgId, ctx.tenantId));
@@ -194,7 +194,7 @@ registerMetric({
   unit: "currency_inr",
   target: 0,
   description: "Outstanding receivable amount where due date is more than 60 days ago.",
-  drillUrl: "/app/finance",
+  drillUrl: "/app/workbench/finance-ops",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
     const rows = await db
@@ -258,7 +258,7 @@ registerMetric({
   unit: "currency_inr",
   target: 0,
   description: "Outstanding payable amount where due date is more than 60 days ago.",
-  drillUrl: "/app/finance",
+  drillUrl: "/app/workbench/finance-ops",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
     const rows = await db

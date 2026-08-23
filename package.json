@@ -58,7 +58,8 @@
     "docker:logs": "docker compose -f docker-compose.dev.yml logs -f",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
-    "docker:test:reset": "docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d --wait"
+    "docker:test:reset": "docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d --wait",
+    "check:metric-links": "node scripts/check-metric-drill-urls.mjs"
   },
   "devDependencies": {
     "@coheronconnect/db": "workspace:*",

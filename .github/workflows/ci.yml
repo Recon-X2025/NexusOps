@@ -110,6 +110,13 @@ jobs:
       # NOTE: the CI database is seeded by the suite above and may hold few
       # tenants. A clean result here means "the tests did not create one", not
       # "production is clean" — production must be scanned separately.
+      # Every metric's drill-through must land on a real page. Invisible to
+      # every other gate: the target is a string, so typecheck cannot see it and
+      # nothing navigates there in tests. Five of thirty were broken when the
+      # layer survey looked. Needs no database.
+      - name: Metric drill-through check
+        run: pnpm check:metric-links
+
       - name: Cross-tenant FK scan
         env:
           DATABASE_URL: postgresql://coheronconnect:coheronconnect_test@localhost:5432/coheronconnect_test

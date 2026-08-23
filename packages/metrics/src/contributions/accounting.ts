@@ -14,7 +14,7 @@ registerMetric({
   unit: "percent",
   target: 15,
   description: "Net profit as a percent of income from chart of accounts balances (simplified).",
-  drillUrl: "/app/accounting",
+  drillUrl: "/app/finance/accounting/pnl",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
     const accounts = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.orgId, ctx.tenantId));
