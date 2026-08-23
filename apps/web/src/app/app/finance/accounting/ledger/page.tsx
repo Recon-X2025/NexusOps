@@ -180,8 +180,11 @@ function LedgerPageInner() {
                                           </td>
                                       </tr>
                                   ) : (
-                                      qLedger.data?.lines.map((line: any, index: number) => (
-                                          <tr key={line.id} className="hover:bg-muted/30 transition-colors group">
+                                      qLedger.data?.lines.map((line: any) => (
+                                          // The row is { line, je, runningBalance } — there is no top-level
+                                          // `id`, so `line.id` was undefined on every row and React saw a
+                                          // keyless list. The journal-entry LINE id is the unique thing here.
+                                          <tr key={line.line.id} className="hover:bg-muted/30 transition-colors group">
                                               <td className="px-4 py-3 text-body-sm text-muted-foreground">
                                                   {new Date(line.je.date).toLocaleDateString()}
                                               </td>
