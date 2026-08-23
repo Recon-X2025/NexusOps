@@ -1,14 +1,9 @@
-> **RETIRED — superseded by `docs/PLAN-05.md`.**
-> CURRENT STATE and THE QUEUE were carried forward on 2026-08-23. What remains
-> here is the run log for runs 12-14, kept as history. A new session finds the
-> live plan by rule: `ls docs/PLAN-*.md | sort | tail -1`.
-
-# PLAN — 04
+# PLAN — 05
 
 **This is the single reference file for a new session. Read it first.**
 
 Operating rules stay in `CLAUDE.md`. Everything about *what is true now* and *what
-happens next* lives here. `docs/PLAN-01.md` … `PLAN-03.md` hold the earlier run logs
+happens next* lives here. `docs/PLAN-01.md` … `PLAN-04.md` hold the earlier run logs
 and are history — their "done" claims were true when written and are not
 re-verified here.
 
@@ -20,7 +15,7 @@ re-verified here.
   verified.** "Raises an approval" is not a deliverable; "the requisition moves when
   approved" is. Item 4 shipped as "wired end to end" having verified the chain only
   as far as the approver's queue — see its own entry for what that cost.
-- **Hard cap 500 lines.** At the cap create `docs/PLAN-05.md`, carry CURRENT STATE +
+- **Hard cap 500 lines.** At the cap create `docs/PLAN-06.md`, carry CURRENT STATE +
   THE QUEUE forward, leave the RUN LOG behind, and put a pointer at the top of the
   retired file.
 - **Numbering is zero-padded two digits so a plain `sort` finds the newest.** Roman
@@ -102,6 +97,15 @@ claims**, then **test health**.
 
 Items 1, 2, 3 are closed — see `PLAN-02.md` / `PLAN-03.md` run logs.
 
+> **TREAT ITEMS 6-13 AS UNVERIFIED.** On 2026-08-23 three consecutive items were
+> examined before building and all three were wrong: item 4 (three of its four
+> callers already had working approval), item 5 (the contract it called
+> unimplemented was implemented), and this plan's own run-11 claim that
+> `apps/worker` had no database access. All were written by the same process —
+> scoped from a subsystem's edge, asserting a gap a wider read disproves.
+> **Verify an item against the repo before scoping work from it.** The rule in
+> HOW THIS FILE WORKS exists because of these three.
+
 ### 0. Tenant isolation — the API write and read paths are CLOSED
 
 **Fixed and deployed (`f025a48`, `af8f8ec`, `dce6ff4`).** Every fix was proven by a
@@ -145,6 +149,31 @@ under a second on both local databases.
 clean bill of health. **This is the highest-value open item** — if it finds rows,
 remediation outranks everything below. Do not delete found rows: the row's `org_id`
 is the acting tenant, not necessarily the owner.
+
+### 0g. `apps/worker` — swept and FIXED 2026-08-23 (`8db6e51`)
+
+**Run 11 of this plan said apps/worker has no database access. That was wrong**
+and the error was mine: `index.ts:10` creates a `pg` Pool and injects it; I read
+`workflow-activities.ts`, saw `import type { Pool }`, and never opened `index.ts`.
+
+It connects as the app DB user — `rolsuper` and `rolbypassrls` — so RLS
+constrains nothing and, unlike `apps/api`, there is no second wall. Of 14
+statements: 7 keyed on internally-generated run/step ids on tables with no
+`org_id`; the `notifications` INSERT stamped `org_id` but never validated the
+recipient; and **both `tickets` UPDATEs received `orgId` and discarded it** via
+the `{ orgId: _orgId }` convention, with no org predicate.
+
+Fixed: org predicates on both updates, and recipient / assignee / team ids
+resolved against the org via a local `belongsToOrg` helper — the same rule as
+`lib/assert-same-org.ts`, re-expressed because that one is built on Drizzle
+tables and this worker speaks raw SQL. **Keep the two in step.**
+
+**Reachability, stated precisely:** the ticket writes are guarded by
+`if (ticketId)`; `context` is `{...triggerData}`; the only Temporal start site
+passes `{ triggeredBy: "publish" }` with no ticketId, and `workflows.test` is a
+dry run. So those two were one `triggerData` field from live, in activities
+called "assign ticket" and "update ticket field". The notification path had no
+such guard and was live. READ IN CODE ONLY — zero workflows exist on 5434/DEV.
 
 ### 0c. Isolation surfaces never swept
 
@@ -265,12 +294,22 @@ no new chain can be hollow.
 intent, deleting them is right and the empty state becomes honest. Nothing in the repo
 records which they are.
 
-### 5. `workflowStepRuns` — a documented contract nobody implements
+### 5. ~~`workflowStepRuns`~~ — WITHDRAWN 2026-08-23. The contract IS implemented.
 
-`apps/api/src/workflows/actions/runtime.ts:14` says the caller "is responsible for
-persisting step results into `workflow_step_runs`". No caller does, so the workflow
-run-detail screen returns an empty step list forever. Small; completes a contract
-that already exists in writing.
+This item claimed "no caller persists step results, so the run-detail screen
+returns an empty step list forever". **False.**
+`apps/worker/src/activities/workflow-activities.ts` upserts `workflow_step_runs`
+on `(run_id, node_id)` with attempt counting, and completes the parent run. The
+screen is empty on 5434/DEV because **there are zero workflows**, not because
+nothing writes steps.
+
+The item was written from `runtime.ts:14`, whose comment is conditional — "if
+invoked from a Temporal activity" — and out of date: it names two consumers, and
+there are four. Nobody checked whether the condition was ever met, or opened the
+worker that meets it.
+
+**What the read did find is now its own item — see 0g.**
+
 
 ### 6. GRC create paths
 
@@ -386,106 +425,40 @@ gap-fix, and it is not in the queue until someone makes it.
 
 _Newest first. One entry per run, including runs that changed nothing._
 
-## 2026-08-23 — run 14 (started building item 4, found the item was wrong)
+## 2026-08-23 — run 15 (item 5 withdrawn, apps/worker swept and fixed)
 
-**No code written.** Began item 4.1 — wire the remaining approval callers — and
-stopped before the first edit. Item 4 has been rewritten in place; this entry
-records why.
+Picked up item 5 as the next buildable item, applied the rule added in run 14 —
+establish how it works in the product today before scoping — and the item
+collapsed within minutes. **Third consecutive queue item found wrong.**
 
-**What the deeper read found.** Twenty decision-shaped procedures swept, each with
-its actual write set enumerated. The product has TWO approval systems: module-local
-ones that transition their own records and work, and the generic subsystem whose
-`decide` writes only `approvalRequests` and `approvalSteps`. Three of the four
-callers the old item named already approve correctly; only contracts lacks any
-approval verb. Procurement is wired to both and they share no state, so a
-requisition can be approved in one while the other reads pending.
+**Item 5 was false.** `workflow-activities.ts` upserts `workflow_step_runs` on
+`(run_id, node_id)` with attempt counting and completes the parent run. The
+run-detail screen is empty because there are zero workflows on 5434/DEV, not
+because nothing writes steps. The item had been written from a comment at
+`runtime.ts:14` that is conditional ("if invoked from a Temporal activity") and
+out of date — it names two consumers where there are four.
 
-**What stopped it being built.** The pattern would not have failed loudly:
-procurement resolves approvers read-only before its transaction and, when none
-resolve, still creates the record with `approvalRaised: false` and an honest
-`approvalIssue`. So wiring three more would have produced three plausible-looking
-queues where approving changes nothing — an audit trail asserting a control that
-does not exist. That is precisely what the standing directive exists to stop.
+**The read found a real defect instead, and it was mine.** Run 11 recorded that
+`apps/worker` has no database access. `index.ts:10` creates a `pg` Pool. I had
+read the activities file, seen `import type { Pool }`, concluded type-only, and
+never opened `index.ts`. The surface I declared clean is the one place where RLS
+is off AND the SQL is hand-written. Fixed in `8db6e51` — see item 0g.
 
-**Two false starts worth recording.** First I read the four hollow chains as a
-blocker; they are not — the resolve-first pattern degrades honestly. Then I framed
-the problem as "the approvals loop is unclosed"; it is not that either. The loop was
-never open, because every one of these modules already had its own working approval
-and the generic subsystem was built alongside them, not into them.
+**The pattern across runs 14 and 15.** Both items were scoped from a subsystem
+outward — "who should call this?", "who implements this contract?" — rather than
+from the domain inward. Both had an obvious answer to the narrow question and a
+different answer to the real one. Both were caught in under ten minutes by a
+read that should have happened when the item was written. Items 6-13 came from
+the same process and now carry a warning at the top of the queue.
 
-**A rule added to HOW THIS FILE WORKS**: a queue item that wires a producer must
-name its consumer and how the loop was verified. Item 4 shipped as "wired end to
-end" having verified as far as the approver's queue and no further — and the run-7
-audit passed it by checking that the SHAs existed and the raise path worked.
+**Rolled over to PLAN-05** — PLAN-04 would have exceeded the 500-line cap.
+CURRENT STATE and THE QUEUE carried forward, run log for runs 12-14 left behind.
 
-**NOT VERIFIED:** the procurement divergence is READ IN CODE ONLY — the write sets
-do not overlap, but I have not driven both paths through the UI to watch them
-disagree. Worth doing before anyone acts on item 4.
+**Unpushed and accumulating: 5 commits.** `7c47cb2` scan + CI gate, `17d1ea8`
+PLAN-04, `a200248` item 4 correction, `8db6e51` worker fix, plus this. The
+worker fix is the only one with product code, and it closes a live cross-tenant
+write, so it is the one worth pushing soon.
 
-**Next:** the owner answers item 4's architecture question. Until then the buildable
-items are 5 (`workflowStepRuns`) and 6 (GRC create paths), neither of which touches
-approvals.
-
-## 2026-08-23 — run 13 (user-reference gap, and the scan committed)
-
-**The owner's clone was stale (20 August, one commit deep), which explains two
-wrong reports today** — "assert-same-org.ts does not exist" and a set of line
-numbers predating `a7c0992`. Naming was secondary. **Treat any `file:line` quoted
-from outside this tree as needing confirmation.**
-
-**The FK-count gap reconciled.** 506 single-column FK constraints on 5434; 197 point
-at `organizations` (matches), 309 do not. Of those, **246 have `org_id` on both
-sides — the run-12 scan — and 63 have a child with no `org_id`**, which that scan
-excluded by construction because it compared `c.org_id <> p.org_id` and a child
-without the column has nothing to compare. 135 point at `users` (matches).
-
-**Eight user-reference sites checked: zero unguarded.** Six were already fixed in
-run 12; `approvals.raise` is guarded inside `lib/raise-approval.ts` (**verified by
-running it** — org B was refused with "Approver(s) not found in this organisation");
-`employees.managerId` has no `.references()` and is not a user FK at all.
-
-**Committed the scan (`7c47cb2`, unpushed).** `scripts/check-cross-tenant-fks.mjs`,
-`pnpm check:cross-tenant`, wired into the CI test job.
-
-**A design correction worth keeping:** a no-`org_id` child with a SINGLE parent
-cannot express a cross-tenant row — nothing on the row disagrees. The real second
-shape is a child with TWO OR MORE parents resolving to different orgs
-(`ci_relationships`, `team_members`, `document_acls`, `license_assignments`). The
-scan reports 246 direct / 19 bridge tables / 17 skipped-and-said-so.
-
-**Validated in both directions.** 5434: control 44,149, zero findings, exit 0, and
-the output states zero is expected with one tenant. 5433 with a cross-tenant invoice
-planted by hand: found it, named `invoices.vendor_id -> vendors`, printed both org
-ids, **exit 1** (verified explicitly — CI depends on it). Probe rows removed.
-
-**NOT VERIFIED:** production has not been scanned. `apps/web`, nested sub-routers,
-`document_acls` and the 10 unchecked-lookup sites untouched, by instruction.
-
-## 2026-08-23 — run 12 (isolation audit round 2, and the fixes, deployed)
-
-**A proven cross-tenant read leak was live** — `getAgileBoard` returned another
-tenant's task board. Deployed `dce6ff4` closes it; all five CI jobs green.
-
-**Three faults in my own instruments, each caught by sanity-checking:**
-
-1. The `?.`-aware detector counted `x?.y` as a guard. Optional chaining is not a
-   guard — it is how the code silently tolerates the missing row. Caught by testing
-   it against `a7c0992^`, where it returned zero on a defect known to be there.
-   Correcting it found **two more instances** the previous night's fix had missed.
-2. The write-sweep regex had `\.?` before `\.values`, consuming the dot and demanding
-   a second. It matched 3 of 11 inserts in one file.
-3. An `mv` on its own line rather than chained with `&&` moved an empty file over the
-   sweep script and destroyed it. Verify the artifact, not the exit code.
-
-**Corrections to my own earlier claims:** `admin.list` was reported as a leak and is
-not — its return filters against RLS-scoped roles, so nothing foreign was exposed.
-The read-leak class was 5, not the 8 proposed: `work-orders.updateTask` and `csm.get`
-are covered by RLS, and `addNote` was already fixed.
-
-**The evidence that settled the 40-table question.** Every table in the
-`assertSelfOrPermitted` group already has `org_id`, and the write leak works
-*because* it does — the row is legitimately the caller's. `org_id` + RLS defends
-reads and is structurally blind to this class. The owner ruled: do not add it.
-
-**Next:** run 0b (production scan) before committing to a build; then the approvals
-callers — contracts, expense claims, change requests, leave.
+**Next:** nothing in the queue is verified enough to build from. Either verify
+item 6 (GRC create paths) the way 4 and 5 were verified, or answer item 4's
+architecture question. Do not scope from an unverified item.
