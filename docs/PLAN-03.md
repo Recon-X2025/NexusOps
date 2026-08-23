@@ -1,3 +1,9 @@
+> **RETIRED — superseded by `docs/PLAN-04.md`.**
+> CURRENT STATE and THE QUEUE were carried forward on 2026-08-23. What remains here
+> is the run log for runs 8-11, kept as history. Its "done" claims were true when
+> written and are not re-verified. A new session finds the live plan by rule:
+> `ls docs/PLAN-*.md | sort | tail -1`.
+
 # PLAN — 03
 
 **This is the single reference file for a new session. Read it first.**
