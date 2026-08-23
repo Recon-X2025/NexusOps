@@ -60,6 +60,23 @@ const rolePermissionInput = z.array(
 
 export const adminRouter = router({
   auditLog: router({
+    /**
+     * Chain integrity for this org.
+     *
+     * Audit entries are hash-chained (`seq`, `prev_hash`, `entry_hash`), and a
+     * background sweep notifies owners when the chain fails to verify. Until
+     * now that notification linked to a page that did not exist, so the alert
+     * said "investigate immediately" with nowhere to go. This is what the page
+     * asks so it can answer that.
+     *
+     * Read-only: it re-derives every hash and compares. It never repairs — a
+     * chain that can be silently repaired is not tamper-evident.
+     */
+    verifyChain: adminProcedure.query(async ({ ctx }) => {
+      const { verifyAuditChain } = await import("../lib/audit-hash.js");
+      return verifyAuditChain(ctx.db, ctx.org!.id as string);
+    }),
+
     list: adminProcedure
       .input(
         z.object({
