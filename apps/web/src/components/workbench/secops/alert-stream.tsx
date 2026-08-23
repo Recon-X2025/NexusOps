@@ -16,7 +16,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ACCENT_BORDER } from "../shared/accent";
 import { WorkbenchSection, WorkbenchEmpty } from "../shared/workbench-section";
-import { formatRelativeMs } from "../shared/format";
+import { formatDurationMs } from "../shared/format";
 
 export interface AlertRow {
   id: string;
@@ -85,7 +85,11 @@ export function AlertStream({
                           {a.number}
                         </Link>
                         <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                          {formatRelativeMs(-ageMs)} · {a.assigneeName ?? "Unassigned"}
+                          {/* `ageMs` is how OLD the alert is — a positive number.
+                              Negating it into the signed formatter printed every
+                              alert's age as "-5h 20m". Age has no direction to
+                              signal; say how long ago it opened. */}
+                          {formatDurationMs(ageMs)} ago · {a.assigneeName ?? "Unassigned"}
                         </span>
                       </div>
                       <div className="text-caption text-slate-700 dark:text-slate-200">{a.title}</div>

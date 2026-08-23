@@ -18,6 +18,7 @@ import {
 import {
   envelope,
   runPanel,
+  dueInPhrase,
   type ActionQueueItem,
   type Panel,
   type WorkbenchEnvelope,
@@ -179,7 +180,7 @@ export async function buildCompanySecretaryPayload({
     for (const f of due) {
       actions.push({
         id: `filing:${f.id}`,
-        label: `${f.formNumber} due in ${f.daysToDeadline}d`,
+        label: `${f.formNumber} ${dueInPhrase(f.daysToDeadline)}`,
         hint: `${f.authority} · ${f.title}`,
         severity: f.daysToDeadline < 0 ? "breach" : f.daysToDeadline <= 3 ? "warn" : "watch",
         href: `/app/secretarial/filings/${f.id}`,

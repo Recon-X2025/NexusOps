@@ -14,6 +14,7 @@ import { crmAccounts, contracts, users } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,
+  dueInPhrase,
   type ActionQueueItem,
   type Panel,
   type WorkbenchEnvelope,
@@ -148,7 +149,7 @@ export async function buildCsmPayload({
     for (const r of soon) {
       actions.push({
         id: `renewal:${r.id}`,
-        label: `${r.counterparty} — Renewal in ${r.daysToRenew}d`,
+        label: `${r.counterparty} — Renewal ${dueInPhrase(r.daysToRenew)}`,
         hint: r.title,
         severity: "warn",
         href: `/app/contracts/${r.id}`,

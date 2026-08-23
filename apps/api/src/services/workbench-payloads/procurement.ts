@@ -14,6 +14,7 @@ import { purchaseOrders, vendors, contracts } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,
+  dueInPhrase,
   type ActionQueueItem,
   type Panel,
   type WorkbenchEnvelope,
@@ -175,7 +176,7 @@ export async function buildProcurementPayload({
     for (const c of contractRenewals.data.slice(0, 2)) {
       actions.push({
         id: `contract-renew:${c.id}`,
-        label: `${c.counterparty} — Contract renews in ${c.daysToRenew}d`,
+        label: `${c.counterparty} — Contract renewal ${dueInPhrase(c.daysToRenew)}`,
         severity: "watch",
         href: `/app/contracts/${c.id}`,
       });

@@ -96,3 +96,19 @@ export interface WorkbenchEnvelope {
 export function envelope(key: string, actions: ActionQueueItem[]): WorkbenchEnvelope {
   return { key, generatedAt: new Date().toISOString(), actions };
 }
+
+/**
+ * Phrase a day-count for an action-queue label without ever printing a negative
+ * duration. "AOC-4 due in -61d" is not a deadline, it is a filing that was due
+ * 61 days ago, and the action queue is exactly where that must read clearly.
+ *
+ * The queues that surface these deliberately have no lower bound — an overdue
+ * statutory filing or a lapsed renewal must not drop off the list — so the
+ * sign is expected and it is the WORDING that has to carry it.
+ */
+export function dueInPhrase(days: number | null | undefined): string {
+  if (days === null || days === undefined) return "no date set";
+  if (days < 0) return `${Math.abs(days)}d overdue`;
+  if (days === 0) return "due today";
+  return `due in ${days}d`;
+}
