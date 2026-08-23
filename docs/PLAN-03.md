@@ -88,6 +88,14 @@ claims**, then **test health**.
 
 ### 0. Tenant isolation — swept and FIXED 2026-08-22 (run 10)
 
+**Worker/Temporal surface swept 2026-08-23 (run 11) — clean.** Verified on 5434
+that the app DB user is `rolsuper`/`rolbypassrls`, so RLS applies **only** on the
+tRPC path; none of the 21 workflows, 32 HTTP routes or the BullMQ workers set the
+role or GUC, and on those paths RLS is bypassed on all 238 tables. Their app
+filters hold anyway: of 75 org-table statements, the 29 without an org predicate
+are all keyed on their own primary key off an already-scoped read. Detector
+sanity-checked against planted unscoped statements — it flagged exactly those.
+
 **Nine handlers fixed, all proven by test.** Every fix was written red-first or
 red-checked afterwards by neutralising the guard and confirming the assertion
 fails — a guard that has never been seen to bite is not a guard.
@@ -387,6 +395,59 @@ gap-fix, and it is not in the queue until someone makes it.
 # RUN LOG
 
 _Newest first. One entry per run, including runs that changed nothing._
+
+## 2026-08-23 — run 11 (worker/Temporal sweep + local suite unblocked)
+
+**The structural finding, verified with an artifact.** The app's DB user is
+`rolsuper = t, rolbypassrls = t` on 5434:
+
+```
+  rolname     | rolsuper | rolbypassrls
+--------------+----------+--------------
+ coheronconnect |    t    |      t
+ app_runtime    |    f    |      f
+```
+
+RLS therefore bites **only** where `rlsTenant` drops to `app_runtime`
+(`lib/trpc.ts:542`). **None of the 21 workflow files sets `app.org_id` or the
+role** — grep returns nothing. Same for the 32 Fastify HTTP routes and the
+in-process BullMQ workers. On every one of those paths RLS is bypassed on **all
+238 tables**, not merely the 40 without `org_id`. The "second wall" behind the
+app filters exists for the tRPC path and nowhere else.
+
+**But the first wall is intact.** 75 statements in worker paths touch a table
+carrying `org_id`; 29 carry no org predicate; **all 29 are keyed on their own
+primary key**, chained off a read that was already scoped. Zero need a human
+read. Spot-read three by hand first (`irnGeneration:191`, `webhookDispatch:182`,
+`documentRetention:173`) and each was that shape.
+
+**The zero was distrusted before it was believed.** Copied `workflows/` to a
+temp tree, planted a file with one unscoped non-PK read and one unscoped non-PK
+update, re-ran: the detector reported exactly 2, named both, and flagged nothing
+else. The zero is real.
+
+**No historical bad rows on 5434/DEV** — 0 invoices whose `vendor_id` belongs to
+another org, 0 dangling `vendor_id`, 0 documents holding another org's retention
+policy. **NOT VERIFIED ON PRODUCTION**, which is not reachable from here. Run 10
+guarded the transition; nothing re-validates rows written before it, and
+`irnGenerationWorkflow:191` reads `invoice.vendorId` as stored with RLS bypassed.
+
+**Local suite unblocked.** `APP_SECRET` was missing from `.env.test` while
+`ci.yml:173` has supplied it all along, so `differentiating-modules-deep`
+(Director KYC) failed locally and passed in CI. Added the same literal — a test
+fixture already public in the workflow file, not a secret. That spec now passes
+11/11.
+
+**Self-inflicted, worth recording:** an `mv` on its own line instead of chained
+with `&&` moved an empty file over the sweep script and destroyed it. The guard
+CLAUDE.md already states — verify the artifact, not the exit code — applies to
+one's own tooling too.
+
+**Still open, unchanged:** `document_acls` read nowhere; the ~32 child tables
+without `org_id`; `apps/web` and nested sub-routers never swept.
+
+**Next:** `apps/web` client-side guards, or the nested sub-routers the RBAC map
+does not cover.
 _Runs 1–9 are in `docs/PLAN-02.md`._
 
 ## 2026-08-22 — run 10 (isolation fixes, all nine, each proven)
