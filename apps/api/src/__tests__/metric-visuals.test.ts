@@ -239,8 +239,15 @@ describe("strategy.okr_progress_avg emits a portfolio scatter", () => {
   });
 });
 
-describe("legal.open_matters emits a real created-at series", () => {
-  it("buckets matters opened within the range", async () => {
+describe("legal.open_matters plots the SAME quantity its headline reports", () => {
+  /**
+   * CONTRACT CHANGE. The series used to be matters OPENED per bucket while
+   * `current` was matters still open — two different quantities under one title
+   * ("Open legal matters: 25" above an "Open Legal Matters Trend" whose axis
+   * topped out at 3). The series is now matters open AT each bucket, so the
+   * final point reconciles with the headline.
+   */
+  it("ends on the headline figure, and grows as matters accumulate", async () => {
     const db = testDb();
     const { orgId } = await seedTestOrg();
 
@@ -254,10 +261,18 @@ describe("legal.open_matters emits a real created-at series", () => {
 
     // current = open matters (not closed): M-1 + M-2 = 2.
     expect(v.current).toBe(2);
-    // series is bucketed from real created_at rows (3 matters total in range).
     expect(v.series.length).toBeGreaterThan(0);
-    const total = v.series.reduce((s, p) => s + p.v, 0);
-    expect(total).toBe(3);
+
+    // The point of the fix: the last bucket agrees with the headline.
+    expect(v.series[v.series.length - 1]!.v).toBe(v.current);
+
+    // A closed matter never counts as open, and no bucket may exceed the total.
+    for (const p of v.series) expect(p.v).toBeLessThanOrEqual(2);
+
+    // Open-at-a-time is cumulative, so it never decreases while nothing closes.
+    for (let i = 1; i < v.series.length; i++) {
+      expect(v.series[i]!.v).toBeGreaterThanOrEqual(v.series[i - 1]!.v);
+    }
   });
 });
 

@@ -47,7 +47,7 @@ export function PipelineFunnel({
   return (
     <WorkbenchSection
       title="Pipeline · interview load"
-      hint="Stage funnel with conversion deltas · today's slots"
+      hint="Stage distribution across the pipeline · today’s slots"
       accentEdgeClassName={cn("border-l", ACCENT_BORDER.teal, "bg-teal-500/70")}
     >
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -87,21 +87,34 @@ export function PipelineFunnel({
   );
 }
 
+/**
+ * `count` is CURRENT stage occupancy — each application sits in exactly one
+ * stage right now. It is not cohort flow, so dividing a stage by the one above
+ * it is not a conversion rate: a hired candidate has already left "offer", which
+ * is how this rendered "Hired 5 · 125%" against an Offer count of 4.
+ *
+ * A real conversion needs stage history, which `candidate_applications` does not
+ * retain. So this shows each stage's share of the pipeline — a bounded figure
+ * that is true of the data we actually have — rather than a percentage that
+ * looks like a conversion and is not one.
+ */
 function Funnel({ stages }: { stages: FunnelStage[] }) {
   const max = Math.max(...stages.map((s) => s.count), 1);
+  const total = stages.reduce((sum, s) => sum + s.count, 0);
   return (
     <ul className="space-y-1.5">
-      {stages.map((s, i) => {
+      {stages.map((s) => {
         const pct = (s.count / max) * 100;
-        const prev = i > 0 ? stages[i - 1]!.count : null;
-        const conv = prev != null && prev > 0 ? Math.round((s.count / prev) * 100) : null;
+        const share = total > 0 ? Math.round((s.count / total) * 100) : null;
         return (
           <li key={s.stage} className="text-caption">
             <div className="flex items-center justify-between gap-3 mb-1 overflow-x-auto scrollbar-thin">
               <span className="font-medium text-slate-700 dark:text-slate-200 capitalize shrink-0 whitespace-nowrap">{s.stage.replace(/_/g, " ")}</span>
               <span className="tabular-nums text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
                 {s.count}
-                {conv != null ? <span className="ml-2 text-teal-700 dark:text-teal-300">{conv}%</span> : null}
+                {share != null ? (
+                  <span className="ml-2 text-teal-700 dark:text-teal-300">{share}% of pipeline</span>
+                ) : null}
               </span>
             </div>
             <div className="h-2 rounded bg-slate-100 dark:bg-slate-800">
