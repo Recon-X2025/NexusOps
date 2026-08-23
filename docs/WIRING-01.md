@@ -165,11 +165,31 @@ Both empties verified honest rather than broken:
   exist, **0 carrying any technique** — nothing to roll up, so it returns null
   rather than an empty chart.
 
-**Reachability — opened in a browser as a signed-in role.** Four opened visually
-(service-desk, finance-ops, grc, pmo), the remaining eight called as the
-authenticated user: **all HTTP 200, 6 panels each, no 403, no console errors.**
-CLAUDE.md's rule applies here — router tests once passed while two rounds' work
-was unreachable — so the role gate was exercised, not assumed.
+**Reachability — ALL TWELVE opened in a browser, signed in as a tenant WITH
+DATA.** An earlier pass used a structure-only tenant, which proves a page loads
+but not that it renders rows; thirty rows can break where zero does not. Redone
+against `audit-baseline`: every workbench rendered its role header, its panels
+and real records — tickets with SLA states, AP/AR ageing totals, a control
+coverage matrix, a change calendar, a dispatch board, a recruiter funnel, a PO
+kanban, a compliance calendar. All twelve `workbench.*` calls returned 200; no
+page-level console errors.
+
+**Two presentation observations, NOT recorded as defects.** Both come from a
+tenant whose data is entirely synthetic with dates spread across ten months, so
+they may not appear on a tenant with current data — establish that before acting:
+
+- **Negative durations render raw** — service-desk shows `Breached -357d 11h`,
+  secops `-12D 11H`, company-secretary `MCA · -61d`. Read literally these are
+  "time remaining", which is negative once overdue, so the number is right and
+  the phrasing is what reads oddly.
+- **company-secretary's "Next 60 days" calendar lists items 61 days PAST.** The
+  label and the contents disagree. Either the window includes overdue items
+  deliberately — in which case the label should say so — or the filter is wrong.
+
+**One thing I suspected and disproved:** the recruiter funnel appeared to render
+`Screening 867%`. A screenshot showed `Screening 8 67%` correctly separated —
+the run-together text was an extraction artifact of reading the DOM, not a
+display bug. Checked rather than reported.
 
 **Layer 5 is therefore INTACT.** It was recorded as unknown because it had been
 counted and not opened; it has now been opened.
