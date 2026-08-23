@@ -37,7 +37,7 @@ from an earlier note — two counts in earlier notes were wrong and are correcte
 | 2 | Write paths | **BREAK** |
 | 3 | Read paths | Intact — closed 2026-08-23 |
 | 4 | Module screens | Intact · one orphan |
-| 5 | Role workbenches | Present · **not audited** |
+| 5 | Role workbenches | Intact — audited 2026-08-23 |
 | 6 | Command centre | **BREAK** · both inherited from below |
 
 **Layer 1** — 238 tables; 198 carry `org_id` with RLS enabled and forced; of the
@@ -57,7 +57,7 @@ cross-tenant row.
 
 ## THE WORK — in ladder order
 
-### W1 · Daily metric snapshot — Layer 1
+### W1 · ~~Daily metric snapshot~~ — DONE 2026-08-23 (migration 0100)
 
 **The break.** 16 of 30 metrics render a number and a flat line. Not a display bug:
 there is nowhere to read yesterday's figure from. The code states the reason —
@@ -80,7 +80,7 @@ surface rather than hiding a short line.
 **Blocked on:** nothing. **Shape:** migration + worker + resolver change. Largest item
 here.
 
-### W2 · GRC create paths — Layer 2
+### W2 · ~~GRC create paths~~ — DONE 2026-08-23
 
 **The break.** `grc.ts` offers `createRisk`, `createPolicy`, `createAudit`,
 `createVendorRisk` and `addControlEvidence` — but **no `createControl` and no
@@ -117,7 +117,7 @@ until the semantics are written down.**
 control that does not exist. Either the research lands quickly or the surface should
 say plainly that restrictions are recorded but not yet applied.
 
-### W4 · Five metric addresses — Layer 4
+### W4 · ~~Five metric addresses~~ — DONE 2026-08-23, guarded in CI
 
 **The break.** Five financial metrics drill through to routes that do not exist:
 
@@ -151,16 +151,32 @@ code needs the owner's word.
 
 **Blocked on:** owner decision — build the screen, or remove it.
 
-### W6 · Audit the twelve workbenches — Layer 5
+### W6 · ~~Audit the twelve workbenches~~ — DONE 2026-08-23
 
-**Not a known break.** The 12 workbenches were **counted, not opened**. No claim is
-made about whether each shows the right thing. Given that three consecutive queue
-items were found wrong on inspection this week, an uninspected layer should be
-treated as unknown rather than working.
+**Audited two ways, because either alone would have missed something.**
 
-**Done when:** each workbench has been opened as a role that should see it, against a
-tenant with data, and what it shows has been compared to what the layer beneath
-actually holds.
+**Data side — all twelve payload builders run against a tenant WITH data**
+(`audit-baseline`, 5434/DEV): 72 panels, **0 builders threw**, 2 panels empty.
+Both empties verified honest rather than broken:
+
+- `field-service.actions` is built from work orders with no assignee. 70 work
+  orders exist, **0 unassigned** — nothing to dispatch.
+- `secops.mitreRollup` rolls up technique tags across incidents. 120 incidents
+  exist, **0 carrying any technique** — nothing to roll up, so it returns null
+  rather than an empty chart.
+
+**Reachability — opened in a browser as a signed-in role.** Four opened visually
+(service-desk, finance-ops, grc, pmo), the remaining eight called as the
+authenticated user: **all HTTP 200, 6 panels each, no 403, no console errors.**
+CLAUDE.md's rule applies here — router tests once passed while two rounds' work
+was unreachable — so the role gate was exercised, not assumed.
+
+**Layer 5 is therefore INTACT.** It was recorded as unknown because it had been
+counted and not opened; it has now been opened.
+
+**One thing the audit confirmed rather than found:** the finance-ops workbench
+renders both AP *and* AR ageing, which is why W4 pointed both ageing metrics
+there instead of at the invoices page.
 
 ### Layer 6 · Nothing
 
@@ -214,6 +230,35 @@ notes missed:
 ---
 
 ## RUN LOG
+
+### 2026-08-23 — W1, W2, W4, W6 closed
+
+Four of six done, in ladder order. Nothing pushed — the owner's instruction is
+that nothing ships until the plan is closed out.
+
+**W2 · GRC create paths.** Worse than the plan recorded: findings had no read
+path through the API *at all* — the workbench queried the table directly. Added
+createControl, createFinding and listFindings; adding a write path without a
+read path would have reproduced the same fault pointing the other way. Every FK
+they accept is org-checked, because these rows carry the CALLER's org_id, so RLS
+accepts them whoever the parent belongs to. 6/6 on two tenants.
+
+**W4 · Five addresses.** Repointed, each at the page answering ITS question. The
+guard matters more than the fix: `pnpm check:metric-links` now fails the build
+on any metric pointing at a route that does not exist, and refuses to report a
+clean result if it discovers fewer than 20 metrics.
+
+**W1 · Snapshot table.** Migration 0100, RLS hand-appended in the same file,
+count moved 100 → 101 with both numbers observed. Hydration is central — one
+path, so a metric added tomorrow gets history free. **The test found a scale
+fault reading could not have**: the first version swept every tenant and ran
+past a 30s timeout on a database holding thousands. Now scoped.
+
+**W6 · Workbench audit.** 72 panels across 12 builders against a tenant with
+data — 0 threw, 2 empty and both verified honest. Then opened in a browser as a
+signed-in role: all 12 reachable, no 403s, no console errors.
+
+**Still open:** W3 and W5, both waiting on an owner decision.
 
 ### 2026-08-23 — survey and plan
 
