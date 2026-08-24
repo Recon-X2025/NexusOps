@@ -134,6 +134,14 @@ export async function runRetentionSweep(db: Db, batchSize = 500): Promise<SweepR
     .where(isNotNull(documents.deletedAt))
     .limit(batchSize);
 
+  // Parse the env default ONCE, defensively. A blank ("") env var is not nullish,
+  // so `?? 90` never fires and Number("") is 0 (a malformed value is NaN). With
+  // days = 0/NaN the `ageMs < days*…` guard below is always false, so EVERY
+  // soft-deleted document would be hard-deleted immediately. Fall back to 90
+  // unless the value is a finite positive number.
+  const parsedDefault = Number(process.env["RETENTION_DEFAULT_DAYS"]);
+  const defaultRetentionDays = Number.isFinite(parsedDefault) && parsedDefault > 0 ? parsedDefault : 90;
+
   for (const row of candidates) {
     result.examined++;
 
@@ -144,9 +152,14 @@ export async function runRetentionSweep(db: Db, batchSize = 500): Promise<SweepR
       continue;
     }
 
-    // Default retention if no policy is attached: 90 days. This matches our
-    // tenant default; orgs that need shorter / longer set a policy.
-    const days = row.policyDays ?? Number(process.env["RETENTION_DEFAULT_DAYS"] ?? 90);
+    // Default retention if no policy is attached: 90 days (validated above).
+    const days = row.policyDays ?? defaultRetentionDays;
+    // Belt-and-suspenders: a non-positive or non-finite window must NEVER be read
+    // as "delete now" — skip and warn rather than purge.
+    if (!Number.isFinite(days) || days <= 0) {
+      console.warn(`[retention] skipping ${row.id}: invalid retention window (${days} days)`);
+      continue;
+    }
     const ageMs = now.getTime() - new Date(row.deletedAt).getTime();
     if (ageMs < days * 86_400_000) continue;
 
