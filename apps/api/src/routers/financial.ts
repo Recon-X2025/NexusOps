@@ -593,6 +593,30 @@ export const financialRouter = router({
         });
         return row;
       });
+
+      // Auto-enqueue e-invoice (IRN) generation for this OUTWARD supply when the
+      // org's turnover makes e-invoicing mandatory (> ₹5 Cr). This is the real
+      // wiring: the only other enqueue site was dead code on the PAYABLE path
+      // with turnover hardcoded to 0 (never fired — and IRNs are for our own
+      // sales, not bills we receive). Soft-fail so a queue/ClearTax hiccup can
+      // never break the save.
+      if (inv) {
+        try {
+          const { isEInvoiceRequired } = await import("../lib/india/gst-engine.js");
+          const [orgRow] = await db
+            .select({ aato: organizations.annualAggregateTurnover })
+            .from(organizations)
+            .where(eq(organizations.id, org!.id))
+            .limit(1);
+          if (isEInvoiceRequired(Number(orgRow?.aato ?? 0))) {
+            await db.update(invoices).set({ eInvoiceStatus: "pending" }).where(eq(invoices.id, inv.id));
+            await enqueueIrnGenerationJob(getWorkflowService().irnQueue, { invoiceId: inv.id, orgId: org!.id });
+          }
+        } catch (err) {
+          console.warn("[financial] receivable IRN enqueue skipped:", (err as Error).message);
+        }
+      }
+
       return inv;
     }),
 
