@@ -26,7 +26,7 @@ import {
 import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 import { parseOrgSettings } from "../lib/org-settings";
 import { sanitizeForAudit } from "../lib/audit-sanitize";
-import { invalidateSessionCache } from "../middleware/auth";
+import { invalidateSessionCache, revokeUserSessions } from "../middleware/auth";
 import { getNextSeq } from "../lib/auto-number";
 import { getPayrollApprovalChainLength } from "../lib/org-settings";
 
@@ -262,6 +262,9 @@ export const adminRouter = router({
         if (!updatedUser) {
           throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
         }
+
+        // Archiving disables the login; kill any live session so it ends now.
+        await revokeUserSessions(db, input.userId);
 
         await db.insert(auditLogs).values({
           orgId: org!.id,

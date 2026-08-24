@@ -152,6 +152,32 @@ export async function invalidateSessionCache(tokenHash: string): Promise<void> {
   }
 }
 
+/**
+ * Revoke EVERY session for a user — delete the rows and drop each session's L1
+ * (in-process) and L2 (Redis) cache entry, so a disabled or offboarded login
+ * stops working immediately rather than after the cache TTL. Call this from any
+ * path that disables a user. The DB delete plus the status check in
+ * `fetchSession` are the correctness guarantee; the cache eviction is what makes
+ * it instant. Returns the number of sessions revoked.
+ *
+ * ONE revocation helper — do not write a second. The BullMQ workers run in the
+ * API process, so the sweep's call here evicts the same L1 cache the HTTP path
+ * reads.
+ */
+export async function revokeUserSessions(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(eq(sessions.userId, userId));
+  if (rows.length === 0) return 0;
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+  await Promise.all(rows.map((r) => invalidateSessionCache(r.id)));
+  return rows.length;
+}
+
 // ── L1½: Request coalescing ───────────────────────────────────────────────────
 //
 // Problem: at 10 K concurrent sessions, hundreds of requests for the same
@@ -232,6 +258,15 @@ async function fetchSession(
     .from(users)
     .where(eq(users.id, session.userId))
     .limit(1);
+
+  // A session outlives its user's access: offboarding and admin deactivation
+  // flip users.status to 'disabled', but the session row can survive for weeks.
+  // Reject a non-active user here — this is the authoritative DB read that runs
+  // on every cache miss, so a disabled login stops resolving within the cache
+  // TTL even if a revocation path forgot to delete the session row.
+  if (!rawUser || rawUser.status !== "active") {
+    return { user: null, org: null, sessionExpiresAt: null };
+  }
 
   const user = withoutPasswordHash(rawUser) as ContextUser | null;
   let org: ContextOrg | null = null;

@@ -12,9 +12,9 @@
  * offboarding mutation does inline.
  *
  * Revocation uses the SAME mechanism as the Admin Console's disable action
- * (`admin.users.delete`, apps/api/src/routers/admin.ts:229-247): set
- * `users.status = "disabled"` and write an `audit_logs` row. There is deliberately
- * not a second disable path.
+ * (`admin.users.delete`): set `users.status = "disabled"`, revoke every live
+ * session via the shared `revokeUserSessions` helper, and write an `audit_logs`
+ * row. There is deliberately not a second disable path.
  */
 import {
   employees,
@@ -26,6 +26,7 @@ import {
   lt,
   type Db,
 } from "@coheronconnect/db";
+import { revokeUserSessions } from "../middleware/auth";
 
 /**
  * The instant at which access ends for a given last working day: the very end of
@@ -98,6 +99,11 @@ export async function revokeElapsedOffboardedAccess(
       .returning({ id: users.id });
 
     if (!updated) continue;
+
+    // Disabling the login is not enough — an existing session survives the
+    // status flip. Revoke every live session so access ends now, not whenever
+    // the session would have expired.
+    await revokeUserSessions(db, c.userId);
 
     await db.insert(auditLogs).values({
       orgId: c.orgId,
