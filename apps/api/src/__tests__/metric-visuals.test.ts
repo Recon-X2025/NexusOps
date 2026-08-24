@@ -369,8 +369,13 @@ describe("hr.headcount_active counts active employees with a trend", () => {
     const v = await getMetric("hr.headcount_active")!.resolve(ctxFor(orgId, orgId));
 
     expect(v.current).toBe(2);
-    expect(v.state).toBe("healthy");
     expect(v.series.length).toBeGreaterThan(0);
+
+    // CONTRACT CHANGE: `state` used to be the literal "healthy" and could never
+    // move. It is now derived from the metric's own trailing trend, so this
+    // fixture — where a termination 30 days ago took headcount from 3 to 2 —
+    // must FLAG the decline rather than call a shrinking team healthy.
+    expect(v.state).toBe("watch");
   });
 
   it("reports no_data when there are no active employees", async () => {

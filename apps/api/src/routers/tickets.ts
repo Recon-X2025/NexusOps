@@ -626,6 +626,11 @@ export const ticketsRouter = router({
         priorityId: tickets.priorityId,
         statusId: tickets.statusId,
         type: tickets.type,
+        // The detail page renders these; omitting them made it fall back to a
+        // literal "medium", so EVERY ticket displayed Medium impact/urgency
+        // regardless of what was stored (the list showed the true priority).
+        impact: tickets.impact,
+        urgency: tickets.urgency,
         requesterId: tickets.requesterId,
         assigneeId: tickets.assigneeId,
         assigneeName: users.name,

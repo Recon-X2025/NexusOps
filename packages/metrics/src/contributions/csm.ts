@@ -1,5 +1,6 @@
 import { registerMetric } from "../registry";
 import { alignSeries, buildTimeBuckets, emptyMetricValue, truncSqlExpression } from "../resolve-helpers";
+import { stateFromTrend } from "../resolve-helpers";
 import { crmAccounts, surveys, surveyResponses, eq, and, count, avg, gte, sql } from "@coheronconnect/db";
 import { dbOf } from "./_db";
 
@@ -202,7 +203,7 @@ registerMetric({
     return {
       current: n,
       series,
-      state: "healthy",
+      state: stateFromTrend(n, series, "lower_is_better"),
       lastUpdated: new Date(),
     };
   },

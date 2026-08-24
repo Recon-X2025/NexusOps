@@ -1107,6 +1107,12 @@ export const financialRouter = router({
           vendorName: vendors.name,
           legalEntityCode: legalEntities.code,
           legalEntityName: legalEntities.name,
+          // The detail page reads `direction`, and the LIST procedure already
+          // exposes the flow under that name. Without the same alias here the
+          // page fell back to `inv.direction || "payable"`, so every receivable
+          // invoice badged PAYABLE and read "Payable to <customer>" — money owed
+          // TO the tenant shown as money it owes.
+          direction: invoices.invoiceFlow,
         })
         .from(invoices)
         .leftJoin(vendors, eq(invoices.vendorId, vendors.id))

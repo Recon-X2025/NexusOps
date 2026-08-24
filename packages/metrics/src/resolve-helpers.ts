@@ -190,3 +190,48 @@ export function truncSqlExpression(granularity: MetricResolveCtx["range"]["granu
   if (granularity === "week") return "week";
   return "month";
 }
+
+/**
+ * Posture from the metric's OWN recent history, direction-aware.
+ *
+ * Seven metrics shipped `state: "healthy"` as a hard-coded literal while
+ * declaring a `direction` they then ignored. On screen that read
+ * "Requests opened 205 vs target 24.2, +181 -> Healthy" and "Open payables
+ * over target -> Healthy": a posture that can never change is not a posture,
+ * and because posture drives the heatmap cells and the attention list, those
+ * metrics could never raise a flag.
+ *
+ * These are flow/volume measures (requests opened, headcount, payables) with no
+ * inherent good/bad level, and their targets are synthesized DOWNSTREAM in
+ * `command-center-payload` — a resolver cannot see them. So posture is judged
+ * the same way that synthesis judges targets: against the metric's own trailing
+ * average, in the direction the metric declares. The question answered is
+ * "is this materially worse than its own recent normal?", which is answerable
+ * from data the resolver actually has.
+ *
+ * Returns `healthy` when there is no usable baseline — an unknown posture must
+ * not masquerade as a bad one.
+ */
+export function stateFromTrend(
+  current: number,
+  series: Array<{ t: string; v: number }> | undefined,
+  direction: "higher_is_better" | "lower_is_better",
+  bands: { watch: number; stressed: number } = { watch: 0.1, stressed: 0.3 },
+): "healthy" | "watch" | "stressed" {
+  const points = series ?? [];
+  // Exclude the most recent point: that is the "current" being judged.
+  const trailing = points.length > 1 ? points.slice(0, -1) : points;
+  if (trailing.length === 0) return "healthy";
+  const baseline = trailing.reduce((a, p) => a + p.v, 0) / trailing.length;
+  if (!Number.isFinite(baseline) || Math.abs(baseline) < 0.0001) return "healthy";
+
+  // Positive deviation always means "worse", whichever way the metric runs.
+  const deviation =
+    direction === "lower_is_better"
+      ? (current - baseline) / Math.abs(baseline)
+      : (baseline - current) / Math.abs(baseline);
+
+  if (deviation >= bands.stressed) return "stressed";
+  if (deviation >= bands.watch) return "watch";
+  return "healthy";
+}

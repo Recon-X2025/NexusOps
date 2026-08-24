@@ -5,6 +5,7 @@ import {
   buildTimeBuckets,
   emptyMetricValue,
   truncSqlExpression,
+  stateFromTrend,
 } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
@@ -150,7 +151,7 @@ registerMetric({
     return {
       current: n,
       series,
-      state: "healthy",
+      state: stateFromTrend(n, series, "lower_is_better"),
       lastUpdated: new Date(),
     };
   },
@@ -201,7 +202,7 @@ registerMetric({
     return {
       current: n,
       series,
-      state: "healthy",
+      state: stateFromTrend(n, series, "higher_is_better"),
       lastUpdated: new Date(),
     };
   },

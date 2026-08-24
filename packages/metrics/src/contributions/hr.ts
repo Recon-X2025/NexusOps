@@ -6,6 +6,7 @@ import {
   bucketsJsonForRecordset,
   emptyMetricValue,
   sqlJsonbLiteral,
+  stateFromTrend,
 } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
@@ -60,7 +61,7 @@ registerMetric({
       current: active,
       previous: previous || undefined,
       series,
-      state: "healthy",
+      state: stateFromTrend(active, series, "higher_is_better"),
       lastUpdated: new Date(),
     };
   },

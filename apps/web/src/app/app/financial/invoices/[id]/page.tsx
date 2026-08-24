@@ -169,7 +169,13 @@ export default function InvoiceDetailPage() {
                       onClick={() => downloadInvoicePdf(id, inv.invoiceNumber ?? "")}
                       className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all"
                     >
-                      <FileDown className="w-4 h-4" /> Download Tax Invoice
+                      {/* A bill of supply is not a tax invoice; labelling the
+                          button "Tax Invoice" on one misnames the document the
+                          user is about to send a customer. */}
+                      <FileDown className="w-4 h-4" />{" "}
+                      {(inv as { invoiceType?: string }).invoiceType === "bill_of_supply"
+                        ? "Download Bill of Supply"
+                        : "Download Tax Invoice"}
                     </button>
                     <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all">
                       <Printer className="w-4 h-4" /> Print

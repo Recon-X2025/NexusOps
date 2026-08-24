@@ -8,6 +8,7 @@ import {
   emptyMetricValue,
   sqlJsonbLiteral,
   truncSqlExpression,
+  stateFromTrend,
 } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
@@ -52,7 +53,7 @@ registerMetric({
     return {
       current: v,
       series,
-      state: "healthy" as const,
+      state: stateFromTrend(v, series, "higher_is_better"),
       lastUpdated: new Date(),
     };
   },
