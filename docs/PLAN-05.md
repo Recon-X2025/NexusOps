@@ -473,11 +473,13 @@ push-2's deploy has landed (no stacked deploys) and #15 is reviewed.
   seeding is heavy). Add gated-race tests like `concurrency-cluster.test.ts`.
 
 **STILL OPEN (not started) — the rest of "fix everything":**
-- Product-wide register: **12 MEDIUM + 6 LOW** (`reports/audit-product-wide.md`).
-- Dashboard audit: **H3–H8 + its MEDIUMs** (`reports/audit-dashboard-wiring.md`)
+- **>>> NEXT-SESSION PRIORITY (owner-set 2026-08-24): DASHBOARD WIRING FIRST. <<<**
+  Dashboard audit **H3–H8 + its MEDIUMs** (`reports/audit-dashboard-wiring.md`)
   — H3 stuck all-time lights, H4 no sample-size floor, H5 fabricated PMO/service-
   desk claims, H6 devops appearsIn:[], H7 finance-figures-to-non-finance-roles,
-  H8 web failure-reads-as-all-clear.
+  H8 web failure-reads-as-all-clear. Do these BEFORE the product-wide MEDIUM/LOW.
+- Product-wide register: **12 MEDIUM + 6 LOW** (`reports/audit-product-wide.md`)
+  — after the dashboard tier.
 - Roadmap note raised by owner: **Form 16 Part A via TRACES** (Part B is done and
   correct; Part A is the TRACES download flow, still unbuilt — code flags it P2).
 
