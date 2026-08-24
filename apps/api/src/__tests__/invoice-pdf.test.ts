@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { generateInvoicePDF, type InvoicePdfInput } from "../services/invoice-pdf";
-import { assertInvoiceDocumentBasis } from "../http/financial-invoice-pdf";
+import { assertInvoiceDocumentBasis, invoiceMetaFromRow } from "../http/financial-invoice-pdf";
 import { formatPdfInr, pctLabel, reconcileRateGroups } from "../services/pdf-money";
 
 function extractPdfText(buf: Buffer): string {
@@ -124,6 +124,22 @@ describe("Tax invoice PDF — Rule 46 particulars the system holds", () => {
     const text = extractPdfText(await generateInvoicePDF(baseInvoice()));
     expect(text).toContain("Authorised Signatory");
     expect(text).toContain("For Coheron Technologies Private Limited");
+  });
+
+  it("sources the printed date from the statutory invoiceDate, not createdAt (HIGH regression)", () => {
+    const invoiceDate = new Date("2026-03-15T00:00:00.000Z");
+    const meta = invoiceMetaFromRow({
+      invoiceNumber: "INV-42",
+      invoiceDate,
+      dueDate: null,
+      originalInvoiceNumber: null,
+      originalInvoiceDate: null,
+      isReverseCharge: false,
+    });
+    // The PDF's date must be the statutory invoiceDate (IRN/GSTR-1 basis); the
+    // route previously passed inv.createdAt here. The input carries no createdAt,
+    // so a revert to that field cannot type-check against this contract.
+    expect(meta.date).toBe(invoiceDate);
   });
 
   it("switches to IGST with its rate on an inter-state supply", async () => {

@@ -93,6 +93,30 @@ export function assertInvoiceDocumentBasis(args: {
   return null;
 }
 
+/**
+ * Map an invoice ROW onto the PDF's invoice-metadata block. Extracted so the
+ * date sourcing is unit-testable: the printed date must be the STATUTORY
+ * `invoiceDate` (what the IRN and GSTR-1 use), never the DB row's `createdAt` —
+ * they disagree for any back-dated invoice or one created on a different day.
+ */
+export function invoiceMetaFromRow(inv: {
+  invoiceNumber: string;
+  invoiceDate: Date;
+  dueDate: Date | null;
+  originalInvoiceNumber: string | null;
+  originalInvoiceDate: Date | null;
+  isReverseCharge: boolean;
+}) {
+  return {
+    number: inv.invoiceNumber,
+    date: inv.invoiceDate,
+    dueDate: inv.dueDate ?? null,
+    originalInvoiceNumber: inv.originalInvoiceNumber ?? null,
+    originalInvoiceDate: inv.originalInvoiceDate ?? null,
+    isReverseCharge: inv.isReverseCharge,
+  };
+}
+
 export function registerFinancialInvoicePdfRoute(fastify: FastifyInstance): void {
   fastify.get<{ Params: { id: string } }>("/financial/invoice-pdf/:id", async (req, reply) => {
     const ctx = await createContext(req);
@@ -193,15 +217,7 @@ export function registerFinancialInvoicePdfRoute(fastify: FastifyInstance): void
           gstin: inv.buyerGstin ?? counterparty?.gstin ?? null,
           stateName: counterparty?.state ?? null,
         },
-        invoice: {
-          number: inv.invoiceNumber,
-          date: inv.createdAt,
-          dueDate: inv.dueDate ?? null,
-          documentTitle,
-          originalInvoiceNumber: inv.originalInvoiceNumber ?? null,
-          originalInvoiceDate: inv.originalInvoiceDate ?? null,
-          isReverseCharge: inv.isReverseCharge,
-        },
+        invoice: { ...invoiceMetaFromRow(inv), documentTitle },
         lines,
         totals: {
           taxableValue,
