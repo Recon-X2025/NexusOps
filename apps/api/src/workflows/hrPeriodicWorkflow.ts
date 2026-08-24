@@ -12,12 +12,35 @@ import {
   getDb, 
   organizations, 
   users, 
-  leavePolicies, 
-  employees, 
+  leavePolicies,
+  employees,
   eq,
-  and
+  and,
+  inArray
 } from "@coheronconnect/db";
 import { appRouter } from "../routers";
+
+/**
+ * A real, active owner/admin of the org to attribute cron-originated HR writes
+ * to. The accrual/close inserts stamp `created_by_id`, a UUID FK to users — the
+ * old hardcoded `"system-cron"` is not a UUID, so every write threw and the
+ * sweep's try/catch swallowed it, silently accruing nothing. Returns null when
+ * an org has no admin (skip it — nothing to attribute the run to).
+ */
+export async function resolveOrgActorId(db: Db, orgId: string): Promise<string | null> {
+  const [actor] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.orgId, orgId),
+        inArray(users.role, ["owner", "admin"]),
+        eq(users.status, "active"),
+      ),
+    )
+    .limit(1);
+  return actor?.id ?? null;
+}
 import { revokeElapsedOffboardedAccess } from "../lib/offboarding-revoke";
 import { runDepreciationSweep } from "../lib/depreciation-sweep";
 
@@ -138,7 +161,7 @@ export function startHrPeriodicWorker(): Worker<HrPeriodicJobData> {
 /**
  * Processes monthly leave accruals and gratuity provisioning for the *prior* month.
  */
-async function processMonthlySweep(db: Db) {
+export async function processMonthlySweep(db: Db, orgIds?: string[]) {
   // Determine previous month/year
   const now = new Date();
   let prevMonth = now.getMonth(); // 1-12. Date.getMonth() is 0-11, so it represents the previous month natively (1-based)!
@@ -148,17 +171,27 @@ async function processMonthlySweep(db: Db) {
     prevYear -= 1;
   }
 
-  const orgs = await db.select({ id: organizations.id }).from(organizations);
+  // Scope to specific tenants when the caller knows them (targeted re-run, tests);
+  // otherwise sweep every org.
+  const orgs = orgIds?.length
+    ? orgIds.map((id) => ({ id }))
+    : await db.select({ id: organizations.id }).from(organizations);
 
   for (const org of orgs) {
-    // Find a system/admin user to masquerade as for this org to satisfy trpc context
-    // We just need a valid user ID who is an admin in the org, or we inject an override.
-    // For background jobs, creating a caller with `role: "admin"` bypasses standard checks.
+    // Act as a REAL active owner/admin of the org. created_by_id is a UUID FK to
+    // users; the old "system-cron" literal is not a UUID, so every accrual write
+    // threw and was swallowed by the catch below (silent no-op). Skip orgs with
+    // no admin to attribute the run to.
+    const actorId = await resolveOrgActorId(db, org.id);
+    if (!actorId) {
+      console.warn(`[hr-periodic] no active admin for org ${org.id}; skipping monthly sweep`);
+      continue;
+    }
     const caller = appRouter.createCaller({
       db,
       org: { id: org.id } as any,
-      user: { id: "system-cron", role: "admin" } as any, // Background worker identity
-      session: { user: { id: "system-cron" } } as any,
+      user: { id: actorId, role: "admin" } as any, // Background worker identity (a real org admin)
+      session: { user: { id: actorId } } as any,
       req: null as any,
       res: null as any,
       ipAddress: "127.0.0.1",
@@ -202,11 +235,16 @@ async function processYearlySweep(db: Db) {
   const orgs = await db.select({ id: organizations.id }).from(organizations);
 
   for (const org of orgs) {
+    const actorId = await resolveOrgActorId(db, org.id);
+    if (!actorId) {
+      console.warn(`[hr-periodic] no active admin for org ${org.id}; skipping yearly close`);
+      continue;
+    }
     const caller = appRouter.createCaller({
       db,
       org: { id: org.id } as any,
-      user: { id: "system-cron", role: "admin" } as any,
-      session: { user: { id: "system-cron" } } as any,
+      user: { id: actorId, role: "admin" } as any,
+      session: { user: { id: actorId } } as any,
       req: null as any,
       res: null as any,
       ipAddress: "127.0.0.1",
