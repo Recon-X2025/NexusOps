@@ -154,6 +154,22 @@ const DEFAULT_LEAVE_POLICIES = [
   },
 ];
 
+/**
+ * Year-end carry-forward for the annual close. A `window_weeks` policy (comp-off)
+ * expires on its OWN rolling per-earning window, NEVER at year-end — so the
+ * annual close must carry its whole closing balance forward and lapse nothing.
+ * Running the normal cap-and-lapse over comp-off destroyed comp-off still inside
+ * its window. Its actual expiry is the window's job, not this close.
+ */
+function carryForwardForClose(
+  closing: number,
+  expiryMode: string,
+  cfg: Parameters<typeof computeCarryForward>[1],
+): ReturnType<typeof computeCarryForward> {
+  if (expiryMode === "window_weeks") return { carriedForward: closing, lapsed: 0 };
+  return computeCarryForward(closing, cfg);
+}
+
 export const leaveAccrualRouter = router({
   // ── Policy: per-org, per-leave-type configuration ──────────────────────────
   policy: router({
@@ -539,7 +555,7 @@ export const leaveAccrualRouter = router({
         const closing = bal
           ? roundDays(Number(bal.totalDays) - Number(bal.usedDays))
           : 0;
-        const cf = computeCarryForward(closing, toPolicyConfig(policy));
+        const cf = carryForwardForClose(closing, policy.expiryMode, toPolicyConfig(policy));
         // Surface how the excess (cf.lapsed) will be treated: encashed (encashable type
         // only) or forfeited. Rupee value is resolved by close.run, not this read path.
         const excessTreatment =
@@ -611,7 +627,7 @@ export const leaveAccrualRouter = router({
           const closing = bal
             ? roundDays(Number(bal.totalDays) - Number(bal.usedDays))
             : 0;
-          const cf = computeCarryForward(closing, toPolicyConfig(policy));
+          const cf = carryForwardForClose(closing, policy.expiryMode, toPolicyConfig(policy));
 
           // The retained (capped) balance always carries forward. The EXCESS (cf.lapsed)
           // is then either encashed or forfeited per the tenant's year-end treatment —
