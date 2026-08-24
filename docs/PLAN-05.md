@@ -434,6 +434,53 @@ gap-fix, and it is not in the queue until someone makes it.
 
 _Newest first. One entry per run, including runs that changed nothing._
 
+> **PLAN-06 ROLLOVER DUE** — this file is over the 500-line cap. Next session:
+> create `docs/PLAN-06.md`, carry CURRENT STATE + THE QUEUE forward, leave this
+> RUN LOG behind, put a pointer at the top here.
+
+## 2026-08-24 — run 17 (product-wide HIGH campaign — all 14 HIGH fixed + tested)
+
+Continuation of run 16's product-wide audit (`reports/audit-product-wide.md`).
+Worked the whole HIGH tier, verify→fix→test→commit each.
+
+**DEPLOYED (or deploying): the 6 BLOCKERs + first 7 HIGH.** Two pushes:
+- Push 1 (`c9370e6..64a82f2`): 6 BLOCKERs + dashboard fixes. CI green, **deployed**.
+- Push 2 (`64a82f2..bed0c79`): 7 HIGH — #8 sweep-actor, #20 retention-env, #10-13
+  concurrency cluster, #16 privilege-escalation. CI Lint/Test/E2E green; Docker
+  build → Deploy was in flight at session end (run `32732795785`). **Confirm it
+  reached the terminal Deploy job before trusting it live.**
+
+**ALL 14 HIGH FIXED + TESTED** (ranks from the register):
+#7 PT deductible OLD-only · #8 sweep real actor · #9 Form 16 engine deductions ·
+#10 journal.reverse FOR UPDATE · #11 lead-convert FOR UPDATE · #12 createFromPR
+compare-and-set · #13 leave.reject pending-guard · #14 comp-off not lapsed at
+year-end · #15 custom-role action mapping · #16 updateUserRole hierarchy · #17
+receivable e-invoice enqueue · #18 invoice PDF statutory date · #19 offboarding
+disables invited · #20 retention blank-env guard.
+
+**UNPUSHED, QUEUED FOR NEXT BATCH PUSH (7 code commits on local main):**
+#7 tax-regime, #9 form16, #14 comp-off, #15 rbac-mapping, #17 e-invoice, #18
+invoice-date, #19 invited-leaver — plus this docs commit. Do NOT push until
+push-2's deploy has landed (no stacked deploys) and #15 is reviewed.
+
+**NEEDS OWNER DECISION before the next push:**
+- **#15 (`rbac-db.ts`) WIDENS LIVE AUTHORIZATION.** Custom-role create/update/
+  manage grants were silently inert; the fix makes them effective. Fail-safe
+  (only honours explicit grants) but review before it deploys. Ship or hold?
+
+**TEST DEBT (fix applied + typechecked, dedicated test deferred):**
+- #10 journal.reverse and #11 lead-convert — concurrency tests (posted-JE / lead
+  seeding is heavy). Add gated-race tests like `concurrency-cluster.test.ts`.
+
+**STILL OPEN (not started) — the rest of "fix everything":**
+- Product-wide register: **12 MEDIUM + 6 LOW** (`reports/audit-product-wide.md`).
+- Dashboard audit: **H3–H8 + its MEDIUMs** (`reports/audit-dashboard-wiring.md`)
+  — H3 stuck all-time lights, H4 no sample-size floor, H5 fabricated PMO/service-
+  desk claims, H6 devops appearsIn:[], H7 finance-figures-to-non-finance-roles,
+  H8 web failure-reads-as-all-clear.
+- Roadmap note raised by owner: **Form 16 Part A via TRACES** (Part B is done and
+  correct; Part A is the TRACES download flow, still unbuilt — code flags it P2).
+
 ## 2026-08-24 — run 16 (dashboard-wiring audit + three fixes, all tested)
 
 Full bottom-up audit of the dashboard stack (DB → metrics → payload services →
