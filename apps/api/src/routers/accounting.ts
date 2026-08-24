@@ -949,10 +949,14 @@ export const accountingRouter = router({
       const start = new Date(input.year, input.month - 1, 1);
       const end   = new Date(input.year, input.month, 0, 23, 59, 59);
 
+      // GSTR-1 is the OUTWARD-supplies return: only our own sales belong in it.
+      // Without this filter, payable (purchase) invoices were filed as our own
+      // outward supplies — over-reporting output tax and inventing self-supplies.
       const invs = await db.select().from(invoices)
         .where(dbAnd(
           dbEq(invoices.orgId, org!.id),
           dbEq(invoices.gstinId, input.gstinId),
+          dbEq(invoices.invoiceFlow, "receivable"),
           gte(invoices.invoiceDate, start),
           lte(invoices.invoiceDate, end)
         ));
