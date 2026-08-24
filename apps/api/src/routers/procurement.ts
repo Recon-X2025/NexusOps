@@ -802,11 +802,23 @@ export const procurementRouter = router({
         // together: a mid-loop failure would mark some lines received while the
         // PO status (received / partially_received) reflects a different reality.
         return await db.transaction(async (tx) => {
+          // Confirm the PO belongs to the caller's org BEFORE touching line items.
+          // po_line_items carries no org_id (no RLS), so updating by a
+          // caller-supplied lineItemId with no PO/org scoping let one tenant
+          // overwrite another tenant's received quantities.
+          const [po] = await tx
+            .select({ id: purchaseOrders.id })
+            .from(purchaseOrders)
+            .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.orgId, org!.id)))
+            .limit(1);
+          if (!po) throw new TRPCError({ code: "NOT_FOUND" });
+
           for (const item of input.lineItems) {
             await tx
               .update(poLineItems)
               .set({ receivedQuantity: item.receivedQty })
-              .where(eq(poLineItems.id, item.lineItemId));
+              // Scope to THIS PO so a line item from another PO/tenant cannot match.
+              .where(and(eq(poLineItems.id, item.lineItemId), eq(poLineItems.poId, input.id)));
           }
 
           // Check if fully received

@@ -354,6 +354,18 @@ export const workOrdersRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      // Confirm ownership BEFORE touching the child tables. workOrderActivityLogs
+      // and workOrderTasks carry no org_id (no RLS), so deleting them by a
+      // caller-supplied workOrderId with no org check let one tenant erase
+      // another tenant's logs and tasks while the org-scoped parent delete below
+      // silently matched zero rows.
+      const [wo] = await db
+        .select({ id: workOrders.id })
+        .from(workOrders)
+        .where(and(eq(workOrders.id, input.id), eq(workOrders.orgId, org!.id)))
+        .limit(1);
+      if (!wo) throw new TRPCError({ code: "NOT_FOUND" });
+
       await db.delete(workOrderActivityLogs).where(eq(workOrderActivityLogs.workOrderId, input.id));
       await db.delete(workOrderTasks).where(eq(workOrderTasks.workOrderId, input.id));
       await db.delete(workOrders).where(and(eq(workOrders.id, input.id), eq(workOrders.orgId, org!.id)));
