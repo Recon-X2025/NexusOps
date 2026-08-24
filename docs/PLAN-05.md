@@ -434,6 +434,60 @@ gap-fix, and it is not in the queue until someone makes it.
 
 _Newest first. One entry per run, including runs that changed nothing._
 
+## 2026-08-24 — run 16 (dashboard-wiring audit + three fixes, all tested)
+
+Full bottom-up audit of the dashboard stack (DB → metrics → payload services →
+routers → web → click reachability), five parallel readers plus self-verified
+cross-layer checks. Report: `reports/audit-dashboard-wiring.md`. One BLOCKER,
+a dense band of HIGHs, no auth/isolation findings.
+
+**Three findings fixed and VERIFIED (tests + typecheck green):**
+- **BLOCKER — aggregate truncation.** finance-ops AP/AR ageing, recruiter funnel
+  and grc matrix summed/counted a `.limit(N)` fetch in JS, so any org past the
+  cap got wrong totals (incl. a rupee exposure figure). Moved all three to SQL
+  `GROUP BY`/`SUM`. WHERE clauses kept byte-identical (no scope creep into the
+  separate status-omission finding). New `workbench-aggregation.test.ts` seeds
+  2001/2001/501 rows and asserts all are counted — it caught a real bug in the
+  first fix attempt (GROUP BY re-bound a param → Postgres 42803; switched to
+  `GROUP BY 1`).
+- **H2 — flow-metric posture flipped on steady data.** Resolvers passed a
+  range TOTAL as `current` to `stateFromTrend`, which compares against a
+  per-bucket average → deviation ~6 → always stressed/healthy on the default
+  180-day view. Added `stateFromFlowSeries` (judges latest bucket vs trailing),
+  rerouted 4 call sites (flow ×10, tickets ×2, csm). Unit test locks it.
+- **H1 — 12 of 20 workbench drill links 404'd.** Corrected each href; 4 now hit
+  a real detail route (`/app/security/[id]`, `/app/hr/[id]`,
+  `/app/financial/invoices/[id]`, `/app/procurement/orders/[id]`), the rest
+  point at their module index (no detail route exists yet). New
+  `workbench-drill-routes.test.ts` cross-checks every emitted href against the
+  web route tree so the class cannot regress.
+
+Metrics `dist` rebuilt (api consumes it compiled). Not committed — no build/push
+yet, and a push carries migration 0102 (needs a snapshot).
+
+**Still open from the dashboard audit:** H3 stuck all-time lights, H4 no
+sample-size floor, H5 fabricated claims (pmo/service-desk), H6 devops `appearsIn:
+[]`, H7 finance-visibility-vs-RBAC, H8 web failure-as-all-clear, plus the Mediums.
+See `reports/audit-dashboard-wiring.md` "Recommended order".
+
+**Then: product-wide audit (13-agent adversarial workflow).** Register at
+`reports/audit-product-wide.md` — **6 BLOCKER, 17 HIGH, 38 ranked**, 0 dropped as
+refuted, 1 dropped as accepted debt. BLOCKER #1 (payroll payslip/ECR reads leaked a
+colleague's decrypted PAN + full salary on `hr:read`) **FIXED + tested**
+(`payroll-self-scope.test.ts`).
+
+**SHIP-GATE — the remaining 5 BLOCKERs must all close before ship:**
+- #2 disabling/offboarding never revokes live sessions (`auth.ts:230` — never checks `users.status`)
+- #3 `generateGSTR1` has no `invoiceFlow` filter → payables filed as own outward supplies (`accounting.ts:952`)
+- #4 `appendAuditEntry` self-heals a truncated hash chain on the next write (`audit-hash.ts:178`)
+- #5 `work-orders.delete` deletes another tenant's activity logs (`work-orders.ts:357`)
+- #6 `purchaseOrders.receive` cross-tenant write by caller-supplied line-item id (`procurement.ts:806`)
+
+**Committed locally this run (NOT pushed — a push carries migration 0102, needs a
+snapshot):** `ed8fe60` flow metrics + posture, `d5b52a1` workbench SQL aggregation +
+drill links, `8c914f5` payroll self-scope BLOCKER, plus this docs commit. The 4
+prior-session commits (`fc3e5de`…`7e49547`) remain unpushed ahead of them.
+
 ## 2026-08-23 — run 15 (item 5 withdrawn, apps/worker swept and fixed)
 
 Picked up item 5 as the next buildable item, applied the rule added in run 14 —
