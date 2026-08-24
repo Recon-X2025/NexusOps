@@ -57,16 +57,12 @@ export function buildForm16Input(args: AggregateInput): Form16PDFInput {
   const lessOtherExempt = 0;
   const netSalary = Math.max(0, grossSalary - lessHraExempt - lessLtaExempt - lessOtherExempt);
 
-  const standardDeduction = grossSalary > 0 ? 50_000 : 0;
   const professionalTax = fySlips.reduce((s, p) => s + Number(p.professionalTax || 0), 0);
   const entertainmentAllowance = 0;
-
-  const chapterVIATotal = chapterVIA.reduce((s, d) => s + d.amount, 0);
-
-  const taxableIncome = Math.max(
-    0,
-    Math.round(netSalary - standardDeduction - professionalTax - entertainmentAllowance - chapterVIATotal),
-  );
+  // standardDeduction and taxableIncome are taken from computeTax below — the
+  // single source of truth also used to compute the printed tax. Hand-rolling
+  // them here hardcoded ₹50,000 (wrong for the NEW regime's ₹75,000) and produced
+  // a taxable income that disagreed with the basis the printed tax was computed on.
 
   const taxRegime = (employee.taxRegime ?? "new") as "old" | "new";
 
@@ -138,11 +134,11 @@ export function buildForm16Input(args: AggregateInput): Form16PDFInput {
     lessLtaExempt,
     lessOtherExempt,
     netSalary,
-    standardDeduction,
+    standardDeduction: Math.round(tax.standardDeduction ?? 0),
     professionalTax,
     entertainmentAllowance,
     deductions: chapterVIA,
-    taxableIncome,
+    taxableIncome: Math.round(tax.taxableIncome ?? 0),
     taxOnIncome: Math.round(tax.taxOnIncome ?? 0),
     rebate87a: Math.round(tax.rebate87A ?? 0),
     surcharge: Math.round(tax.surcharge ?? 0),
