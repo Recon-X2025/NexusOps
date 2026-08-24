@@ -965,18 +965,35 @@ export const authRouter = router({
       matrixRole: z.string().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const { userId, ...updates } = input;
 
-      // Ensure user belongs to this org
+      // No self-targeting: a users:write holder must not edit their OWN role
+      // (self-promotion / self-lockout). Role changes are done to others.
+      if (userId === user!.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot change your own role." });
+      }
+
+      // Role hierarchy. Without this, any users:write holder (e.g. an IT admin)
+      // could promote a colleague — or, via another account, themselves — to
+      // owner/admin. A caller may neither modify someone ranked above them nor
+      // grant a role above their own.
+      const ROLE_RANK: Record<string, number> = { viewer: 0, member: 1, admin: 2, owner: 3 };
+      const callerRank = ROLE_RANK[String(user!.role)] ?? -1;
+
       const [target] = await db
-        .select({ id: users.id })
+        .select({ id: users.id, role: users.role })
         .from(users)
         .where(and(eq(users.id, userId), eq(users.orgId, org!.id)))
         .limit(1);
-
       if (!target) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      if ((ROLE_RANK[String(target.role)] ?? 0) > callerRank) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot modify a user ranked above you." });
+      }
+      if (input.role !== undefined && (ROLE_RANK[input.role] ?? 0) > callerRank) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot grant a role higher than your own." });
       }
 
       const [updated] = await db
