@@ -47,7 +47,8 @@ export interface InvoicePdfLine {
 export interface InvoicePdfInput {
   seller: {
     legalName: string;
-    gstin: string;
+    /** Null on a BILL OF SUPPLY — an unregistered supplier has no GSTIN to cite. */
+    gstin: string | null;
     stateName: string | null;
     stateCode: string | null;
     address: string | null;
@@ -80,6 +81,13 @@ export interface InvoicePdfInput {
   };
   placeOfSupply: string | null;
   isInterstate: boolean;
+  /**
+   * True for a BILL OF SUPPLY (Rule 49). Such a document charges no tax, so it
+   * must not carry a supply-type line, a GST rate column, a rate-wise tax
+   * summary or a CGST/SGST/IGST total — printing those would assert tax the
+   * supplier has no authority to collect.
+   */
+  chargesNoTax?: boolean;
   eInvoice: {
     irn: string | null;
     ackNumber: string | null;
@@ -119,8 +127,13 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
       doc.text(input.seller.address, PAGE_LEFT, y, { width: CONTENT_W - 200 });
       y = doc.y;
     }
-    doc.text(`GSTIN: ${input.seller.gstin}`, PAGE_LEFT, y);
-    y = doc.y;
+    // Omit the line entirely rather than print "GSTIN: null". A bill of supply
+    // has no supplier GSTIN by definition, and a blank one invites the reader to
+    // think the document is defective rather than a different document.
+    if (input.seller.gstin) {
+      doc.text(`GSTIN: ${input.seller.gstin}`, PAGE_LEFT, y);
+      y = doc.y;
+    }
     doc.text(
       `State: ${input.seller.stateName ?? EMPTY_CELL}${input.seller.stateCode ? ` (${input.seller.stateCode})` : ""}`,
       PAGE_LEFT,
@@ -201,12 +214,18 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
     doc.fontSize(9).font("Helvetica").fillColor("#111111");
     doc.text(input.placeOfSupply ?? EMPTY_CELL, 330, billTop + 12, { width: 215 });
     doc.fontSize(8).fillColor("#444444");
-    doc.text(
-      input.isInterstate ? "Inter-state supply - IGST applies" : "Intra-state supply - CGST + SGST apply",
-      330,
-      billTop + 26,
-      { width: 215 },
-    );
+    if (!input.chargesNoTax) {
+      doc.text(
+        input.isInterstate ? "Inter-state supply - IGST applies" : "Intra-state supply - CGST + SGST apply",
+        330,
+        billTop + 26,
+        { width: 215 },
+      );
+    } else {
+      // Rule 49 wording — say plainly why no tax appears, so the recipient does
+      // not read the document as a defective tax invoice.
+      doc.text("Bill of supply - supplier not registered under GST", 330, billTop + 26, { width: 215 });
+    }
     // Rule 46(p): reverse charge must be stated either way.
     doc.text(
       `Reverse charge: ${input.invoice.isReverseCharge ? "Yes" : "No"}`,
@@ -240,7 +259,7 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
     doc.text("UOM", cols.unit, y + 6);
     doc.text("RATE", cols.rate, y + 6, { width: 60, align: "right" });
     doc.text("DISC%", cols.disc, y + 6, { width: 28, align: "right" });
-    doc.text("GST%", cols.gst, y + 6, { width: 26, align: "right" });
+    if (!input.chargesNoTax) doc.text("GST%", cols.gst, y + 6, { width: 26, align: "right" });
     doc.text("TAXABLE (Rs.)", cols.amt, y + 6, { width: amtW, align: "right" });
     y += 18;
 
@@ -256,7 +275,11 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
       doc.text(l.unit ?? EMPTY_CELL, cols.unit, y + 4, { width: 28 });
       doc.text(formatPdfInr(l.unitPrice), cols.rate, y + 4, { width: 60, align: "right" });
       doc.text(l.discountPercent ? pctLabel(l.discountPercent) : EMPTY_CELL, cols.disc, y + 4, { width: 28, align: "right" });
-      doc.text(pctLabel(l.gstRate), cols.gst, y + 4, { width: 26, align: "right" });
+      // Header AND cell must go together on a bill of supply — suppressing only
+      // the header left a bare "18%" sitting under the discount column.
+      if (!input.chargesNoTax) {
+        doc.text(pctLabel(l.gstRate), cols.gst, y + 4, { width: 26, align: "right" });
+      }
       doc.text(formatPdfInr(l.taxableValue), cols.amt, y + 4, { width: amtW, align: "right" });
       y += h;
     });
@@ -270,7 +293,7 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
       { taxableValue: input.totals.taxableValue, taxTotal: input.totals.taxTotal },
       input.isInterstate,
     );
-    if (groups && groups.length > 0) {
+    if (!input.chargesNoTax && groups && groups.length > 0) {
       doc.fontSize(7).font("Helvetica-Bold").fillColor("#666666").text("TAX SUMMARY (RATE-WISE)", PAGE_LEFT, y);
       y = doc.y + 4;
       doc.fontSize(7).font("Helvetica-Bold").fillColor("#333333");
@@ -315,7 +338,9 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
     const rates = [...new Set(input.lines.filter((l) => l.taxableValue > 0).map((l) => l.gstRate))];
     const halfSuffix = rates.length === 1 ? ` @ ${pctLabel(rates[0]! / 2)}` : " (rate-wise above)";
     const fullSuffix = rates.length === 1 ? ` @ ${pctLabel(rates[0]!)}` : " (rate-wise above)";
-    if (input.isInterstate) {
+    if (input.chargesNoTax) {
+      // Nothing to split — the customer owes the taxable value alone.
+    } else if (input.isInterstate) {
       row(`IGST${fullSuffix}`, formatPdfInr(input.totals.igst));
     } else {
       row(`CGST${halfSuffix}`, formatPdfInr(input.totals.cgst));

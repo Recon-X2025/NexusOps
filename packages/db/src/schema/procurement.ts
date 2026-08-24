@@ -54,6 +54,20 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
 
 export const invoiceTypeEnum = pgEnum("invoice_type", [
   "tax_invoice",
+  /**
+   * Rule 49. What a supplier who is NOT GST-registered issues instead of a tax
+   * invoice — no GSTIN, no tax breakup, because it collects no tax. GST
+   * registration is threshold-based (broadly Rs.40L goods / Rs.20L services), so
+   * a below-threshold business is not merely unconfigured, it is lawfully
+   * unregistered, and the product must be able to bill on its behalf.
+   *
+   * `composition` is deliberately NOT added yet: a composition dealer also issues
+   * a bill of supply but carries a mandatory declaration and a different return
+   * path (CMP-08/GSTR-4), and an enum value that nothing implements is a promise
+   * the product does not keep. Removing an enum value later is expensive;
+   * adding one is not.
+   */
+  "bill_of_supply",
   "credit_note",
   "debit_note",
   "proforma",

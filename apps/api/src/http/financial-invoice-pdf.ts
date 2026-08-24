@@ -50,6 +50,8 @@ export type InvoiceDocumentBlock = { field: string; message: string } | null;
  */
 export function assertInvoiceDocumentBasis(args: {
   invoiceFlow: string;
+  /** "tax_invoice" (Rule 46) or "bill_of_supply" (Rule 49). */
+  invoiceType?: string | null;
   supplierGstin: string | null;
   placeOfSupply: string | null;
   lineCount: number;
@@ -61,14 +63,20 @@ export function assertInvoiceDocumentBasis(args: {
         "This is a payable (vendor) invoice — the tax invoice for it was issued by your supplier, not by you. Only receivable invoices can be printed as your own tax invoice.",
     };
   }
-  if (!args.supplierGstin) {
+  // A BILL OF SUPPLY (Rule 49) is what a supplier who is NOT GST-registered
+  // issues. It carries no GSTIN and no tax, so the Rule 46 particulars below —
+  // supplier GSTIN and place of supply, which exist to justify a tax charge —
+  // do not apply and must not be demanded. Requiring them here is what stopped
+  // every below-threshold tenant from issuing any document at all.
+  const isBillOfSupply = args.invoiceType === "bill_of_supply";
+  if (!isBillOfSupply && !args.supplierGstin) {
     return {
       field: "invoice.supplierGstin",
       message:
         "This invoice carries no supplier GSTIN, which Rule 46(a) requires. Register your GSTIN under Finance → GST Registrations and raise the invoice again.",
     };
   }
-  if (!args.placeOfSupply) {
+  if (!isBillOfSupply && !args.placeOfSupply) {
     return {
       field: "invoice.placeOfSupply",
       message:
@@ -117,6 +125,7 @@ export function registerFinancialInvoicePdfRoute(fastify: FastifyInstance): void
 
     const block = assertInvoiceDocumentBasis({
       invoiceFlow: inv.invoiceFlow,
+      invoiceType: inv.invoiceType,
       supplierGstin: inv.supplierGstin,
       placeOfSupply: inv.placeOfSupply,
       lineCount: lineRows.length,
@@ -163,6 +172,9 @@ export function registerFinancialInvoicePdfRoute(fastify: FastifyInstance): void
     const titleByType: Record<string, string> = {
       credit_note: "CREDIT NOTE",
       debit_note: "DEBIT NOTE",
+      // Rule 49. An unregistered supplier's document must not call itself a tax
+      // invoice — it charges no tax and cites no GSTIN.
+      bill_of_supply: "BILL OF SUPPLY",
     };
     const documentTitle = titleByType[(inv as { invoiceType?: string }).invoiceType ?? ""] ?? "TAX INVOICE";
 
@@ -170,7 +182,7 @@ export function registerFinancialInvoicePdfRoute(fastify: FastifyInstance): void
       const buffer = await generateInvoicePDF({
         seller: {
           legalName: sellerRow?.legalName ?? "",
-          gstin: inv.supplierGstin!,
+          gstin: inv.supplierGstin ?? null,
           stateName: sellerRow?.stateName ?? gstStateName(sellerRow?.stateCode ?? null),
           stateCode: sellerRow?.stateCode ?? null,
           address: sellerRow?.address ?? null,
@@ -204,6 +216,9 @@ export function registerFinancialInvoicePdfRoute(fastify: FastifyInstance): void
           ? `${placeName} (${inv.placeOfSupply})`
           : inv.placeOfSupply,
         isInterstate: inv.isInterstate,
+        // A bill of supply charges no tax, so the renderer must not print a rate
+        // column, a rate-wise summary or a CGST/SGST/IGST total on it.
+        chargesNoTax: (inv as { invoiceType?: string }).invoiceType === "bill_of_supply",
         eInvoice: {
           irn: inv.eInvoiceIrn ?? null,
           ackNumber: inv.eInvoiceAckNumber ?? null,

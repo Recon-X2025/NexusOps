@@ -505,6 +505,39 @@ export const financialRouter = router({
         normaliseGstStateOrWarn(customerRow?.state ?? null, "counterparty") ??
         normaliseGstStateOrWarn(orgState, "org");
 
+      /*
+       * REGISTERED or NOT — and the GSTIN registry is the authority.
+       *
+       * GST registration is threshold-based (broadly Rs.40L goods / Rs.20L
+       * services). A supplier below it is not misconfigured, it is lawfully
+       * unregistered, and it issues a BILL OF SUPPLY (Rule 49) rather than a tax
+       * invoice: no GSTIN, no tax, because it collects none. You cannot be
+       * GST-registered without a GSTIN, so the presence of an active one IS the
+       * status — no second flag to fall out of step with reality.
+       *
+       * Charging GST on an unregistered supplier's document is the dangerous
+       * half of this: it would assert tax the supplier has no authority to
+       * collect. So the tax columns are zeroed and the customer owes exactly the
+       * taxable value.
+       *
+       * (A composition dealer also issues a bill of supply but HAS a GSTIN, so
+       * it needs an explicit flag and its own return path — deliberately out of
+       * scope here rather than half-modelled.)
+       */
+      const isGstRegistered = Boolean(orgGstinNum);
+      const documentType = isGstRegistered ? ("tax_invoice" as const) : ("bill_of_supply" as const);
+      const billed = isGstRegistered
+        ? gst
+        : {
+            taxableValue: gst.taxableValue,
+            cgstAmount: "0",
+            sgstAmount: "0",
+            igstAmount: "0",
+            totalTaxAmount: "0",
+            isInterstate: false,
+            amount: gst.taxableValue,
+          };
+
       const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
       // Insert + post the balanced AR journal entry atomically (see createInvoice).
       const inv = await db.transaction(async (tx) => {
@@ -516,18 +549,18 @@ export const financialRouter = router({
             legalEntityId: input.legalEntityId ?? null,
             invoiceFlow: "receivable",
             invoiceNumber: input.invoiceNumber,
-            invoiceType: "tax_invoice",
+            invoiceType: documentType,
             gstinId: orgGstinId,
             supplierGstin: orgGstinNum,
             buyerGstin: customerRow?.gstin ?? null,
             placeOfSupply: arPlaceOfSupply,
-            amount: gst.amount,
-            taxableValue: gst.taxableValue,
-            cgstAmount: gst.cgstAmount,
-            sgstAmount: gst.sgstAmount,
-            igstAmount: gst.igstAmount,
-            totalTaxAmount: gst.totalTaxAmount,
-            isInterstate: gst.isInterstate,
+            amount: billed.amount,
+            taxableValue: billed.taxableValue,
+            cgstAmount: billed.cgstAmount,
+            sgstAmount: billed.sgstAmount,
+            igstAmount: billed.igstAmount,
+            totalTaxAmount: billed.totalTaxAmount,
+            isInterstate: billed.isInterstate,
             status: "pending",
             matchingStatus: "pending",
             invoiceDate,
@@ -546,12 +579,16 @@ export const financialRouter = router({
           invoiceFlow: "receivable",
           invoiceNumber: input.invoiceNumber,
           date: invoiceDate,
-          taxableValue: Number(gst.taxableValue),
-          cgstAmount: Number(gst.cgstAmount),
-          sgstAmount: Number(gst.sgstAmount),
-          igstAmount: Number(gst.igstAmount),
-          isInterstate: gst.isInterstate,
-          grossTotal: Number(gst.amount),
+          // The LEDGER posts what was BILLED. On a bill of supply no GST is
+          // charged, so posting the taxed figures would credit an output-tax
+          // liability the supplier never collected and leave AR disagreeing
+          // with the document it was raised from.
+          taxableValue: Number(billed.taxableValue),
+          cgstAmount: Number(billed.cgstAmount),
+          sgstAmount: Number(billed.sgstAmount),
+          igstAmount: Number(billed.igstAmount),
+          isInterstate: billed.isInterstate,
+          grossTotal: Number(billed.amount),
           financialYear: currentFY(invoiceDate),
         });
         return row;
