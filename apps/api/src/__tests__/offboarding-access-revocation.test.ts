@@ -86,6 +86,21 @@ describe("offboarding — automatic access revocation", () => {
     expect(await statusOf(userId!)).toBe("disabled");
   });
 
+  it("disables an INVITED (never-activated) leaver too, not just active ones", async () => {
+    const { userId } = await seedUser(orgId, { role: "member", matrixRole: "requester", status: "invited" });
+    await testDb().insert(employees).values({
+      orgId,
+      employeeId: `EMP-${nanoid(6).toUpperCase()}`,
+      userId,
+      endDate: new Date(Date.now() - 10 * DAY),
+      status: "active",
+    } as never);
+    await revokeElapsedOffboardedAccess(testDb());
+    // Pre-fix the sweep filtered status='active' only, so an invited leaver kept a
+    // valid pending invite and could accept it to gain access AFTER offboarding.
+    expect(await statusOf(userId!)).toBe("disabled");
+  });
+
   it("an employee whose last working day is in the FUTURE is NOT disabled", async () => {
     const { userId } = await seedEmployee(new Date(Date.now() + 30 * DAY));
     await revokeElapsedOffboardedAccess(testDb());

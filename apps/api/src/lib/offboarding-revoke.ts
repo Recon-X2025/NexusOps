@@ -22,6 +22,7 @@ import {
   auditLogs,
   eq,
   and,
+  inArray,
   isNotNull,
   lt,
   type Db,
@@ -90,12 +91,15 @@ export async function revokeElapsedOffboardedAccess(
       continue;
     }
 
-    // Only flip a login that is still usable. Keeps the sweep idempotent and
-    // stops it re-auditing someone an admin already disabled by hand.
+    // Only flip a login that is still usable — 'active' OR 'invited'. An
+    // invited-but-never-activated user still holds a valid pending invite, so
+    // leaving it would let an offboarded person accept the invite and gain access
+    // AFTER their exit. (Matches the doc comment and keeps the sweep idempotent:
+    // an already-disabled user is skipped.)
     const [updated] = await db
       .update(users)
       .set({ status: "disabled", updatedAt: now })
-      .where(and(eq(users.id, c.userId), eq(users.orgId, c.orgId), eq(users.status, "active")))
+      .where(and(eq(users.id, c.userId), eq(users.orgId, c.orgId), inArray(users.status, ["active", "invited"])))
       .returning({ id: users.id });
 
     if (!updated) continue;
