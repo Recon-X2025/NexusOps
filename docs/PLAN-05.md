@@ -476,17 +476,24 @@ refuted, 1 dropped as accepted debt. BLOCKER #1 (payroll payslip/ECR reads leake
 colleague's decrypted PAN + full salary on `hr:read`) **FIXED + tested**
 (`payroll-self-scope.test.ts`).
 
-**SHIP-GATE — the remaining 5 BLOCKERs must all close before ship:**
-- #2 disabling/offboarding never revokes live sessions (`auth.ts:230` — never checks `users.status`)
-- #3 `generateGSTR1` has no `invoiceFlow` filter → payables filed as own outward supplies (`accounting.ts:952`)
-- #4 `appendAuditEntry` self-heals a truncated hash chain on the next write (`audit-hash.ts:178`)
-- #5 `work-orders.delete` deletes another tenant's activity logs (`work-orders.ts:357`)
-- #6 `purchaseOrders.receive` cross-tenant write by caller-supplied line-item id (`procurement.ts:806`)
+**SHIP-GATE — ALL 6 BLOCKERs CLOSED (fixed + regression-tested + committed):**
+- #1 payroll payslip/ECR reads leaked colleague PAN/salary on `hr:read` → self-scope (`8c914f5`, `payroll-self-scope.test.ts`)
+- #2 disable/offboard never revoked live sessions → L3 status check + `revokeUserSessions` (`8bf1f85`, `session-revocation.test.ts`)
+- #3 `generateGSTR1` filed payables as own outward supplies → `invoice_flow='receivable'` (`2b8a804`, `gstr1-outward-only.test.ts`)
+- #4 audit chain self-healed after truncation → monotonic anchor + `broken` flag (`dba34e4`, `audit-chain-no-selfheal.test.ts`)
+- #5/#6 cross-tenant child-table writes (`work-orders.delete`, `purchaseOrders.receive`) → parent-ownership + PO scoping (`7723306`, `cross-tenant-child-writes.test.ts`)
 
-**Committed locally this run (NOT pushed — a push carries migration 0102, needs a
-snapshot):** `ed8fe60` flow metrics + posture, `d5b52a1` workbench SQL aggregation +
-drill links, `8c914f5` payroll self-scope BLOCKER, plus this docs commit. The 4
-prior-session commits (`fc3e5de`…`7e49547`) remain unpushed ahead of them.
+**Verification (all green):** `pnpm build` 11/11; full api suite **2177 tests pass**
+(one pre-existing failure — `leave-accrual seedDefaults` missing `.input()`, from
+prior commit `7d19c42` — found and fixed in `6abcd6b`, re-verified); `pnpm lint:cold`
+**9/9, Cached: 0**. Remaining gate is E2E, which CI runs on push.
+
+**Committed locally this run (NOT pushed — a push deploys and carries migration 0102;
+snapshot taken, awaiting go):** `ed8fe60` flow metrics + posture, `d5b52a1` workbench
+SQL aggregation + drill links, `8c914f5` payroll self-scope, `8bf1f85` session
+revocation, `2b8a804` GSTR-1 outward-only, `dba34e4` audit-chain no-selfheal, `7723306`
+cross-tenant child writes, `6abcd6b` seedDefaults input, plus docs. The 4 prior-session
+commits (`fc3e5de`…`7e49547`) remain unpushed ahead of them.
 
 ## 2026-08-23 — run 15 (item 5 withdrawn, apps/worker swept and fixed)
 
