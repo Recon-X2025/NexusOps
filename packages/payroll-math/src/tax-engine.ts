@@ -339,7 +339,12 @@ export function computeTax(
 
   const totalDeductions =
     standardDeduction +
-    professionalTax +
+    // Professional tax (s.16(iii)) is deductible for income tax ONLY under the
+    // OLD regime; the NEW regime disallows it. Adding it unconditionally lowered
+    // taxable income under the default (NEW) regime and under-withheld TDS. Gate
+    // it on OLD, exactly like otherExemptions below. (PT is still PAID from salary
+    // regardless — this is only its income-tax deductibility.)
+    (regime === "OLD" ? professionalTax : 0) +
     hraExemption +
     chapter6ADeductions +
     section24bDeduction +

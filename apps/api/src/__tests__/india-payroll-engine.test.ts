@@ -70,11 +70,14 @@ describe("New Regime — FY 2025-26", () => {
 
   it("should compute correct tax for ₹16L CTC (no rebate, taxable > ₹12L)", () => {
     const result = computeTax(makeProfile({ annualCTC: 1_600_000 }));
-    // Taxable = 16L - 75K = 15,25,000; FY2025-26 slabs, per-slab rounding → 108,390
-    expect(result.taxOnIncome).toBe(108_390);
+    // Taxable = 16L - 75K = 15,25,000 (NEW regime does NOT deduct professional
+    // tax); FY2025-26 slabs → 20,000 + 40,000 + 3.25L×15% = 108,750. The prior
+    // 108,390 blessed the bug where PT was deducted under NEW (tax lower by the
+    // 15% on ₹2,400 PT = 360).
+    expect(result.taxOnIncome).toBe(108_750);
     expect(result.rebate87A).toBe(0); // taxable > 12L
-    expect(result.cess).toBe(Math.round(108_390 * 0.04));
-    expect(result.totalTaxLiability).toBe(108_390 + Math.round(108_390 * 0.04));
+    expect(result.cess).toBe(Math.round(108_750 * 0.04));
+    expect(result.totalTaxLiability).toBe(108_750 + Math.round(108_750 * 0.04));
   });
 
   it("should compute standard deduction of ₹75,000 for New Regime", () => {
