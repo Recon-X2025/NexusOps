@@ -84,6 +84,76 @@ function toPolicyConfig(
   };
 }
 
+/**
+ * The leave set a company can START with.
+ *
+ * `leave_policies` ships empty, so `hr.leave.create` has no policy to reference
+ * and leave is unusable until somebody hand-builds every type. A startup will
+ * not do that — it takes what comes with the product. This is that baseline:
+ * enough to run leave on day one, sitting at or above the statutory floor.
+ *
+ * Where the numbers come from:
+ *  - ANNUAL (earned/privilege): Factories Act 1948 s.79 earns ~15 days/yr
+ *    (1 per 20 worked); state Shops & Establishments Acts run 12-21. 18 sits
+ *    safely above the common floor. Carried forward to 30 (the Factories Act
+ *    carry cap), the excess lapsing, and encashable — earned leave is the one
+ *    type that must be paid out on exit.
+ *  - CASUAL and SICK: 7 each. S&E Acts typically grant 7-12 of each. Both
+ *    lapse at year end and neither is encashable, which is ordinary practice
+ *    and is what `settlement.ts` already assumes ("annual encashable;
+ *    sick/casual not").
+ *  - MATERNITY: 182 days = 26 weeks. Maternity Benefit (Amendment) Act 2017.
+ *    This one is LAW, not a preference, and must never ship lower.
+ *  - PATERNITY: 5 days. NOT statutory in the private sector (only central
+ *    government employees have a 15-day entitlement) — included because
+ *    practically every employer offers something and zero reads as an
+ *    omission rather than a decision.
+ *  - BEREAVEMENT: 3 days. Practice, not statute.
+ *  - COMPENSATORY_OFF: earned by working a holiday or rest day, so no annual
+ *    entitlement. Expires on a 12-week window rather than at year end, so it
+ *    cannot accrue indefinitely.
+ *  - UNPAID (loss of pay): no entitlement and no balance to debit — it is the
+ *    absence of leave, recorded so payroll can deduct it.
+ *
+ * Anything beyond this — sabbatical, study leave, menstrual leave, a longer
+ * paternity policy, tenure-based slabs — is a POLICY DOCUMENT, not a schema
+ * change. A tenant that wants different numbers edits these; the point is that
+ * they start with something that works.
+ */
+const DEFAULT_LEAVE_POLICIES = [
+  {
+    type: "annual" as const,
+    annualEntitlementDays: "18",
+    monthlyAccrualDays: "1.5",
+    maxCarryForwardDays: "30",
+    encashable: true,
+    yearEndTreatment: "forfeit" as const,
+    exitTreatment: "encash_all" as const,
+    encashmentBasis: "basic_da" as const,
+    encashmentDivisor: 26,
+    debitsBalance: true,
+    expiryMode: "year_end" as const,
+  },
+  { type: "casual" as const, annualEntitlementDays: "7" , exitTreatment: "accrued_only" as const },
+  { type: "sick" as const, annualEntitlementDays: "7" , exitTreatment: "accrued_only" as const },
+  { type: "maternity" as const, annualEntitlementDays: "182" , exitTreatment: "accrued_only" as const },
+  { type: "paternity" as const, annualEntitlementDays: "5" , exitTreatment: "accrued_only" as const },
+  { type: "bereavement" as const, annualEntitlementDays: "3" , exitTreatment: "accrued_only" as const },
+  {
+    type: "compensatory_off" as const,
+    annualEntitlementDays: "0",
+    exitTreatment: "accrued_only" as const,
+    expiryMode: "window_weeks" as const,
+    expiryWindowWeeks: 12,
+  },
+  {
+    type: "unpaid" as const,
+    annualEntitlementDays: "0",
+    exitTreatment: "accrued_only" as const,
+    debitsBalance: false,
+  },
+];
+
 export const leaveAccrualRouter = router({
   // ── Policy: per-org, per-leave-type configuration ──────────────────────────
   policy: router({
@@ -94,6 +164,33 @@ export const leaveAccrualRouter = router({
         .from(leavePolicies)
         .where(eq(leavePolicies.orgId, org!.id))
         .orderBy(leavePolicies.type);
+    }),
+
+    /**
+     * Give this tenant the baseline leave set, once.
+     *
+     * Idempotent by construction: `leave_policies` is UNIQUE on (org_id, type)
+     * and this inserts with ON CONFLICT DO NOTHING, so re-running never
+     * overwrites a policy the tenant has since tuned. `seeded` reports how many
+     * were actually new, so a second call honestly returns 0 rather than
+     * claiming it did work.
+     */
+    seedDefaults: permissionProcedure("hr", "approve").mutation(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const before = await db
+        .select({ type: leavePolicies.type })
+        .from(leavePolicies)
+        .where(eq(leavePolicies.orgId, org!.id));
+      const existing = new Set(before.map((r) => r.type as string));
+
+      const rows = DEFAULT_LEAVE_POLICIES.filter((p) => !existing.has(p.type)).map((p) => ({
+        orgId: org!.id,
+        ...p,
+      }));
+      if (rows.length === 0) return { seeded: 0, skipped: existing.size };
+
+      await db.insert(leavePolicies).values(rows).onConflictDoNothing();
+      return { seeded: rows.length, skipped: existing.size };
     }),
 
     // Upsert the policy for a leave type (one per org+type).
