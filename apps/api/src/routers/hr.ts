@@ -1120,18 +1120,24 @@ export const hrRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 
-        const [request] = await db
-          .select()
-          .from(leaveRequests)
-          .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)));
-
-        if (!request) throw new TRPCError({ code: "NOT_FOUND" });
-
-        // Both writes (status flip + pending-balance release) must be atomic:
-        // a failure between them would leave the request rejected but the held
-        // days never released. Wrap them in one transaction. The status write
-        // also carries orgId so it matches the guard read above.
+        // Both writes (status flip + pending-balance release) must be atomic. The
+        // request is also locked FOR UPDATE and re-checked inside the tx: reject
+        // applies ONLY to a pending request. Rejecting an already-approved leave
+        // would flip status without reversing the usedDays and attendance the
+        // approval wrote — leaving the balance inflated and the employee still
+        // marked on-leave — and two concurrent rejects would each release the
+        // pending days twice.
         const updated = await db.transaction(async (tx) => {
+          const [request] = await tx
+            .select()
+            .from(leaveRequests)
+            .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)))
+            .for("update");
+          if (!request) throw new TRPCError({ code: "NOT_FOUND" });
+          if (request.status !== "pending") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Only a pending leave request can be rejected" });
+          }
+
           const [row] = await tx
             .update(leaveRequests)
             .set({ status: "rejected", updatedAt: new Date() })

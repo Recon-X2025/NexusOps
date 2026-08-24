@@ -779,10 +779,18 @@ export const procurementRouter = router({
             );
           }
 
-          await tx
+          // Compare-and-set on the status transition: the approved→ordered flip
+          // only matches while the PR is still 'approved'. Two concurrent calls
+          // both read 'approved' outside the tx and would each post a PO; here the
+          // loser's UPDATE matches zero rows and we roll its PO back.
+          const flipped = await tx
             .update(purchaseRequests)
             .set({ status: "ordered" })
-            .where(eq(purchaseRequests.id, input.prId));
+            .where(and(eq(purchaseRequests.id, input.prId), eq(purchaseRequests.status, "approved")))
+            .returning({ id: purchaseRequests.id });
+          if (flipped.length === 0) {
+            throw new TRPCError({ code: "CONFLICT", message: "This requisition has already been ordered" });
+          }
 
           return po;
         });

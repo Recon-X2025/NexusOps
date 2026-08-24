@@ -43,10 +43,16 @@ export interface ConvertLeadArgs {
 export async function convertLeadToDeal(tx: DbOrTx, args: ConvertLeadArgs) {
   const { leadId, orgId, actorId, dealTitle, dealValue } = args;
 
+  // Lock the lead FOR UPDATE so concurrent conversions serialise: the first sets
+  // convertedDealId and commits; the second then reads it and returns the existing
+  // deal via the idempotency check below, instead of both reading a null
+  // convertedDealId and each minting a duplicate deal/account/contact. (The caller
+  // owns the transaction — see the doc comment — so this lock holds until commit.)
   const [lead] = await tx
     .select()
     .from(crmLeads)
-    .where(and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, orgId)));
+    .where(and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, orgId)))
+    .for("update");
   if (!lead) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
   }

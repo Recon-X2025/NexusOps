@@ -428,18 +428,22 @@ export const accountingRouter = router({
       const { org, db, user } = ctx;
       const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, sql } = await import("@coheronconnect/db");
 
-      const [je] = await db.select().from(journalEntries)
-        .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id))).limit(1);
-      if (!je) throw new TRPCError({ code: "NOT_FOUND" });
-      if (je.status !== "posted") throw new TRPCError({ code: "BAD_REQUEST", message: "Only posted entries can be reversed" });
-
-      const lines = await db.select().from(journalEntryLines).where(dbEq(journalEntryLines.journalEntryId, je.id));
       const revDate = input.date ?? new Date();
 
-      // The reversal header, its lines, and flipping the original to "reversed"
-      // are one accounting event: a partial write would leave a half-reversed
-      // entry or an orphaned reversal in the ledger.
+      // The reversal header, its lines, the balance moves, and flipping the
+      // original to "reversed" are ONE accounting event. The original is taken
+      // FOR UPDATE and its status re-checked INSIDE the tx (mirroring post()):
+      // two concurrent reverses both read "posted" outside a lock and would each
+      // post a reversal — a double undo that skews every affected balance.
       return await db.transaction(async (tx) => {
+        const [je] = await tx.select().from(journalEntries)
+          .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id)))
+          .limit(1)
+          .for("update");
+        if (!je) throw new TRPCError({ code: "NOT_FOUND" });
+        if (je.status !== "posted") throw new TRPCError({ code: "BAD_REQUEST", message: "Only posted entries can be reversed" });
+
+        const lines = await tx.select().from(journalEntryLines).where(dbEq(journalEntryLines.journalEntryId, je.id));
         // Reversals draw from the SAME atomic "JE-<year>" counter as journal.create
         // (both emit JE-YYYY-NNNNN; a reversal just suffixes "-REV"), so the visible
         // JE sequence stays a single monotonic run per year and two concurrent number
