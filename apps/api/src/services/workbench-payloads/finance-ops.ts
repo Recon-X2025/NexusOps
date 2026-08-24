@@ -9,7 +9,7 @@
  * Primary visual: dual-pane aging buckets (AP | AR side by side).
  */
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { invoices } from "@coheronconnect/db";
 import {
   envelope,
@@ -43,15 +43,6 @@ export interface FinanceOpsPayload extends WorkbenchEnvelope {
   approvalQueue: Panel<InvoiceRow[]>;
 }
 
-function bucket(now: Date, dueDate: Date | null): AgingBucket {
-  if (!dueDate) return "0-30";
-  const days = Math.floor((now.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000));
-  if (days <= 30) return "0-30";
-  if (days <= 60) return "31-60";
-  if (days <= 90) return "61-90";
-  return "90+";
-}
-
 async function ageingPanel(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
@@ -60,12 +51,26 @@ async function ageingPanel(
   name: string,
 ): Promise<Panel<AgingDistribution[]>> {
   return runPanel<AgingDistribution[]>(name, async () => {
-    const rows = await db
+    // Bucket and total in SQL, not in JS over a capped fetch. The previous
+    // version pulled `.limit(2000)` rows and summed them in memory, so any org
+    // with more than 2,000 open invoices had its ageing counts AND its rupee
+    // exposure computed over an arbitrary (unordered) subset. GROUP BY covers
+    // every matching row. Boundaries mirror the old bucket(): a null due date
+    // and anything up to 30 days overdue fall in "0-30".
+    const nowTs = new Date().toISOString();
+    const daysOverdue = sql`FLOOR(EXTRACT(EPOCH FROM (${nowTs}::timestamptz - ${invoices.dueDate})) / 86400)`;
+    const bucketExpr = sql<AgingBucket>`CASE
+      WHEN ${invoices.dueDate} IS NULL THEN '0-30'
+      WHEN ${daysOverdue} <= 30 THEN '0-30'
+      WHEN ${daysOverdue} <= 60 THEN '31-60'
+      WHEN ${daysOverdue} <= 90 THEN '61-90'
+      ELSE '90+'
+    END`;
+    const rows = (await db
       .select({
-        id: invoices.id,
-        amount: invoices.amount,
-        dueDate: invoices.dueDate,
-        status: invoices.status,
+        bucket: bucketExpr,
+        count: sql<number>`COUNT(*)::int`,
+        total: sql<string>`COALESCE(SUM(${invoices.amount}), 0)::text`,
       })
       .from(invoices)
       .where(
@@ -75,16 +80,15 @@ async function ageingPanel(
           inArray(invoices.status, ["pending", "approved", "overdue"]),
         ),
       )
-      .limit(2000);
+      // GROUP BY the output column's ordinal, not the CASE expression: the
+      // bucket expression carries a bound parameter (`now`), and re-emitting it
+      // in GROUP BY binds a different placeholder, so Postgres cannot match the
+      // two and rejects `due_date` as ungrouped (error 42803).
+      .groupBy(sql`1`)) as Array<{ bucket: AgingBucket; count: number; total: string }>;
     if (!rows.length) return null;
-    const now = new Date();
     const acc = new Map<AgingBucket, { count: number; total: number }>();
     for (const r of rows) {
-      const b = bucket(now, r.dueDate);
-      const cur = acc.get(b) ?? { count: 0, total: 0 };
-      cur.count += 1;
-      cur.total += Number(r.amount ?? "0");
-      acc.set(b, cur);
+      acc.set(r.bucket, { count: Number(r.count), total: Number(r.total) });
     }
     const order: AgingBucket[] = ["0-30", "31-60", "61-90", "90+"];
     return order.map((b) => ({
@@ -151,7 +155,7 @@ export async function buildFinanceOpsPayload({
         label: `${inv.invoiceNumber} — Awaiting approval`,
         hint: `${inv.flow.toUpperCase()} · ₹${inv.amount}`,
         severity: inv.daysOverdue > 30 ? "breach" : "warn",
-        href: `/app/finance/invoices/${inv.id}`,
+        href: `/app/financial/invoices/${inv.id}`,
       });
     }
   }
@@ -163,7 +167,8 @@ export async function buildFinanceOpsPayload({
         label: `${aged.count} AR invoices > 90 days`,
         hint: `Total exposure ₹${aged.totalAmount}`,
         severity: "breach",
-        href: "/app/finance/receivables",
+        // No dedicated receivables route; the financial module index lists them.
+        href: "/app/financial",
       });
     }
   }

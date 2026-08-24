@@ -183,7 +183,8 @@ export async function buildCompanySecretaryPayload({
         label: `${f.formNumber} ${dueInPhrase(f.daysToDeadline)}`,
         hint: `${f.authority} · ${f.title}`,
         severity: f.daysToDeadline < 0 ? "breach" : f.daysToDeadline <= 3 ? "warn" : "watch",
-        href: `/app/secretarial/filings/${f.id}`,
+        // No per-filing detail route exists; land on the secretarial index.
+        href: `/app/secretarial`,
         dueAt: f.dueDate,
       });
     }
@@ -196,7 +197,7 @@ export async function buildCompanySecretaryPayload({
         label: `Board pack draft — ${m.number}`,
         hint: m.title,
         severity: "watch",
-        href: `/app/secretarial/meetings/${m.id}`,
+        href: `/app/secretarial`,
       });
     }
   }

@@ -169,7 +169,7 @@ export async function buildSecOpsPayload({
         hint: a.title,
         severity:
           a.severity === "critical" || a.severity === "high" ? "breach" : "warn",
-        href: `/app/security/incidents/${a.id}`,
+        href: `/app/security/${a.id}`,
       });
     }
   }
@@ -181,7 +181,9 @@ export async function buildSecOpsPayload({
         label: `${v.cveId ?? v.title} — Remediation overdue`,
         hint: v.title,
         severity: "warn",
-        href: `/app/security/vulnerabilities/${v.id}`,
+        // No per-vulnerability detail route exists; land on the security module
+        // index rather than a 404.
+        href: `/app/security`,
       });
     }
   }

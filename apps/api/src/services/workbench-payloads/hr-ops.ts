@@ -220,7 +220,7 @@ export async function buildHrOpsPayload({
         label: `Leave approval pending — ${l.type}`,
         hint: `${l.days} days starting ${new Date(l.startDate).toLocaleDateString()}`,
         severity: "warn",
-        href: "/app/hr/leave",
+        href: "/app/hr",
       });
     }
   }
@@ -231,7 +231,7 @@ export async function buildHrOpsPayload({
         id: `case:${c.id}`,
         label: `${c.caseType} case — ${c.priority}`,
         severity: "watch",
-        href: `/app/hr/cases/${c.id}`,
+        href: `/app/hr/${c.id}`,
       });
     }
   }

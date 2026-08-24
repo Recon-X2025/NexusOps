@@ -9,7 +9,7 @@
  * Primary visual: control coverage matrix (control category × effectiveness rating).
  */
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   riskControls,
   riskControlEvidence,
@@ -68,24 +68,30 @@ export async function buildGrcPayload({
   orgId: string;
 }): Promise<GrcPayload> {
   const matrix = await runPanel<ControlMatrixCell[]>("grc.matrix", async () => {
-    const rows = await db
+    // Count per (category × effectiveness) in SQL. The previous version pulled
+    // `.limit(500)` controls and tallied them in memory, so an org with more
+    // than 500 controls got a coverage matrix built from an arbitrary subset.
+    // GROUP BY counts every control. Both columns are NOT NULL in the schema,
+    // so no null grouping key can appear.
+    const rows = (await db
       .select({
-        controlCategory: riskControls.controlCategory,
-        effectivenessRating: riskControls.effectivenessRating,
+        category: riskControls.controlCategory,
+        effectiveness: riskControls.effectivenessRating,
+        count: sql<number>`COUNT(*)::int`,
       })
       .from(riskControls)
       .where(eq(riskControls.orgId, orgId))
-      .limit(500);
+      .groupBy(riskControls.controlCategory, riskControls.effectivenessRating)) as Array<{
+      category: string;
+      effectiveness: string;
+      count: number;
+    }>;
     if (!rows.length) return null;
-    const counts = new Map<string, number>();
-    for (const r of rows) {
-      const key = `${r.controlCategory}::${r.effectivenessRating}`;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return Array.from(counts.entries()).map(([key, count]) => {
-      const [category, effectiveness] = key.split("::");
-      return { category: category!, effectiveness: effectiveness!, count };
-    });
+    return rows.map((r) => ({
+      category: r.category,
+      effectiveness: r.effectiveness,
+      count: Number(r.count),
+    }));
   });
 
   const controlAge = await runPanel<ControlAgeRow[]>("grc.controlAge", async () => {
@@ -175,7 +181,9 @@ export async function buildGrcPayload({
         label: `${c.controlNumber} — Evidence ${c.daysSinceEvidence}d old`,
         hint: c.title,
         severity: "warn",
-        href: `/app/security/controls/${c.controlId}`,
+        // No per-control detail route exists (`/app/grc/[id]` is a RISK detail,
+        // keyed by risk id, not a control id); land on the GRC module index.
+        href: `/app/grc`,
       });
     }
   }
@@ -186,7 +194,8 @@ export async function buildGrcPayload({
         label: `${f.findingNumber} — ${f.severity} finding`,
         hint: f.title,
         severity: f.severity === "critical" || f.severity === "high" ? "breach" : "warn",
-        href: `/app/security/findings/${f.id}`,
+        // No per-finding detail route exists; land on the GRC module index.
+        href: `/app/grc`,
       });
     }
   }

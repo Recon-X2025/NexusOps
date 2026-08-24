@@ -168,7 +168,7 @@ export async function buildProcurementPayload({
         label: `${p.poNumber} — Draft awaiting send`,
         hint: p.vendorName ? `${p.vendorName} · ₹${p.totalAmount}` : `₹${p.totalAmount}`,
         severity: "warn",
-        href: `/app/procurement/po/${p.id}`,
+        href: `/app/procurement/orders/${p.id}`,
       });
     }
   }

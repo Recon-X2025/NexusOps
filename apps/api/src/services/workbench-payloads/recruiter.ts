@@ -9,7 +9,7 @@
  * Primary visual: pipeline funnel + interview load (today's slots).
  */
 
-import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import {
   candidateApplications,
   candidates,
@@ -70,14 +70,18 @@ export async function buildRecruiterPayload({
   const endOf2Days = new Date(startOfDay.getTime() + 2 * 24 * 60 * 60 * 1000);
 
   const funnel = await runPanel<FunnelStage[]>("recruiter.funnel", async () => {
-    const rows = await db
-      .select({ stage: candidateApplications.stage })
+    // Count per stage in SQL. The previous version fetched `.limit(2000)`
+    // applications and tallied them in memory, so an org with more than 2,000
+    // applications reported a funnel built from an arbitrary subset. GROUP BY
+    // counts every application.
+    const rows = (await db
+      .select({ stage: candidateApplications.stage, count: sql<number>`COUNT(*)::int` })
       .from(candidateApplications)
       .where(eq(candidateApplications.orgId, orgId))
-      .limit(2000);
+      .groupBy(candidateApplications.stage)) as Array<{ stage: string; count: number }>;
     if (!rows.length) return null;
     const counts = new Map<string, number>();
-    for (const r of rows) counts.set(r.stage, (counts.get(r.stage) ?? 0) + 1);
+    for (const r of rows) counts.set(r.stage, Number(r.count));
     const order = ["applied", "screening", "phone_screen", "technical", "panel", "hr_round", "offer", "hired"];
     return order
       .map((stage) => ({ stage, count: counts.get(stage) ?? 0 }))
@@ -175,7 +179,8 @@ export async function buildRecruiterPayload({
         label: `Offer expiring — ${o.title}`,
         hint: o.candidateName ?? undefined,
         severity: "warn",
-        href: `/app/recruitment/offers/${o.id}`,
+        // No per-offer detail route exists; land on the recruitment index.
+        href: `/app/recruitment`,
       });
     }
   }
@@ -186,7 +191,7 @@ export async function buildRecruiterPayload({
         id: `interview-slot:${i.id}`,
         label: `Interview slot to fill — ${i.title}`,
         severity: "watch",
-        href: "/app/recruitment/interviews",
+        href: "/app/recruitment",
       });
     }
   }
