@@ -1691,10 +1691,36 @@ export const hrRouter = router({
         }),
       )
       .query(async ({ ctx, input }) => {
-        const { db, org } = ctx;
+        const { db, org, user } = ctx;
         const { payslips: payslipsTable, desc: descOp } = await import("@coheronconnect/db");
         const conditions = [eq(payslipsTable.orgId, org!.id)];
-        if (input.employeeId) conditions.push(eq(payslipsTable.employeeId, input.employeeId));
+        if (input.employeeId) {
+          // Own record, or hr:write for anyone. Closes the hr:read leak where any
+          // employee could read a colleague's payslip financials by id.
+          await assertSelfOrHrWriter(ctx, input.employeeId);
+          conditions.push(eq(payslipsTable.employeeId, input.employeeId));
+        } else {
+          // No target id: hr:write may list across the org; a self-service caller
+          // is scoped to their own employee record (never the whole org).
+          const hasHrWrite = checkDbUserPermission(
+            String(user!.role ?? ""),
+            "hr",
+            "write",
+            (user!.matrixRole as string | null | undefined) ?? null,
+            user!.customPermissions,
+          );
+          if (!hasHrWrite) {
+            const [own] = await db
+              .select({ id: employees.id })
+              .from(employees)
+              .where(and(eq(employees.userId, user!.id), eq(employees.orgId, org!.id)))
+              .limit(1);
+            if (!own) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "No employee record for this user." });
+            }
+            conditions.push(eq(payslipsTable.employeeId, own.id));
+          }
+        }
         if (input.year) conditions.push(eq(payslipsTable.year, input.year));
         return db
           .select()
@@ -1707,6 +1733,10 @@ export const hrRouter = router({
     computeCurrentSlip: permissionProcedure("hr", "read")
       .input(z.object({ employeeId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
+        // Self-service by design: your OWN slip, or hr:write for anyone. Without
+        // this, hr:read (which every employee holds) let any coworker read this
+        // employee's decrypted PAN, UAN and full salary.
+        await assertSelfOrHrWriter(ctx, input.employeeId);
         const { db, org } = ctx;
         const now = new Date();
         const month = now.getMonth() + 1;
@@ -1853,6 +1883,8 @@ export const hrRouter = router({
         }),
       )
       .query(async ({ ctx, input }) => {
+        // Self-service by design: your OWN slip, or hr:write for anyone.
+        await assertSelfOrHrWriter(ctx, input.employeeId);
         const { db, org } = ctx;
         const [emp] = await db
           .select()
@@ -1914,7 +1946,9 @@ export const hrRouter = router({
     // that writes payslips. Callers must use `payroll.runs` (createRun → advance
     // steps → computePayslips).
 
-    generateECR: permissionProcedure("hr", "read")
+    // Org-wide statutory export (every member's name, UAN and PF wages). Not
+    // self-service and not a read any employee should reach — require hr:write.
+    generateECR: permissionProcedure("hr", "write")
       .input(z.object({ month: z.number().int().min(1).max(12), year: z.number().int() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
