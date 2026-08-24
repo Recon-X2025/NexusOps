@@ -1,17 +1,17 @@
-import { tickets, ticketStatuses, eq, and, count, sql, gte, lte } from "@coheronconnect/db";
+import { tickets, ticketStatuses, eq, and, count, sql, gte, lte, notInArray } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import {
   alignSeries,
   buildTimeBuckets,
   emptyMetricValue,
   truncSqlExpression,
-  stateFromTrend,
+  stateFromFlowSeries,
 } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
 registerMetric({
   id: "tickets.open_total",
-  label: "Active requests",
+  label: "Active tickets",
   function: "it_services",
   dimension: "volume",
   direction: "lower_is_better",
@@ -25,7 +25,25 @@ registerMetric({
       .select({ c: count() })
       .from(tickets)
       .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
-      .where(and(eq(tickets.orgId, ctx.tenantId), eq(ticketStatuses.category, "open")));
+      /*
+       * ALL non-terminal work, which is what the description above has always
+       * claimed ("all tickets in an open workflow state").
+       *
+       * This filtered `category = 'open'` alone, so the 80 in_progress and 40
+       * pending tickets were excluded — a ticket someone is actively working was
+       * not counted as active. It reported 122 where genuinely active work was
+       * 242.
+       *
+       * The label was wrong too: of those 122, only 30 were requests — the rest
+       * were 32 incidents, 30 problems and 30 changes. It counts every type, so
+       * it is now "Active tickets".
+       */
+      .where(
+        and(
+          eq(tickets.orgId, ctx.tenantId),
+          notInArray(ticketStatuses.category, ["resolved", "closed"]),
+        ),
+      );
     const n = Number(row?.c ?? 0);
     const state = n === 0 ? "healthy" : n > 80 ? "stressed" : n > 50 ? "watch" : "healthy";
     return {
@@ -151,7 +169,7 @@ registerMetric({
     return {
       current: n,
       series,
-      state: stateFromTrend(n, series, "lower_is_better"),
+      state: stateFromFlowSeries(series, "lower_is_better"),
       lastUpdated: new Date(),
     };
   },
@@ -202,7 +220,7 @@ registerMetric({
     return {
       current: n,
       series,
-      state: stateFromTrend(n, series, "higher_is_better"),
+      state: stateFromFlowSeries(series, "higher_is_better"),
       lastUpdated: new Date(),
     };
   },

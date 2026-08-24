@@ -10,6 +10,7 @@ import "./devops";
 import "./legal";
 import "./strategy";
 import "./coo-cio";
+import "./flow";
 
 import { getAllMetricDefinitions, getAllRoles } from "../registry";
 

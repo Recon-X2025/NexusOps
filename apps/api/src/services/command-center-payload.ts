@@ -498,31 +498,37 @@ export async function buildCommandCenterPayload(input: {
       drillUrl: drillForMetric(m, tenantId),
     }));
 
+  /*
+   * PLATFORM-WIDE means every function, and every flow that function declares.
+   *
+   * This used to iterate a hardcoded ["it_services", "customer", "devops"] and
+   * then take `seeds[0]` — "the primary flow for the global view". Both halves
+   * understated the platform: five functions had no seed at all, and `customer`
+   * declares two flows (support cases AND new leads) of which only the first was
+   * counted. So the headline read 238 when its own parts summed to 258, and the
+   * customer hub disagreed with the platform about what that domain contains.
+   *
+   * Now: iterate all seeded functions, and all seeds within each — the same
+   * traversal `buildHubPayload` already does per function, so a hub and the
+   * platform can no longer disagree about a domain's composition.
+   */
   const flow: FlowItem[] = [];
-  const globalFlowFunctions: FunctionKey[] = ["it_services", "customer", "devops"];
-  
-  for (const fn of globalFlowFunctions) {
-    const seeds = HUB_FLOW_SEEDS[fn] ?? [];
-    if (seeds.length === 0) continue;
-    const seed = seeds[0]!; // Take the primary flow for the global view
-    const createdVal = byId[seed.createdId];
-    if (!createdVal) continue;
+  for (const fn of Object.keys(HUB_FLOW_SEEDS) as FunctionKey[]) {
+    for (const seed of HUB_FLOW_SEEDS[fn] ?? []) {
+      const createdVal = byId[seed.createdId];
+      if (!createdVal) continue;
 
-    const created = createdVal.current ?? 0;
-    let resolved = 0;
-    if (seed.resolvedRateId) {
-      const rate = byId[seed.resolvedRateId]?.current ?? 0;
-      resolved = Math.round(created * (rate / 100));
-    } else if (seed.resolvedId) {
-      resolved = byId[seed.resolvedId]?.current ?? 0;
+      const created = createdVal.current ?? 0;
+      let resolved = 0;
+      if (seed.resolvedRateId) {
+        const rate = byId[seed.resolvedRateId]?.current ?? 0;
+        resolved = Math.round(created * (rate / 100));
+      } else if (seed.resolvedId) {
+        resolved = byId[seed.resolvedId]?.current ?? 0;
+      }
+
+      flow.push({ function: fn, label: seed.label, created, resolved });
     }
-    
-    flow.push({ 
-      function: fn, 
-      label: seed.label, 
-      created, 
-      resolved 
-    });
   }
 
   const attention = buildAttention(role, view, byId, uniqueDefs, tenantId);
@@ -598,6 +604,46 @@ const HUB_FLOW_SEEDS: Partial<Record<FunctionKey, FlowSeed[]>> = {
       createdId: "devops.deploys_production_30d",
       resolvedId: "devops.deploys_production_30d",
       resolvedRateId: "devops.deploy_success_rate",
+    },
+  ],
+  // The five domains below had NO seed, so a platform-wide flow total spoke for
+  // three of eight functions. They had only snapshot metrics (open matters,
+  // headcount, open payables); `contributions/flow.ts` adds the in/out pair each
+  // one needs, counted from real date columns.
+  security: [
+    {
+      label: "Security incidents",
+      createdId: "security.incidents_opened_period",
+      resolvedId: "security.incidents_resolved_period",
+    },
+  ],
+  people: [
+    {
+      // A movement, not a level — `hr.headcount_active` is the level.
+      label: "Headcount movement",
+      createdId: "hr.joiners_period",
+      resolvedId: "hr.leavers_period",
+    },
+  ],
+  finance: [
+    {
+      label: "Invoices",
+      createdId: "financial.invoices_raised_period",
+      resolvedId: "financial.invoices_paid_period",
+    },
+  ],
+  legal: [
+    {
+      label: "Legal matters",
+      createdId: "legal.matters_opened_period",
+      resolvedId: "legal.matters_closed_period",
+    },
+  ],
+  strategy: [
+    {
+      label: "Approvals",
+      createdId: "approvals.raised_period",
+      resolvedId: "approvals.decided_period",
     },
   ],
 };

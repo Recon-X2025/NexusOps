@@ -235,3 +235,30 @@ export function stateFromTrend(
   if (deviation >= bands.watch) return "watch";
   return "healthy";
 }
+
+/**
+ * Posture for a FLOW/COUNT metric whose headline `current` is a total over the
+ * whole range, NOT a per-bucket value.
+ *
+ * `stateFromTrend` assumes the number you hand it is on the same scale as the
+ * series points — it compares `current` against the trailing per-bucket
+ * average. Flow resolvers were handing it the range TOTAL instead: on the
+ * default 180-day/monthly view (~7 buckets) a perfectly steady 50/month becomes
+ * `current = 350` judged against a baseline of 50, i.e. deviation = 6 → always
+ * "stressed" for lower_is_better and always "healthy" for higher_is_better,
+ * regardless of what actually happened.
+ *
+ * The honest question for a flow metric is "is the LATEST period off its recent
+ * normal?" — so judge the last bucket against the buckets before it. Returns
+ * `healthy` when there is no series to judge from.
+ */
+export function stateFromFlowSeries(
+  series: Array<{ t: string; v: number }> | undefined,
+  direction: "higher_is_better" | "lower_is_better",
+  bands: { watch: number; stressed: number } = { watch: 0.1, stressed: 0.3 },
+): "healthy" | "watch" | "stressed" {
+  const points = series ?? [];
+  if (points.length === 0) return "healthy";
+  const latest = points[points.length - 1]!.v;
+  return stateFromTrend(latest, points, direction, bands);
+}

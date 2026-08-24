@@ -1,6 +1,7 @@
 import { invoices, chartOfAccounts, eq, and, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { emptyMetricValue } from "../resolve-helpers";
+import { stateFromTrend } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
 type CoaRow = { type: string; currentBalance: string | null };
