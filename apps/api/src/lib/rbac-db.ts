@@ -69,6 +69,23 @@ export function systemRolesForDbUser(dbRole: string, matrixRole?: string | null)
   return baseRoles;
 }
 
+/**
+ * Custom-role permissions are stored in a CRUD+manage vocabulary
+ * (create/read/update/delete/manage — the `permission_action` enum), but the
+ * ~750 runtime gates use RbacAction (read/write/delete/admin/approve/assign/
+ * close). Without a mapping the stored `create`/`update`/`manage` never matched a
+ * write/admin gate, so a custom role that granted them silently authorised
+ * nothing on those procedures. Map each stored action to the RbacActions it
+ * confers. `manage` is full control of the resource.
+ */
+const CUSTOM_ACTION_GRANTS: Record<string, RbacAction[]> = {
+  read: ["read"],
+  create: ["write"],
+  update: ["write"],
+  delete: ["delete"],
+  manage: ["read", "write", "delete", "admin", "approve", "assign", "close"],
+};
+
 export function checkDbUserPermission(
   dbRole: string,
   module: Module,
@@ -76,7 +93,14 @@ export function checkDbUserPermission(
   matrixRole?: string | null,
   customPermissions?: { resource: string; action: string }[]
 ): boolean {
-  if (customPermissions && customPermissions.some(p => p.resource === module && p.action === action)) {
+  if (
+    customPermissions &&
+    customPermissions.some(
+      (p) =>
+        p.resource === module &&
+        (CUSTOM_ACTION_GRANTS[p.action] ?? [p.action as RbacAction]).includes(action),
+    )
+  ) {
     return true;
   }
   return hasPermission(systemRolesForDbUser(dbRole, matrixRole), module, action);
