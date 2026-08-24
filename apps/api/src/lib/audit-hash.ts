@@ -175,7 +175,23 @@ export async function appendAuditEntry(db: any, entry: AuditEntryInput) {
           .values({ orgId: entry.orgId, maxSeq: seq, headHash: entryHash })
           .onConflictDoUpdate({
             target: auditChainAnchors.orgId,
-            set: { maxSeq: seq, headHash: entryHash, updatedAt: new Date() },
+            set: {
+              // MONOTONIC ANCHOR. A tail truncation shortens the live chain, so
+              // the next append derives `seq` from the truncated head and it can
+              // be <= the stored maxSeq. Setting maxSeq unconditionally would
+              // REGRESS the anchor to the truncated length — silently healing the
+              // break so `verifyAuditChain` (which compares the live head against
+              // this anchor) could no longer see it. Keep the high-water mark.
+              maxSeq: sql`GREATEST(${auditChainAnchors.maxSeq}, ${seq})`,
+              // Advance the head hash only when this append is genuinely past the
+              // recorded head; otherwise preserve the head that matches maxSeq.
+              headHash: sql`CASE WHEN ${seq} > ${auditChainAnchors.maxSeq} THEN ${entryHash} ELSE ${auditChainAnchors.headHash} END`,
+              // A seq at or below the recorded head means rows were removed under
+              // us — record the break at once so verification/alerting see it, and
+              // never auto-reset it (only the backfill/verifier clears 'broken').
+              status: sql`CASE WHEN ${seq} <= ${auditChainAnchors.maxSeq} THEN 'broken'::audit_chain_status ELSE ${auditChainAnchors.status} END`,
+              updatedAt: new Date(),
+            },
           });
 
         return row;
