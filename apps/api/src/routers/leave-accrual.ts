@@ -175,7 +175,7 @@ export const leaveAccrualRouter = router({
      * were actually new, so a second call honestly returns 0 rather than
      * claiming it did work.
      */
-    seedDefaults: permissionProcedure("hr", "approve").mutation(async ({ ctx }) => {
+    seedDefaults: permissionProcedure("hr", "approve").input(z.object({}).optional()).mutation(async ({ ctx }) => {
       const { db, org } = ctx;
       const before = await db
         .select({ type: leavePolicies.type })
