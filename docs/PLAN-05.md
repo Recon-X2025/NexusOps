@@ -1,5 +1,10 @@
 # PLAN — 05
 
+> **RETIRED — rolled over to `docs/PLAN-06.md` on 2026-08-25 (run 18).** CURRENT
+> STATE and THE QUEUE were carried forward there; this file is kept only for the
+> RUN LOG of runs 12–17 below. Do not plan from this file — read the newest
+> `PLAN-*.md`.
+
 **This is the single reference file for a new session. Read it first.**
 
 Operating rules stay in `CLAUDE.md`. Everything about *what is true now* and *what
@@ -434,9 +439,8 @@ gap-fix, and it is not in the queue until someone makes it.
 
 _Newest first. One entry per run, including runs that changed nothing._
 
-> **PLAN-06 ROLLOVER DUE** — this file is over the 500-line cap. Next session:
-> create `docs/PLAN-06.md`, carry CURRENT STATE + THE QUEUE forward, leave this
-> RUN LOG behind, put a pointer at the top here.
+> **PLAN-06 ROLLOVER DONE (2026-08-25, run 18).** CURRENT STATE + THE QUEUE moved
+> to `docs/PLAN-06.md`; this RUN LOG (runs 12–17) stays here as history.
 
 ## 2026-08-24 — run 17 (product-wide HIGH campaign — all 14 HIGH fixed + tested)
 
