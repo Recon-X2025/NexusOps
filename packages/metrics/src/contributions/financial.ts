@@ -4,8 +4,6 @@ import { emptyMetricValue } from "../resolve-helpers";
 import { stateFromTrend } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
-type CoaRow = { type: string; currentBalance: string | null };
-
 /** Trailing window (months) used to derive an average monthly burn rate. */
 const BURN_WINDOW_MONTHS = 3;
 
@@ -77,24 +75,43 @@ registerMetric({
 
 registerMetric({
   id: "financial.burn_rate",
-  label: "Expense run rate (COA)",
+  label: "Expense run rate (period)",
   function: "finance",
   dimension: "volume",
   direction: "lower_is_better",
   unit: "currency_inr",
-  description: "Sum of expense account balances — proxy burn until cash actuals feed this metric.",
+  description:
+    "Net expense posted to the ledger within the selected period (posted journal lines on expense accounts).",
   drillUrl: "/app/finance/accounting/pnl",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
-    const accounts = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.orgId, ctx.tenantId));
-    const expenses = (accounts as CoaRow[]).filter((a) => a.type === "expense");
-    const burn = expenses.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
-    if (accounts.length === 0) {
+    // Was: sum of cumulative expense-account balances. Those never period-close,
+    // so the number only grew and any real org tripped the fixed watch line
+    // within months and stayed there. Chart-of-accounts balances carry no date to
+    // window on, so — exactly as cash_runway_months does — this now sums POSTED
+    // expense journal lines DATED within the metric range, a real period figure
+    // that recedes when spend does.
+    const [row] = (await db.execute(sql`
+      SELECT COALESCE(SUM(jel.debit_amount - jel.credit_amount), 0)::float8 AS net_expense,
+             COUNT(*)::int AS lines
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        JOIN chart_of_accounts coa ON coa.id = jel.account_id
+       WHERE jel.org_id = ${ctx.tenantId}
+         AND je.status = 'posted'
+         AND coa.type = 'expense'
+         AND je.date >= ${ctx.range.start.toISOString()}
+         AND je.date <= ${ctx.range.end.toISOString()}
+    `)) as Array<{ net_expense: number; lines: number }>;
+    // No posted expense activity in the window is indistinguishable from an empty
+    // tenant — report no_data rather than a confident zero.
+    if (Number(row?.lines ?? 0) === 0) {
       return emptyMetricValue("no_data");
     }
+    const burn = Math.max(0, Number(row?.net_expense ?? 0));
     return {
       current: burn,
-      // Snapshot of current ledger balances — no historical period closes stored.
+      // Period total; a per-bucket burn trend needs journal-date bucketing.
       series: [],
       state: burn > 1_000_000 ? "watch" : "healthy",
       lastUpdated: new Date(),

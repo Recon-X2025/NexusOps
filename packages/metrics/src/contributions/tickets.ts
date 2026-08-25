@@ -77,12 +77,23 @@ registerMetric({
   drillUrl: "/app/tickets",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
+    // Headline compliance is scoped to the SAME period window as the trend below
+    // (tickets created within the range), not lifetime. Lifetime counts made the
+    // light stick: a burst of breaches last year kept the state red forever even
+    // after a flawless recent stretch, while the trend line beside it read 100%.
+    const inRange = and(
+      gte(tickets.createdAt, ctx.range.start),
+      lte(tickets.createdAt, ctx.range.end),
+    );
     const [[totalRow], [breachRow]] = await Promise.all([
-      db.select({ c: count() }).from(tickets).where(eq(tickets.orgId, ctx.tenantId)),
       db
         .select({ c: count() })
         .from(tickets)
-        .where(and(eq(tickets.orgId, ctx.tenantId), eq(tickets.slaBreached, true))),
+        .where(and(eq(tickets.orgId, ctx.tenantId), inRange)),
+      db
+        .select({ c: count() })
+        .from(tickets)
+        .where(and(eq(tickets.orgId, ctx.tenantId), eq(tickets.slaBreached, true), inRange)),
     ]);
     const total = Number(totalRow?.c ?? 0);
     if (total === 0) {

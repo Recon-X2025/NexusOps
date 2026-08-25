@@ -64,15 +64,39 @@ registerMetric({
       );
     const n = Number(row?.c ?? 0);
 
-    // Series = incidents created per bucket in the metric range (real history).
+    // Series = incidents OPEN at the close of each bucket — the same quantity as
+    // `current`, measured over time. It used to be incidents CREATED per bucket,
+    // a different quantity entirely: the headline read "open now" above a chart
+    // of arrivals, so the two disagreed and the final point never matched the
+    // number printed above it. Same reconstruction as legal.open_matters.
+    //   PRESENT: the record's own status is authoritative, exactly as the
+    //   headline reads it, so the final bucket reconciles with the KPI.
+    //   PAST: resolved_at reconstructs when an incident stopped being open.
+    //   A bucket is never measured beyond now() — a future state is not a
+    //   measurement.
     const trunc = truncSqlExpression(ctx.range.granularity);
     const rows = (await db.execute(sql`
-      SELECT DATE_TRUNC(${sql.raw(`'${trunc}'`)}, created_at) AS period,
-             COUNT(*)::int AS value
-        FROM security_incidents
-       WHERE org_id = ${ctx.tenantId}
-         AND created_at >= ${ctx.range.start.toISOString()}
-         AND created_at <= ${ctx.range.end.toISOString()}
+      WITH buckets AS (
+        SELECT generate_series(
+                 DATE_TRUNC(${sql.raw(`'${trunc}'`)}, ${ctx.range.start.toISOString()}::timestamptz),
+                 DATE_TRUNC(${sql.raw(`'${trunc}'`)}, ${ctx.range.end.toISOString()}::timestamptz),
+                 ${sql.raw(`'1 ${trunc}'`)}::interval
+               ) AS period
+      )
+      SELECT b.period AS period,
+             COUNT(si.id)::int AS value
+        FROM buckets b
+        LEFT JOIN security_incidents si
+          ON si.org_id = ${ctx.tenantId}
+         AND si.created_at < b.period + ${sql.raw(`'1 ${trunc}'`)}::interval
+         AND (
+               CASE
+                 WHEN b.period + ${sql.raw(`'1 ${trunc}'`)}::interval >= now()
+                   THEN si.status NOT IN ('closed', 'false_positive')
+                 ELSE si.status NOT IN ('closed', 'false_positive')
+                   OR si.resolved_at >= b.period + ${sql.raw(`'1 ${trunc}'`)}::interval
+               END
+             )
        GROUP BY 1
        ORDER BY 1
     `)) as Array<{ period: unknown; value: number }>;

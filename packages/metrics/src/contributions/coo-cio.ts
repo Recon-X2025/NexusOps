@@ -21,6 +21,12 @@ registerMetric({
       // A delivery-SLA breach = goods received (GRN) after the PO's committed
       // expected-delivery date. Counted at the GRN grain so multiple late
       // receipts against one PO each register. Skips POs with no committed date.
+      //
+      // Scoped to receipts LOGGED WITHIN the metric range, not every late GRN
+      // ever: an all-time count only grows, so any org that once had six late
+      // deliveries was pinned "stressed" forever, unrecoverable without deleting
+      // history. Windowing on grn_date lets the light heal once late receipts age
+      // out of the period.
       const rows = (await db.execute(sql`
         SELECT COUNT(*)::text AS breaches
           FROM goods_receipt_notes g
@@ -28,11 +34,13 @@ registerMetric({
          WHERE po.org_id = ${ctx.tenantId}
            AND po.expected_delivery IS NOT NULL
            AND g.grn_date > po.expected_delivery
+           AND g.grn_date >= ${ctx.range.start.toISOString()}
+           AND g.grn_date <= ${ctx.range.end.toISOString()}
       `)) as Array<{ breaches: string }>;
       const n = Number(rows[0]?.breaches ?? 0);
       return {
         current: n,
-        // Breach count is a running total; a trend needs per-period bucketing.
+        // Breaches within the period; a per-bucket trend needs GRN-date bucketing.
         series: [],
         state: n === 0 ? "healthy" : n > 5 ? "stressed" : "watch",
         lastUpdated: new Date(),

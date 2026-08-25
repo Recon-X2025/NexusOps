@@ -28,6 +28,9 @@ import {
   journalEntries,
   journalEntryLines,
   employees,
+  tickets,
+  ticketStatuses,
+  securityIncidents,
 } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 import { initTestEnvironment, testDb, seedTestOrg, seedUser } from "./helpers";
@@ -198,6 +201,24 @@ describe("coo.vendor_sla_breaches counts late deliveries", () => {
       .values({ orgId, poNumber: "PO-EARLY", vendorId: vendor!.id, totalAmount: "500", expectedDelivery: daysAgo(2) })
       .returning();
     await db.insert(goodsReceiptNotes).values({ orgId, grnNumber: "GRN-E", poId: po!.id, grnDate: daysAgo(5) });
+
+    const v = await getMetric("coo.vendor_sla_breaches")!.resolve(ctxFor(orgId, orgId));
+    expect(v.current).toBe(0);
+    expect(v.state).toBe("healthy");
+  });
+
+  it("excludes late receipts before the period so the light can recover", async () => {
+    // H3: the count used to be every late GRN ever, so an org that once had late
+    // deliveries stayed stressed forever. A breach received 200d ago is outside
+    // the 120d range and must no longer count.
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    const [vendor] = await db.insert(vendors).values({ orgId, name: "Recovered vendor" }).returning();
+    const [po] = await db
+      .insert(purchaseOrders)
+      .values({ orgId, poNumber: "PO-OLD", vendorId: vendor!.id, totalAmount: "1000", expectedDelivery: daysAgo(220) })
+      .returning();
+    await db.insert(goodsReceiptNotes).values({ orgId, grnNumber: "GRN-OLD", poId: po!.id, grnDate: daysAgo(200) });
 
     const v = await getMetric("coo.vendor_sla_breaches")!.resolve(ctxFor(orgId, orgId));
     expect(v.current).toBe(0);
@@ -382,5 +403,135 @@ describe("hr.headcount_active counts active employees with a trend", () => {
     const { orgId } = await seedTestOrg();
     const v = await getMetric("hr.headcount_active")!.resolve(ctxFor(orgId, orgId));
     expect(v.state).toBe("no_data");
+  });
+});
+
+describe("tickets.sla_compliance is scoped to the period, not lifetime", () => {
+  /**
+   * H3. The headline % used to count every ticket the org ever had, so a burst
+   * of breaches long ago pinned the light red forever while the trend beside it
+   * read 100%. The headline is now scoped to the SAME created-in-range window as
+   * the trend, so a stale breach cannot drag it.
+   */
+  it("an out-of-window breach does not lower the current compliance", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    const { userId } = await seedUser(orgId);
+    const [status] = await db
+      .insert(ticketStatuses)
+      .values({ orgId, name: "Open", category: "open" })
+      .returning();
+    const mk = (num: string, created: Date, breached: boolean) =>
+      db.insert(tickets).values({
+        orgId,
+        number: num,
+        title: num,
+        statusId: status!.id,
+        requesterId: userId,
+        createdAt: created,
+        slaBreached: breached,
+      });
+
+    // In window (< 120d): four clean tickets → 100% compliant.
+    await mk("T-1", daysAgo(10), false);
+    await mk("T-2", daysAgo(20), false);
+    await mk("T-3", daysAgo(30), false);
+    await mk("T-4", daysAgo(40), false);
+    // Out of window (200d ago): a breach that must NOT count. Under the old
+    // lifetime logic this made it 4/5 = 80% (stressed).
+    await mk("T-OLD", daysAgo(200), true);
+
+    const v = await getMetric("tickets.sla_compliance")!.resolve(ctxFor(orgId, orgId));
+    expect(v.current).toBe(100);
+    expect(v.state).toBe("healthy");
+  });
+});
+
+describe("financial.burn_rate sums posted expense within the period", () => {
+  /** Seed a posted expense journal of `amount` dated `date`. */
+  async function seedExpensePosting(
+    orgId: string,
+    expenseAccountId: string,
+    cashAccountId: string,
+    amount: string,
+    date: Date,
+    n: number,
+  ) {
+    const db = testDb();
+    const [je] = await db
+      .insert(journalEntries)
+      .values({ orgId, number: `JE-BR-${n}`, date, type: "manual", status: "posted" })
+      .returning();
+    await db.insert(journalEntryLines).values([
+      { orgId, journalEntryId: je!.id, accountId: expenseAccountId, debitAmount: amount, creditAmount: "0" },
+      { orgId, journalEntryId: je!.id, accountId: cashAccountId, debitAmount: "0", creditAmount: amount },
+    ]);
+  }
+
+  it("counts posted expense lines in range and ignores out-of-window postings", async () => {
+    // H3: this used to sum cumulative COA balances, which never period-close, so
+    // it only grew and tripped the fixed watch line permanently. It now sums
+    // dated postings within the range, exactly as cash_runway_months does.
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    const [cash] = await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "1000", name: "Bank", type: "asset", subType: "bank", currentBalance: "0" })
+      .returning();
+    const [expense] = await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "5000", name: "Opex", type: "expense", subType: "expense", currentBalance: "0" })
+      .returning();
+
+    // In window: 50,000 + 30,000 = 80,000.
+    await seedExpensePosting(orgId, expense!.id, cash!.id, "50000", daysAgo(10), 1);
+    await seedExpensePosting(orgId, expense!.id, cash!.id, "30000", daysAgo(60), 2);
+    // Out of window (200d ago, before the 120d range start) — must be ignored.
+    await seedExpensePosting(orgId, expense!.id, cash!.id, "900000", daysAgo(200), 3);
+
+    const v = await getMetric("financial.burn_rate")!.resolve(ctxFor(orgId, orgId));
+    expect(v.current).toBe(80000);
+    expect(v.state).toBe("healthy"); // 80,000 < 1,000,000 watch line
+  });
+
+  it("reports no_data when no expense is posted in the period", async () => {
+    const { orgId } = await seedTestOrg();
+    // A cumulative balance with no dated postings must NOT read as a confident 0.
+    const db = testDb();
+    await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "5000", name: "Opex", type: "expense", subType: "expense", currentBalance: "750000" });
+
+    const v = await getMetric("financial.burn_rate")!.resolve(ctxFor(orgId, orgId));
+    expect(v.state).toBe("no_data");
+  });
+});
+
+describe("security.incidents_open_total series reconciles with the headline", () => {
+  /**
+   * H3 (same defect legal.open_matters fixed). The headline was "open now" while
+   * the series was "created per bucket" — two quantities under one card. The
+   * series is now incidents open AT each bucket, so the last point matches the
+   * headline, and resolved/false-positive incidents are excluded from both.
+   */
+  it("headline = open now, and the last bucket equals it", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    await db.insert(securityIncidents).values([
+      { orgId, number: "INC-1", title: "Phishing", status: "new", createdAt: daysAgo(60) },
+      { orgId, number: "INC-2", title: "Malware", status: "triage", createdAt: daysAgo(30) },
+      { orgId, number: "INC-3", title: "Handled", status: "closed", createdAt: daysAgo(50), resolvedAt: daysAgo(20) },
+      { orgId, number: "INC-4", title: "False alarm", status: "false_positive", createdAt: daysAgo(15), resolvedAt: daysAgo(14) },
+    ]);
+
+    const v = await getMetric("security.incidents_open_total")!.resolve(ctxFor(orgId, orgId));
+
+    // open now = INC-1 + INC-2 (closed + false_positive excluded).
+    expect(v.current).toBe(2);
+    expect(v.series.length).toBeGreaterThan(0);
+    // The point of the fix: the last bucket agrees with the headline.
+    expect(v.series[v.series.length - 1]!.v).toBe(v.current);
+    // No bucket exceeds the number of incidents ever created in-window.
+    for (const p of v.series) expect(p.v).toBeLessThanOrEqual(4);
   });
 });
