@@ -74,7 +74,15 @@ registerMetric({
       lastUpdated: new Date(),
     };
   },
-  appearsIn: [],
+  // H6: was []. With no appearsIn the metric entered no role's set, so the CIO
+  // attention rule `devops.deploy_success_rate → state_is_stressed` (roles.ts)
+  // was permanently inert and the devops heatmap row read "—". Surface it to the
+  // CIO, who owns the devops function.
+  appearsIn: [
+    { role: "cio", surface: "heatmap", priority: 15 },
+    { role: "cio", surface: "trend", priority: 20 },
+    { role: "cio", surface: "attention", priority: 15 },
+  ],
 });
 
 registerMetric({
@@ -117,5 +125,9 @@ registerMetric({
       lastUpdated: new Date(),
     };
   },
-  appearsIn: [],
+  // H6: was []. Surface the production-deploy volume on the CIO devops row/flow.
+  appearsIn: [
+    { role: "cio", surface: "heatmap", priority: 16 },
+    { role: "cio", surface: "flow", priority: 40 },
+  ],
 });
