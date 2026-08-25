@@ -610,7 +610,12 @@ async function bootstrap() {
     }
 
     try {
-      const searchUrl = process.env["MEILISEARCH_HOST"] ?? "http://localhost:7700";
+      // Canonical var is MEILISEARCH_URL (used by services/search.ts and the
+      // compose files). This check read MEILISEARCH_HOST, which prod does not
+      // set, so it fell back to localhost and reported search=error — a false
+      // alarm that also dragged /ready to not_ready — while search worked fine.
+      const searchUrl =
+        process.env["MEILISEARCH_URL"] ?? process.env["MEILISEARCH_HOST"] ?? "http://localhost:7700";
       const resp = await fetch(`${searchUrl}/health`, { signal: AbortSignal.timeout(3000) });
       checks["search"] = resp.ok ? "ok" : "error";
     } catch {
