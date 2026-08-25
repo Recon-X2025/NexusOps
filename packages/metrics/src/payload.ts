@@ -47,7 +47,9 @@ export interface TrendMetric {
   state: "healthy" | "watch" | "stressed" | "no_data";
   cellState: MetricCellState;
   direction: "higher_is_better" | "lower_is_better";
-  series: Array<{ t: string; v: number }>;
+  // `k` is the year-aware bucket key (ISO YYYY-MM-DD); clients aligning multiple
+  // series onto one axis must dedup/order on it, not the display label `t`.
+  series: Array<{ t: string; v: number; k?: string }>;
   /** Categorical distribution (buckets), when the metric is a distribution. */
   categories?: CategoryPoint[];
   /** Scatter/bubble points, when the metric is a matrix. */
