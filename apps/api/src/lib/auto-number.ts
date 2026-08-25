@@ -28,6 +28,10 @@ const COUNTER_SPECS: ReadonlyArray<{
   { entity: "WO",   table: "work_orders",        column: "number"          },
   { entity: "PR",   table: "purchase_requests",  column: "number"          },
   { entity: "PO",   table: "purchase_orders",    column: "po_number"       },
+  // GRN numbers are minted via getNextNumber(..., "GRN"); without this entry the
+  // startup sync never reconciles the counter with existing goods_receipt_notes
+  // rows, so a counter reset re-mints duplicate GRN numbers.
+  { entity: "GRN",  table: "goods_receipt_notes", column: "grn_number"     },
   { entity: "HRC",  table: "hr_cases",           column: "number"          },
   { entity: "CTL",  table: "risk_controls",      column: "control_number"  },
   { entity: "FND",  table: "audit_findings",     column: "finding_number"  },

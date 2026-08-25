@@ -71,8 +71,11 @@ describe("cross-tenant child-table writes are refused (BLOCKER regression)", () 
 
     const bCaller = procurementRouter.createCaller(makeContext(uB, b.orgId));
 
-    // Attack 1: receive on B's OWN po but reference A's line item — must not touch it.
-    await bCaller.purchaseOrders.receive({ id: poB!.id, lineItems: [{ lineItemId: lineA!.id, receivedQty: 999 }] });
+    // Attack 1: receive on B's OWN po but reference A's line item — now rejected
+    // explicitly (the line is not on this PO), where it used to silently no-op.
+    await expect(
+      bCaller.purchaseOrders.receive({ id: poB!.id, lineItems: [{ lineItemId: lineA!.id, receivedQty: 999 }] }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     const [after1] = await db.select().from(poLineItems).where(eq(poLineItems.id, lineA!.id));
     expect(after1!.receivedQuantity).toBe(0);
 
@@ -82,5 +85,35 @@ describe("cross-tenant child-table writes are refused (BLOCKER regression)", () 
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     const [after2] = await db.select().from(poLineItems).where(eq(poLineItems.id, lineA!.id));
     expect(after2!.receivedQuantity).toBe(0);
+  });
+
+  it("purchaseOrders.receive rejects over-receipt beyond the ordered quantity (MED4)", async () => {
+    const db = testDb();
+    const a = await seedTestOrg();
+    const { userId: uA } = await seedUser(a.orgId);
+    const [ven] = await db.insert(vendors).values({ orgId: a.orgId, name: "Vendor" }).returning();
+    const [po] = await db
+      .insert(purchaseOrders)
+      .values({ orgId: a.orgId, poNumber: `PO-${nanoid(4)}`, vendorId: ven!.id, totalAmount: "100" })
+      .returning();
+    const [line] = await db
+      .insert(poLineItems)
+      .values({ poId: po!.id, description: "Widgets", quantity: 5, receivedQuantity: 0 })
+      .returning();
+
+    const caller = procurementRouter.createCaller(makeContext(uA, a.orgId));
+
+    // Over-receipt (6 > 5 ordered) is rejected and writes nothing.
+    await expect(
+      caller.purchaseOrders.receive({ id: po!.id, lineItems: [{ lineItemId: line!.id, receivedQty: 6 }] }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const [afterReject] = await db.select().from(poLineItems).where(eq(poLineItems.id, line!.id));
+    expect(afterReject!.receivedQuantity).toBe(0);
+
+    // Receiving up to the ordered quantity succeeds and marks the PO received.
+    const updated = await caller.purchaseOrders.receive({ id: po!.id, lineItems: [{ lineItemId: line!.id, receivedQty: 5 }] });
+    expect(updated!.status).toBe("received");
+    const [afterOk] = await db.select().from(poLineItems).where(eq(poLineItems.id, line!.id));
+    expect(afterOk!.receivedQuantity).toBe(5);
   });
 });

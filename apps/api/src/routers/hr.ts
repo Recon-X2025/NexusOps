@@ -1542,49 +1542,54 @@ export const hrRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Last working day cannot be before the join date." });
         }
 
-        // 1. Create HR case of type "offboarding"
-        const [hrCase] = await db
-          .insert(hrCases)
-          .values({
-            orgId: org!.id,
-            number: await getNextNumber(db, org!.id, "HRC"),
-            employeeId: input.employeeId,
-            caseType: "offboarding",
-            status: "open",
-            notes: `Offboarding case for ${input.name}`,
-          })
-          .returning();
+        // The three writes (HR case, offboarding details, employee exit date)
+        // must land together — a mid-way failure otherwise orphans an HR case
+        // and leaves the employee with no recorded exit date. One transaction.
+        return await db.transaction(async (tx) => {
+          // 1. Create HR case of type "offboarding"
+          const [hrCase] = await tx
+            .insert(hrCases)
+            .values({
+              orgId: org!.id,
+              number: await getNextNumber(tx, org!.id, "HRC"),
+              employeeId: input.employeeId,
+              caseType: "offboarding",
+              status: "open",
+              notes: `Offboarding case for ${input.name}`,
+            })
+            .returning();
 
-        // 2. Create offboarding details record
-        const [details] = await db
-          .insert(offboardingDetails)
-          .values({
-            orgId: org!.id,
-            employeeId: input.employeeId,
-            name: input.name,
-            separationDocs: input.separationDocs,
-            clearanceDocs: input.clearanceDocs,
-            securityClearance: input.securityClearance,
-            status: input.status ?? "pending",
-            ffStatus: input.ffStatus ?? "pending",
-          })
-          .returning();
+          // 2. Create offboarding details record
+          const [details] = await tx
+            .insert(offboardingDetails)
+            .values({
+              orgId: org!.id,
+              employeeId: input.employeeId,
+              name: input.name,
+              separationDocs: input.separationDocs,
+              clearanceDocs: input.clearanceDocs,
+              securityClearance: input.securityClearance,
+              status: input.status ?? "pending",
+              ffStatus: input.ffStatus ?? "pending",
+            })
+            .returning();
 
-        // 3. EXIT-DATE: record the last working day on the employee — this is the field the
-        // payroll engine reads to pro-rate the final month and select the leaver into the run.
-        // Flip status to "offboarded" ONLY once the last working day has passed; a future-dated
-        // exit stays in its current status (working out notice) while endDate does the work.
-        const hasLeft = lastWorkingDay.getTime() <= Date.now();
-        await db
-          .update(employees)
-          .set({
-            endDate: lastWorkingDay,
-            ...(input.status === "completed" && hasLeft ? { status: "offboarded" as const } : {}),
-            updatedAt: new Date(),
-          })
-          .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
+          // 3. EXIT-DATE: record the last working day on the employee — this is the field the
+          // payroll engine reads to pro-rate the final month and select the leaver into the run.
+          // Flip status to "offboarded" ONLY once the last working day has passed; a future-dated
+          // exit stays in its current status (working out notice) while endDate does the work.
+          const hasLeft = lastWorkingDay.getTime() <= Date.now();
+          await tx
+            .update(employees)
+            .set({
+              endDate: lastWorkingDay,
+              ...(input.status === "completed" && hasLeft ? { status: "offboarded" as const } : {}),
+              updatedAt: new Date(),
+            })
+            .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
 
-        return { hrCase, details };
+          return { hrCase, details };
+        });
       }),
   }),
 

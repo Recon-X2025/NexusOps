@@ -183,21 +183,26 @@ export async function runRetentionSweep(db: Db, batchSize = 500): Promise<SweepR
         }
       }
 
-      await db.delete(documents).where(eq(documents.id, row.id));
-
-      await appendAuditEntry(db, {
-        orgId: row.orgId,
-        action: "document.retention.purged",
-        resourceType: "document",
-        resourceId: row.id,
-        changes: {
-          name: row.name,
-          policyId: row.policyId,
-          policyName: row.policyName,
-          retentionDays: days,
-          softDeletedAt: row.deletedAt,
-          versionsRemoved: versions.length,
-        },
+      // The purge and its audit entry must commit together — a permanent
+      // deletion that isn't recorded is exactly what the retention audit exists
+      // to prevent. (Object-store deletes above are best-effort and logged;
+      // they cannot join a DB transaction.)
+      await db.transaction(async (tx) => {
+        await tx.delete(documents).where(eq(documents.id, row.id));
+        await appendAuditEntry(tx, {
+          orgId: row.orgId,
+          action: "document.retention.purged",
+          resourceType: "document",
+          resourceId: row.id,
+          changes: {
+            name: row.name,
+            policyId: row.policyId,
+            policyName: row.policyName,
+            retentionDays: days,
+            softDeletedAt: row.deletedAt,
+            versionsRemoved: versions.length,
+          },
+        });
       });
 
       result.hardDeleted++;

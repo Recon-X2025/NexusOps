@@ -821,6 +821,30 @@ export const procurementRouter = router({
             .limit(1);
           if (!po) throw new TRPCError({ code: "NOT_FOUND" });
 
+          // Ordered quantities for this PO, to validate the request BEFORE writing.
+          const orderedById = new Map(
+            (await tx.select().from(poLineItems).where(eq(poLineItems.poId, input.id))).map(
+              (li: typeof poLineItems.$inferSelect) => [li.id, li.quantity],
+            ),
+          );
+
+          for (const item of input.lineItems) {
+            const ordered = orderedById.get(item.lineItemId);
+            // A line id that isn't on this PO (or another tenant's) must not write.
+            if (ordered === undefined) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: `Line item ${item.lineItemId} is not on this purchase order` });
+            }
+            // Reject over-receipt: received can never exceed what was ordered.
+            // Without this a caller could set any receivedQty (e.g. 10000 on an
+            // order of 5), silently corrupting the 3-way match downstream.
+            if (item.receivedQty > ordered) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Received quantity ${item.receivedQty} exceeds ordered ${ordered} for line ${item.lineItemId}`,
+              });
+            }
+          }
+
           for (const item of input.lineItems) {
             await tx
               .update(poLineItems)
