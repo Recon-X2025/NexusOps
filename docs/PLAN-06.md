@@ -46,9 +46,11 @@ _Deploy facts verified 2026-08-25 against the repo (`git log`, `gh run list`). T
 isolation model below was established by experiment on 2026-08-23 and is carried
 forward unchanged; where a line was only read in code, it says so._
 
-**Deployed:** `origin/main` = `2a4b659` (batch 4: storage-off graceful
-degradation + search health-check fix). CI run `32849481618` **success** through
-`Deploy to Vultr` (2026-08-25). **Prod is now `status: ok` / `ready`** — the
+**Deployed:** `origin/main` = `e240da0` (batch 5: MED6 Form 16 HRA + LOW2 secure
+impersonation, migration 0104). CI run `32866256526` **success** through
+`Deploy to Vultr` (2026-08-25); live `/api/health` = `e240da0…`, api booted so
+migration 0104 applied. Prior batch 4 (`2a4b659`, run `32849481618`) fixed the
+search health false-alarm. **Prod is `status: ok` / `ready`** — the
 search health check was reading `MEILISEARCH_HOST` while prod sets
 `MEILISEARCH_URL`, so it falsely reported `search: error` and `not_ready`; fixed,
 live `/health/detailed` now shows `search: ok`. Four deploys shipped 2026-08-25:
@@ -56,10 +58,10 @@ live `/health/detailed` now shows `search: ok`. Four deploys shipped 2026-08-25:
 `be3a9ae` (batch 3: MED2/10/12 + MED6 engine + trend fix, migration 0103),
 `2a4b659` (batch 4). "Live" = the terminal Deploy job.
 
-**Batch 5 built + tested, UNPUSHED (3 commits ahead):** MED6 Form 16 HRA
-(`f522de3`) + LOW2 secure impersonation (`636a66b`, migration 0104) + docs. Gates:
-build 11/11, `lint:cold` 9/9, affected suites 26/26. **Carries migration 0104 →
-the push needs a fresh Vultr snapshot.**
+**Batch 5 — DEPLOYED (`e240da0`, run 32866256526, migration 0104 applied).** MED6
+Form 16 HRA (`f522de3`) + LOW2 secure impersonation (`636a66b`). Five deploys
+shipped 2026-08-25: `9b480bf`, `c02d30e`, `be3a9ae`, `2a4b659`, `e240da0`. Prod is
+`ok`/`ready`.
 
 **Object storage is deliberately NOT enabled** (owner, 2026-08-25). DMS upload/
 download, avatars, and archive-to-DMS now refuse cleanly instead of 500+orphan;
