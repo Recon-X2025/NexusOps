@@ -287,6 +287,31 @@ Each verified against the repo first; several were stale or actually features.
   MED2. Tests prove the token authenticates as the target and a disabled target
   is refused.
 
+**No-external-dependency sweep (2026-08-25, batch 6):**
+- **Storage Vultr/Ceph compat — DONE (`18e55ca`), unpushed.** `storage.ts` client
+  is now S3-compatible-safe for a custom endpoint: `requestChecksumCalculation`/
+  `responseChecksumValidation` = WHEN_REQUIRED, no SSE-S3 default, no redundant
+  put ChecksumSHA256. Inert until `S3_ENDPOINT` is set (AWS unaffected) → a future
+  Vultr switch is a one-line env change. Verified by typecheck.
+- **Billing/paywall — INVESTIGATED, no code (needs owner + payment processor).**
+  There is NO functional paywall: signup is open (env-gated only, no payment);
+  `organizations.plan` (free/starter/professional/enterprise) drives only a few
+  premium FEATURE FLAGS (`getPlanFeatureDefaults`: AI, advanced workflows,
+  branding, SSO) — the full core product is usable on `free` forever;
+  `trialEndsAt` + `stripeCustomerId` are STORED but NEVER enforced (nothing
+  charges/expires/limits seats). Razorpay/financial hits are the tenant's OWN
+  collection, not platform monetization. Building enforcement = a business
+  decision + a payment processor (external) → not done autonomously.
+- **LOW2 token-in-URL — ASSESSED, deferred (architectural).** The session model is
+  client-side: the web sets `coheronconnect_session` via `document.cookie`
+  (non-httpOnly) = the plaintext session token, plus a localStorage Bearer; the
+  API never sets the cookie. So tokens already live in JS app-wide, and the
+  impersonation `?token=` is consistent with how login delivers the token. A real
+  fix = move the WHOLE session to server-set httpOnly cookies (a magic-link-style
+  exchange only for impersonation would be inconsistent + wouldn't clear on the
+  client-side logout). That's a session-security rework needing design, not a
+  loose-end.
+
 **STILL PARKED with rationale (stale / follow-up — NOT hidden):**
 - MED7 — offboarding "false comment". STALE: `admin.users.delete` does disable +
   session-revoke + audit, so the comment is now accurate (last session's #19/#2).
