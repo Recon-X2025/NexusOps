@@ -114,7 +114,8 @@ function CommandCenterBody({
   const [isForceRefreshing, setIsForceRefreshing] = useState(false);
   const utils = trpc.useUtils();
 
-  const qView = trpc.commandCenter.getView.useQuery({ range }, mergeTrpcQueryOpts("commandCenter.getView"));
+  const viewOpts = mergeTrpcQueryOpts("commandCenter.getView");
+  const qView = trpc.commandCenter.getView.useQuery({ range }, viewOpts);
 
   useEffect(() => {
     if (qView.isSuccess || qView.isError) {
@@ -129,6 +130,15 @@ function CommandCenterBody({
 
 
   const displayPayload = qView.data;
+
+  // H8: canAccess (resource-level) can clear the page gate above while the
+  // action-level grant that ENABLES this query is absent — custom permissions
+  // match on resource alone. A disabled query never fetches, so the loading
+  // branch below would pulse a skeleton forever. Treat "disabled by RBAC" as a
+  // denial, not a perpetual load.
+  if (!viewOpts.enabled && !qView.data) {
+    return <AccessDenied module="command_center" />;
+  }
 
   const refreshAll = async () => {
     setViewTimedOut(false);

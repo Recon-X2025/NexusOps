@@ -27,8 +27,12 @@ export function SecOpsContent() {
           <WorkbenchSection title="Top open vulnerabilities" hint="Sorted by CVSS">
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
+            ) : q.isError || data?.vulnerabilities.state === "error" ? (
+              // H8: a failed fetch (data undefined) must read as an error, not a
+              // clean "no data" slate.
+              <WorkbenchEmpty state="error" />
             ) : !data?.vulnerabilities.data?.length ? (
-              <WorkbenchEmpty state={data?.vulnerabilities.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state="no_data" />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.vulnerabilities.data.slice(0, 8).map((v) => (
@@ -49,14 +53,12 @@ export function SecOpsContent() {
           <WorkbenchSection title="MITRE technique rollup" hint="Across active incidents">
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
+            ) : q.isError || data?.mitreRollup.state === "error" ? (
+              <WorkbenchEmpty state="error" />
             ) : !data?.mitreRollup.data?.length ? (
               <WorkbenchEmpty
-                state={data?.mitreRollup.state === "error" ? "error" : "no_data"}
-                message={
-                  data?.mitreRollup.state === "error"
-                    ? undefined
-                    : "No MITRE techniques tagged on active incidents."
-                }
+                state="no_data"
+                message="No MITRE techniques tagged on active incidents."
               />
             ) : (
               <ul className="text-caption space-y-1.5">
@@ -73,7 +75,7 @@ export function SecOpsContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

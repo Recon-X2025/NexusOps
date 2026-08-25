@@ -70,7 +70,14 @@ export interface MetricValue {
   current: number;
   previous?: number;
   target?: number;
-  series: Array<{ t: string; v: number }>;
+  /**
+   * `t` is a human display label (e.g. "Aug", "Mar 4") and is NOT unique across
+   * years. `k` is the year-aware bucket key (ISO YYYY-MM-DD); clients aligning
+   * multiple series onto one axis must dedup/order on `k`, not `t` — two "Aug"
+   * points a year apart otherwise collapse into one. Optional for series built
+   * without a bucket key.
+   */
+  series: Array<{ t: string; v: number; k?: string }>;
   /** Categorical distribution (buckets). Present only for distribution metrics. */
   categories?: CategoryPoint[];
   /** Scatter/bubble points. Present only for matrix metrics. */

@@ -29,7 +29,7 @@ export function PmoContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.milestoneRisks.data?.length ? (
-              <WorkbenchEmpty state={data?.milestoneRisks.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.milestoneRisks.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.milestoneRisks.data.slice(0, 8).map((m) => (
@@ -53,7 +53,7 @@ export function PmoContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.dependencies.data?.length ? (
-              <WorkbenchEmpty state={data?.dependencies.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.dependencies.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.dependencies.data.slice(0, 8).map((d) => (
@@ -72,7 +72,7 @@ export function PmoContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

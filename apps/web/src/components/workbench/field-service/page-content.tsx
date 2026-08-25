@@ -28,7 +28,7 @@ export function FieldServiceContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.technicianLoad.data?.length ? (
-              <WorkbenchEmpty state={data?.technicianLoad.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.technicianLoad.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.technicianLoad.data.slice(0, 8).map((t) => (
@@ -47,7 +47,7 @@ export function FieldServiceContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.stateCounts.data?.length ? (
-              <WorkbenchEmpty state={data?.stateCounts.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.stateCounts.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.stateCounts.data.map((s) => (
@@ -63,7 +63,7 @@ export function FieldServiceContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

@@ -13,7 +13,11 @@ import { ScatterChart, CHART_COLORS } from "@/components/charts";
 export function StrategyPrimary({ payload, granularity }: HubPrimaryProps) {
   const okr = findMetric(payload, "strategy.okr_progress_avg");
 
-  const okrPct = okr && okr.current != null && okr.state !== "no_data" ? Math.round(okr.current) : 0;
+  // H8: on no_data this used to fall back to 0 and render a confident "0%".
+  // Show "—" instead, matching the treatment every other tile gets via
+  // formatValue — a measured zero and "no data" are not the same claim.
+  const okrDisplay =
+    okr && okr.current != null && okr.state !== "no_data" ? `${Math.round(okr.current)}%` : "—";
 
   // Portfolio matrix — one bubble per active objective, emitted as `scatter`
   // by the strategy.okr_progress_avg resolver (x=progress%, y=KR count).
@@ -61,7 +65,7 @@ export function StrategyPrimary({ payload, granularity }: HubPrimaryProps) {
           <div className="p-5 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xl">
             <h4 className="text-[10px] font-bold text-blue-200 mb-4 uppercase tracking-widest">Overall OKR Velocity</h4>
             <div className="flex items-center justify-between">
-              <div className="text-h1 font-black">{okrPct}%</div>
+              <div className="text-h1 font-black">{okrDisplay}</div>
               <div className="h-12 w-12 rounded-full border-4 border-blue-400/30 border-t-white" />
             </div>
           </div>

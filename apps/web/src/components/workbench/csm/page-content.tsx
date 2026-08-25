@@ -36,7 +36,7 @@ export function CsmContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.renewals.data?.length ? (
-              <WorkbenchEmpty state={data?.renewals.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.renewals.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.renewals.data.slice(0, 8).map((r) => (
@@ -60,7 +60,7 @@ export function CsmContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.healthHistogram.data?.length ? (
-              <WorkbenchEmpty state={data?.healthHistogram.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.healthHistogram.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.healthHistogram.data.map((h) => (
@@ -76,7 +76,7 @@ export function CsmContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

@@ -17,13 +17,26 @@ export function CommandCenterTrends({ payload }: { payload: Payload }) {
     );
   }
 
-  // Align all series to the same X-axis labels
-  const allLabels = Array.from(new Set(trends.flatMap(t => t.series.map(s => s.t)))).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-  const chartData = allLabels.map(label => {
-    const dataPoint: any = { x: label };
+  // Align all series onto one X-axis by the year-aware bucket key (k), not the
+  // display label (t). Two "Aug" points a year apart share the label but not the
+  // key, so keying on the label collapsed them into one (silently dropping a
+  // month) and sorting by `new Date("Aug")` mis-ordered cross-year ranges. ISO
+  // keys sort lexicographically = chronologically, with no date parsing. Falls
+  // back to the label for any series built without a key.
+  const keyToLabel = new Map<string, string>();
+  for (const t of trends) {
+    for (const s of t.series) {
+      const key = s.k ?? s.t;
+      if (!keyToLabel.has(key)) keyToLabel.set(key, s.t);
+    }
+  }
+  const allKeys = Array.from(keyToLabel.keys()).sort();
+  const chartData = allKeys.map(key => {
+    const dataPoint: any = { x: keyToLabel.get(key) };
     trends.forEach((t, i) => {
-      const match = t.series.find(s => s.t === label);
-      dataPoint[`value${i}`] = match ? match.v : 0;
+      const match = t.series.find(s => (s.k ?? s.t) === key);
+      // A genuinely absent bucket is a gap, not a measured zero.
+      dataPoint[`value${i}`] = match ? match.v : null;
     });
     return dataPoint;
   });

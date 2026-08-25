@@ -253,9 +253,10 @@ function HubBody({
   // metric pool and selects bullets/trends/risks from within that pool,
   // so the visual panels stay populated even when the hub owns just a
   // handful of metrics.
+  const viewOpts = mergeTrpcQueryOpts("commandCenter.getHubView");
   const qView = trpc.commandCenter.getHubView.useQuery(
     { functionKey, range },
-    mergeTrpcQueryOpts("commandCenter.getHubView"),
+    viewOpts,
   );
 
   useEffect(() => {
@@ -274,6 +275,15 @@ function HubBody({
     if (!qView.data) return undefined;
     return qView.data as unknown as Payload;
   }, [qView.data]);
+
+  // H8: the page gate above is canAccess("command_center") (resource-level),
+  // but this query is enabled by the action-level grant. When the two diverge
+  // (custom permissions, or a hub that requires financial:read on the server),
+  // the query is disabled and never fetches — the loading branch would pulse a
+  // skeleton forever. Surface a denial instead.
+  if (!viewOpts.enabled && !qView.data) {
+    return <AccessDenied module="command_center" />;
+  }
 
   const refreshAll = async () => {
     setViewTimedOut(false);

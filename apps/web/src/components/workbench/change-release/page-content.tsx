@@ -28,7 +28,7 @@ export function ChangeReleaseContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.cab.data?.length ? (
-              <WorkbenchEmpty state={data?.cab.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.cab.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.cab.data.slice(0, 8).map((c) => (
@@ -50,7 +50,7 @@ export function ChangeReleaseContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.riskMix.data?.length ? (
-              <WorkbenchEmpty state={data?.riskMix.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.riskMix.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.riskMix.data.map((r) => (
@@ -66,7 +66,7 @@ export function ChangeReleaseContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

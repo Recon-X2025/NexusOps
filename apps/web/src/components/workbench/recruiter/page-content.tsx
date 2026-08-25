@@ -29,7 +29,7 @@ export function RecruiterContent() {
           {q.isLoading ? (
             <WorkbenchEmpty state="loading" />
           ) : !data?.offers.data?.length ? (
-            <WorkbenchEmpty state={data?.offers.state === "error" ? "error" : "no_data"} />
+            <WorkbenchEmpty state={q.isError || data?.offers.state === "error" ? "error" : "no_data"} />
           ) : (
             <ul className="text-caption space-y-1.5">
               {data.offers.data.map((o) => (
@@ -49,7 +49,7 @@ export function RecruiterContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ export function ServiceDeskContent() {
               <WorkbenchEmpty state="loading" />
             ) : !data?.shift.data?.length ? (
               <WorkbenchEmpty
-                state={data?.shift.state === "error" ? "error" : "no_data"}
+                state={q.isError || data?.shift.state === "error" ? "error" : "no_data"}
                 message={
                   data?.shift.state === "error" ? undefined : "No on-call schedules configured."
                 }
@@ -55,7 +55,7 @@ export function ServiceDeskContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.capacity.data?.length ? (
-              <WorkbenchEmpty state={data?.capacity.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.capacity.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.capacity.data.map((row) => (
@@ -73,7 +73,7 @@ export function ServiceDeskContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

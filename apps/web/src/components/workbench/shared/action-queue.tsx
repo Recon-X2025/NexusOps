@@ -23,14 +23,19 @@ export interface ActionQueueItem {
 export function ActionQueue({
   items,
   loading,
+  error,
 }: {
   items: ActionQueueItem[];
   loading?: boolean;
+  /** H8: when the underlying query failed, show an error — not "no actions". */
+  error?: boolean;
 }) {
   return (
     <WorkbenchSection title="Action queue" hint="Highest-priority items for you">
       {loading ? (
         <WorkbenchEmpty state="loading" />
+      ) : error ? (
+        <WorkbenchEmpty state="error" />
       ) : items.length === 0 ? (
         <WorkbenchEmpty state="no_data" message="No actions for you right now." />
       ) : (

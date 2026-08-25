@@ -28,7 +28,7 @@ export function GrcContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.controlAge.data?.length ? (
-              <WorkbenchEmpty state={data?.controlAge.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.controlAge.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.controlAge.data.slice(0, 8).map((c) => (
@@ -49,7 +49,7 @@ export function GrcContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.findings.data?.length ? (
-              <WorkbenchEmpty state={data?.findings.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.findings.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.findings.data.slice(0, 8).map((f) => (
@@ -70,7 +70,7 @@ export function GrcContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

@@ -29,7 +29,7 @@ export function ProcurementContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.vendorWatch.data?.length ? (
-              <WorkbenchEmpty state={data?.vendorWatch.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.vendorWatch.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.vendorWatch.data.slice(0, 8).map((v) => (
@@ -51,7 +51,7 @@ export function ProcurementContent() {
             {q.isLoading ? (
               <WorkbenchEmpty state="loading" />
             ) : !data?.contractRenewals.data?.length ? (
-              <WorkbenchEmpty state={data?.contractRenewals.state === "error" ? "error" : "no_data"} />
+              <WorkbenchEmpty state={q.isError || data?.contractRenewals.state === "error" ? "error" : "no_data"} />
             ) : (
               <ul className="text-caption space-y-1.5">
                 {data.contractRenewals.data.slice(0, 8).map((c) => (
@@ -74,7 +74,7 @@ export function ProcurementContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

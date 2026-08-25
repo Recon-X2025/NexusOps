@@ -156,7 +156,7 @@ export function alignSeries(
     const key = r.period instanceof Date ? isoKey(r.period) : String(r.period).slice(0, 10);
     map.set(key, Number(r.value ?? 0));
   }
-  return buckets.map((b) => ({ t: b.label, v: map.get(b.key) ?? 0 }));
+  return buckets.map((b) => ({ t: b.label, v: map.get(b.key) ?? 0, k: b.key }));
 }
 
 /** Join snapshot query rows (bucket key = {@link TimeBucket.key}) onto bucket labels. */
@@ -169,7 +169,7 @@ export function alignSeriesFromKeys(
     const n = Number(r.value ?? 0);
     map.set(r.period_key, Number.isFinite(n) ? n : 0);
   }
-  return buckets.map((b) => ({ t: b.label, v: map.get(b.key) ?? 0 }));
+  return buckets.map((b) => ({ t: b.label, v: map.get(b.key) ?? 0, k: b.key }));
 }
 
 /** JSON payload for `jsonb_to_recordset` with bucket bounds (UTC ISO) and keys. */

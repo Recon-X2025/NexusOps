@@ -30,7 +30,7 @@ export function FinanceOpsContent() {
           {q.isLoading ? (
             <WorkbenchEmpty state="loading" />
           ) : !data?.approvalQueue.data?.length ? (
-            <WorkbenchEmpty state={data?.approvalQueue.state === "error" ? "error" : "no_data"} />
+            <WorkbenchEmpty state={q.isError || data?.approvalQueue.state === "error" ? "error" : "no_data"} />
           ) : (
             <ul className="text-caption divide-y divide-slate-100 dark:divide-slate-800">
               {data.approvalQueue.data.slice(0, 10).map((inv) => (
@@ -59,7 +59,7 @@ export function FinanceOpsContent() {
       </div>
 
       <div className="xl:col-span-3 min-w-0">
-        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} />
+        <ActionQueue items={(data?.actions ?? []) as ActionQueueItem[]} loading={q.isLoading} error={q.isError} />
       </div>
     </div>
   );

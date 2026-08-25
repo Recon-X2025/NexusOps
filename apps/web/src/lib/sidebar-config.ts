@@ -63,7 +63,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     defaultExpanded: true,
     modules: ["incidents", "changes", "problems", "work_orders", "cmdb", "ham", "sam"],
     items: [
-      { label: "Overview", href: "/app/it-services", icon: "LayoutDashboard", module: "incidents" },
+      { label: "Overview", href: "/app/it-services", icon: "LayoutDashboard", module: "command_center" }, // H8: the hub Overview renders HubCommandCenter (command_center gate); gate the link the same way so it is not shown then denied
       { label: "Service Desk", href: "/app/workbench/service-desk", icon: "Headset", module: "workbench" },
       { label: "Change & Release", href: "/app/workbench/change-release", icon: "GitBranch", module: "workbench" },
       { label: "Field Service", href: "/app/workbench/field-service", icon: "Wrench", module: "workbench", dividerAfter: true },
@@ -189,7 +189,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     defaultExpanded: false,
     modules: ["hr", "onboarding", "recruitment", "workforce_analytics"],
     items: [
-      { label: "Overview", href: "/app/people-workplace", icon: "LayoutDashboard", module: "hr" },
+      { label: "Overview", href: "/app/people-workplace", icon: "LayoutDashboard", module: "command_center" }, // H8: gate on command_center (the hub page requires it)
       { label: "HR Ops", href: "/app/workbench/hr-ops", icon: "UserCheck", module: "workbench" },
       { label: "Recruiter", href: "/app/workbench/recruiter", icon: "UserPlus", module: "workbench", dividerAfter: true },
       {
@@ -258,7 +258,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     defaultExpanded: false,
     modules: ["csm", "accounts", "catalog"],
     items: [
-      { label: "Overview", href: "/app/customer-sales", icon: "LayoutDashboard", module: "accounts" },
+      { label: "Overview", href: "/app/customer-sales", icon: "LayoutDashboard", module: "command_center" }, // H8: gate on command_center (the hub page requires it)
       { label: "CSM", href: "/app/workbench/csm", icon: "Headphones", module: "workbench", dividerAfter: true },
       { label: "Customer Service", href: "/app/csm", icon: "Headphones", module: "csm" },
       { label: "CRM & Sales", href: "/app/crm", icon: "TrendingUp", module: "accounts" },
@@ -281,7 +281,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     defaultExpanded: false,
     modules: ["financial", "contracts"],
     items: [
-      { label: "Overview", href: "/app/finance-procurement", icon: "LayoutDashboard", module: "financial" },
+      { label: "Overview", href: "/app/finance-procurement", icon: "LayoutDashboard", module: "command_center" }, // H8: gate on command_center (the hub page requires it)
       { label: "AP / AR", href: "/app/workbench/finance-ops", icon: "Banknote", module: "workbench" },
       { label: "Procurement", href: "/app/workbench/procurement", icon: "ShoppingCart", module: "workbench", dividerAfter: true },
       {
@@ -327,7 +327,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     defaultExpanded: false,
     modules: ["legal", "contracts", "secretarial"],
     items: [
-      { label: "Overview", href: "/app/legal-governance", icon: "LayoutDashboard", module: "contracts" },
+      { label: "Overview", href: "/app/legal-governance", icon: "LayoutDashboard", module: "command_center" }, // H8: gate on command_center (the hub page requires it)
       { label: "Company Secretary", href: "/app/workbench/company-secretary", icon: "Briefcase", module: "workbench", dividerAfter: true },
       { label: "Legal Service Delivery", href: "/app/legal", icon: "Gavel", module: "legal" },
       {
