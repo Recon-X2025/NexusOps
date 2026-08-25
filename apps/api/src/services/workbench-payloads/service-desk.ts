@@ -59,6 +59,62 @@ export interface ServiceDeskPayload extends WorkbenchEnvelope {
 
 const QUEUE_LIMIT = 25;
 
+/**
+ * Resolve who is actually on shift for a schedule at `now`, and when that shift
+ * ends. (H5) The panel used to report `members[0]` regardless of rotation or
+ * time and hard-code `endsAt: null`, so it named the wrong person and the
+ * promised countdown could never render. This derives the current on-call from
+ * the schedule's own data:
+ *   1. An explicit override active at `now` wins — it names the person and the
+ *      exact end instant.
+ *   2. Otherwise a daily/weekly rotation is stepped from an anchor (the
+ *      schedule's creation instant — there is no separate rotation-epoch
+ *      column), advancing one member per period. Boundaries are computed in
+ *      UTC, consistent with the rest of the dashboard stack.
+ *   3. A "custom" rotation or an empty roster is not derivable from stored data
+ *      — report unknown (null) rather than fabricate a first-listed member.
+ */
+export function resolveOnShift(
+  schedule: {
+    rotationType: "daily" | "weekly" | "custom";
+    members: Array<{ userId: string; name: string }> | null;
+    overrides: Array<{ userId: string; start: string; end: string }> | null;
+    createdAt: Date;
+  },
+  now: Date,
+): { ownerName: string | null; endsAt: string | null } {
+  const members = Array.isArray(schedule.members) ? schedule.members : [];
+  const nowMs = now.getTime();
+
+  // 1. An explicit override wins — exact person and exact end time.
+  const active = (Array.isArray(schedule.overrides) ? schedule.overrides : [])
+    .map((o) => ({ userId: o.userId, s: new Date(o.start).getTime(), e: new Date(o.end).getTime() }))
+    .filter((o) => Number.isFinite(o.s) && Number.isFinite(o.e) && o.s <= nowMs && nowMs < o.e)
+    .sort((a, b) => a.e - b.e)[0];
+  if (active) {
+    const named = members.find((m) => m.userId === active.userId);
+    return { ownerName: named?.name ?? null, endsAt: new Date(active.e).toISOString() };
+  }
+
+  // 2. Deterministic daily/weekly rotation anchored on creation.
+  if (members.length > 0 && (schedule.rotationType === "daily" || schedule.rotationType === "weekly")) {
+    const periodMs = schedule.rotationType === "daily" ? 86400000 : 7 * 86400000;
+    const anchor = schedule.createdAt.getTime();
+    const elapsed = nowMs - anchor;
+    if (elapsed >= 0) {
+      const cycle = Math.floor(elapsed / periodMs);
+      const idx = cycle % members.length;
+      return {
+        ownerName: members[idx]?.name ?? null,
+        endsAt: new Date(anchor + (cycle + 1) * periodMs).toISOString(),
+      };
+    }
+  }
+
+  // 3. Custom rotation / empty roster — unknown, not fabricated.
+  return { ownerName: null, endsAt: null };
+}
+
 function bucketForSla(slaInMs: number | null): QueueRow["slaBucket"] {
   if (slaInMs === null) return "ok";
   if (slaInMs <= 0) return "breach";
@@ -178,16 +234,28 @@ export async function buildServiceDeskPayload({
         name: oncallSchedules.name,
         team: oncallSchedules.team,
         members: oncallSchedules.members,
+        overrides: oncallSchedules.overrides,
+        rotationType: oncallSchedules.rotationType,
+        createdAt: oncallSchedules.createdAt,
       })
       .from(oncallSchedules)
       .where(eq(oncallSchedules.orgId, orgId))
       .limit(8);
     if (!rows.length) return null;
-    return rows.map((r: { name: string; team: string | null; members: Array<{ name: string }> | null }): OnShiftRow => ({
-      scheduleName: `${r.name}${r.team ? ` · ${r.team}` : ""}`,
-      ownerName: Array.isArray(r.members) && r.members.length > 0 ? (r.members[0]?.name ?? null) : null,
-      endsAt: null,
-    }));
+    return rows.map((r: {
+      name: string; team: string | null;
+      members: Array<{ userId: string; name: string }> | null;
+      overrides: Array<{ userId: string; start: string; end: string }> | null;
+      rotationType: "daily" | "weekly" | "custom";
+      createdAt: Date;
+    }): OnShiftRow => {
+      const { ownerName, endsAt } = resolveOnShift(r, now);
+      return {
+        scheduleName: `${r.name}${r.team ? ` · ${r.team}` : ""}`,
+        ownerName,
+        endsAt,
+      };
+    });
   });
 
   // ── Action queue: SLA breach risks + unassigned + VIP escalations ────────

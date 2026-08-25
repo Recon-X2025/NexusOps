@@ -218,8 +218,12 @@ export async function buildPmoPayload({
     const red = portfolio.data.filter((p) => p.health === "red").slice(0, 2);
     for (const p of red) {
       actions.push({
-        id: `red-status:${p.id}`,
-        label: `${p.number} — Status report overdue`,
+        // H5: this used to claim "Status report overdue", but no status-report
+        // table exists anywhere in the schema, so the assertion was fabricated —
+        // a red project whose report was filed yesterday still read as overdue.
+        // State only the fact the data supports: the project's own health is red.
+        id: `red-health:${p.id}`,
+        label: `${p.number} — Project health red`,
         hint: p.name,
         severity: "breach",
         href: `/app/projects/${p.id}`,
