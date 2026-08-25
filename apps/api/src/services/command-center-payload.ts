@@ -349,11 +349,26 @@ export async function buildCommandCenterPayload(input: {
   userId: string;
   range: MetricResolveCtx["range"];
   db: unknown;
+  /**
+   * H7. The command center is pinned to the CEO view for every holder of
+   * `command_center:read`, but several of those roles are denied every
+   * financial route. When this is false, finance-function metrics (cash
+   * runway, burn, margin, AP/AR) are stripped from the payload so the board
+   * shows a caller only what their RBAC allows. Defaults to true for callers
+   * that were not permission-checked (internal/legacy).
+   */
+  canReadFinancial?: boolean;
 }): Promise<CommandCenterPayload> {
   const { role, detectedRole, canOverride, tenantId, userId, range, db } = input;
+  const canReadFinancial = input.canReadFinancial ?? true;
   const ctx: MetricResolveCtx = { tenantId, userId, range, services: { db } };
 
-  const defs = getMetricsForRole(role);
+  // A finance-function metric is only assembled into the payload when the caller
+  // may read financials; otherwise it is dropped everywhere (heatmap, bullets,
+  // trends, risks, attention, flow, composite score).
+  const canSeeFn = (fn: string) => canReadFinancial || fn !== "finance";
+
+  const defs = getMetricsForRole(role).filter((d) => canSeeFn(d.function));
   const uniqueDefs = [...new Map(defs.map((d) => [d.id, d])).values()];
   const resolvedList = await resolveMetricsSafe(uniqueDefs, ctx);
   const byId: Record<string, MetricValue> = {};
@@ -366,7 +381,7 @@ export async function buildCommandCenterPayload(input: {
 
   const view = getRoleView(role);
   const heatmap: CommandCenterPayload["heatmap"] = ALL_FUNCTION_KEYS.map((fn) => {
-    const inScope = view?.scopedFunctions.includes(fn) ?? true;
+    const inScope = (view?.scopedFunctions.includes(fn) ?? true) && canSeeFn(fn);
     const cells = {} as CommandCenterPayload["heatmap"][number]["cells"];
     for (const dim of ALL_METRIC_DIMENSIONS) {
       if (!inScope) {
@@ -415,7 +430,7 @@ export async function buildCommandCenterPayload(input: {
     ? `Composite of ${domainsReporting} of ${totalDomains} domains`
     : undefined;
 
-  const bulletDefs = getMetricsForSurface(role, "bullet").slice(0, 5);
+  const bulletDefs = getMetricsForSurface(role, "bullet").filter((m) => canSeeFn(m.function)).slice(0, 5);
   const bullets: BulletMetric[] = bulletDefs.map((m) => {
     const v = byId[m.id]!;
     return {
@@ -435,7 +450,7 @@ export async function buildCommandCenterPayload(input: {
   });
 
   // Trend selection: Prioritize alerting metrics that carry timeseries data
-  const explicitTrends = getMetricsForSurface(role, "trend");
+  const explicitTrends = getMetricsForSurface(role, "trend").filter((m) => canSeeFn(m.function));
   const alertingTrends = uniqueDefs.filter(
     (d) => (byId[d.id]?.series.length ?? 0) >= 1 && (byId[d.id]?.state === "stressed" || byId[d.id]?.state === "watch")
   );
@@ -469,7 +484,7 @@ export async function buildCommandCenterPayload(input: {
   });
 
   // Risk register selection: Prioritize live alerting states (stressed/watch) from the heatmap pool
-  const explicitRisks = getMetricsForSurface(role, "risk");
+  const explicitRisks = getMetricsForSurface(role, "risk").filter((m) => canSeeFn(m.function));
   const liveStress = uniqueDefs.filter(
     (d) => byId[d.id]?.state === "stressed" || byId[d.id]?.state === "watch",
   );

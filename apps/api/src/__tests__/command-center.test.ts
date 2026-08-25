@@ -69,3 +69,48 @@ describe("buildCommandCenterPayload (smoke, no DB)", () => {
     expect(payload.trends.length).toBeLessThanOrEqual(6);
   });
 });
+
+describe("command center strips finance for callers denied financials (H7)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emptyThenable: any = {
+    select: () => emptyThenable,
+    from: () => emptyThenable,
+    where: () => emptyThenable,
+    innerJoin: () => emptyThenable,
+    groupBy: () => emptyThenable,
+    orderBy: () => emptyThenable,
+    limit: () => emptyThenable,
+    then(resolve: (v: unknown) => unknown) {
+      return Promise.resolve([]).then(resolve);
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockDb: any = {
+    select: () => emptyThenable,
+    insert: () => ({ values: () => ({ catch: () => Promise.resolve() }) }),
+    execute: () => Promise.resolve([]),
+  };
+  const base = {
+    role: "ceo" as const,
+    detectedRole: "ceo" as const,
+    canOverride: true,
+    tenantId: "00000000-0000-0000-0000-000000000099",
+    userId: "00000000-0000-0000-0000-000000000088",
+    range: { start: new Date("2026-01-01"), end: new Date("2026-04-01"), granularity: "week" as const },
+    db: mockDb,
+  };
+
+  it("marks the finance heatmap row not-in-scope and emits no finance metric when denied", async () => {
+    const p = await buildCommandCenterPayload({ ...base, canReadFinancial: false });
+    expect(p.heatmap.find((h) => h.function === "finance")?.inScope).toBe(false);
+    expect(p.bullets.every((b) => b.function !== "finance")).toBe(true);
+    expect(p.trends.every((t) => t.function !== "finance")).toBe(true);
+    expect(p.risks.every((r) => r.function !== "finance")).toBe(true);
+    expect(p.flow.every((f) => f.function !== "finance")).toBe(true);
+  });
+
+  it("keeps the finance row in scope when the caller may read financials", async () => {
+    const p = await buildCommandCenterPayload({ ...base, canReadFinancial: true });
+    expect(p.heatmap.find((h) => h.function === "finance")?.inScope).toBe(true);
+  });
+});

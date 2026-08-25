@@ -1,6 +1,8 @@
 import { router, permissionProcedure } from "../lib/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { auditLogs } from "@coheronconnect/db";
+import { checkDbUserPermission } from "../lib/rbac-db";
 import { ALL_FUNCTION_KEYS, type RoleViewKey, type CommandCenterPayload } from "@coheronconnect/metrics";
 import { getRedis } from "../lib/redis";
 import {
@@ -79,13 +81,26 @@ export const commandCenterRouter = router({
       const org = ctx.org!;
       const activeRole = DEFAULT_COMMAND_CENTER_ROLE;
 
-      const cacheKey = `commandCenter:v1:${org.id}:${activeRole}:${input.range.start.toISOString()}:${input.range.end.toISOString()}:${input.range.granularity}`;
+      // H7: the view is pinned to the CEO payload for every command_center:read
+      // holder, but several such roles are denied every financial route. Strip
+      // finance metrics for them, and key the cache on that flag so a
+      // finance-capable caller's cached payload is never served to one who is not.
+      const canReadFinancial = checkDbUserPermission(
+        String(u.role ?? ""),
+        "financial",
+        "read",
+        (u.matrixRole as string | null | undefined) ?? undefined,
+        u.customPermissions as { resource: string; action: string }[] | undefined,
+      );
+
+      const cacheKey = `commandCenter:v1:${org.id}:${activeRole}:fin${canReadFinancial ? 1 : 0}:${input.range.start.toISOString()}:${input.range.end.toISOString()}:${input.range.granularity}`;
 
       const payload = await getCachedCommandCenter(cacheKey, input.forceRefresh ?? false, () =>
         buildCommandCenterPayload({
           role: activeRole,
           detectedRole: activeRole,
           canOverride: false,
+          canReadFinancial,
           tenantId: org.id as string,
           userId: u.id as string,
           range: input.range,
@@ -136,6 +151,22 @@ export const commandCenterRouter = router({
     .query(async ({ ctx, input }) => {
       const u = ctx.user!;
       const org = ctx.org!;
+
+      // H7: the finance hub is entirely finance-function figures, so command_center
+      // :read alone must not open it — require financial:read, the same gate the
+      // finance router enforces. Other function hubs carry no finance metrics.
+      if (input.functionKey === "finance") {
+        const canReadFinancial = checkDbUserPermission(
+          String(u.role ?? ""),
+          "financial",
+          "read",
+          (u.matrixRole as string | null | undefined) ?? undefined,
+          u.customPermissions as { resource: string; action: string }[] | undefined,
+        );
+        if (!canReadFinancial) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Permission denied: financial.read" });
+        }
+      }
 
       const cacheKey = `commandCenter:hub:v1:${org.id}:${input.functionKey}:${input.range.start.toISOString()}:${input.range.end.toISOString()}:${input.range.granularity}`;
 
