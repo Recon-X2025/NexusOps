@@ -1,4 +1,5 @@
 import { router, permissionProcedure } from "../lib/trpc";
+import { checkDbUserPermission } from "../lib/rbac-db";
 import { z } from "zod";
 import {
   tickets,
@@ -53,7 +54,19 @@ export const dashboardRouter = router({
     const { db, org } = ctx;
     await rateLimit(ctx.user?.id, org?.id, "dashboard.getMetrics");
     const start = Date.now();
-    const cacheKey = `dashboard:metrics:${org!.id}`;
+
+    // H7 sibling: this procedure is reports:read (held broadly, incl. ticket-desk
+    // roles), but it returns company AP/AR outstanding totals. Gate those two
+    // financial fields on financial:read, and key the cache on the flag so a
+    // finance-capable caller's cached payload is never served to one who is not.
+    const canReadFinancial = checkDbUserPermission(
+      String(ctx.user?.role ?? ""),
+      "financial",
+      "read",
+      (ctx.user?.matrixRole as string | null | undefined) ?? undefined,
+      ctx.user?.customPermissions as { resource: string; action: string }[] | undefined,
+    );
+    const cacheKey = `dashboard:metrics:${org!.id}:fin${canReadFinancial ? 1 : 0}`;
 
     return getCached(cacheKey, async () => {
       const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
@@ -207,8 +220,9 @@ export const dashboardRouter = router({
         totalTickets: totalCount?.count ?? 0,
         resolvedTickets: resolvedCount?.count ?? 0,
         openIncidents: openIncidentsCount?.count ?? 0,
-        payableOutstanding: Number(payableOutstandingRow?.total ?? 0),
-        receivableOutstanding: Number(receivableOutstandingRow?.total ?? 0),
+        // null (not 0) for non-finance callers — a withheld figure, not a measured zero.
+        payableOutstanding: canReadFinancial ? Number(payableOutstandingRow?.total ?? 0) : null,
+        receivableOutstanding: canReadFinancial ? Number(receivableOutstandingRow?.total ?? 0) : null,
         totalAssets: assetsCountRow?.count ?? 0,
         activeProjects: activeProjectsCount?.count ?? 0,
         activeOkrs: activeOkrsCount?.count ?? 0,

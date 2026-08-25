@@ -15,6 +15,7 @@ describe("Reports + dashboard RBAC (Seq 8–9 C6)", () => {
   let orgCtx: Awaited<ReturnType<typeof seedFullOrg>>;
   let requesterToken: string;
   let adminToken: string;
+  let viewerToken: string;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -24,6 +25,7 @@ describe("Reports + dashboard RBAC (Seq 8–9 C6)", () => {
     orgCtx = await seedFullOrg();
     requesterToken = await createSession(orgCtx.requesterId);
     adminToken = await createSession(orgCtx.adminId);
+    viewerToken = await createSession(orgCtx.viewerId); // report_viewer: reports:read, NOT financial:read
   });
 
   afterAll(async () => {
@@ -50,5 +52,20 @@ describe("Reports + dashboard RBAC (Seq 8–9 C6)", () => {
     expect(o).toBeDefined();
     const ts = await caller.dashboard.getTimeSeries({ days: 30 });
     expect(ts).toHaveProperty("created");
+  });
+
+  it("H7 sibling: dashboard.getMetrics withholds AP/AR from a reports-only role", async () => {
+    // report_viewer has reports:read but not financial:read → the company AP/AR
+    // outstanding totals must be null (withheld), not a leaked number.
+    const viewer = await authedCaller(viewerToken);
+    const m = await viewer.dashboard.getMetrics();
+    expect(m.payableOutstanding).toBeNull();
+    expect(m.receivableOutstanding).toBeNull();
+
+    // admin (financial:read) still gets the figures.
+    const admin = await authedCaller(adminToken);
+    const am = await admin.dashboard.getMetrics();
+    expect(typeof am.payableOutstanding).toBe("number");
+    expect(typeof am.receivableOutstanding).toBe("number");
   });
 });
