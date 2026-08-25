@@ -52,9 +52,12 @@ live `/api/health` returns `version: c02d30e…`, matching HEAD. Earlier the sam
 `9b480bf` (run `32805314113`) shipped the HIGH batch + H3–H8 dashboard campaign.
 "Live" means the terminal Deploy job, not CI success.
 
-**One commit unpushed:** `427f20d` (MED10 notification idempotency). Next batch will
-also carry MED2 (platform MAC audit) once built — a migration-bearing change, so
-that push needs a fresh snapshot.
+**Batch 3 built + tested, UNPUSHED (8 commits ahead of origin/main):** MED10
+notification idempotency (`427f20d`), MED2 platform MAC audit (`db2b993`, migration
+0103), MED12 CSM status enum (`7665e71` + web caller `278cf82`), Velocity-Trajectory
+mixed-units fix (`a5f6d41`), MED6 HRA-exemption engine (`393008f`), + plan docs.
+Gates: build 11/11, `lint:cold` 9/9 `Cached: 0`, affected api tests 39/39.
+**This batch carries migration 0103 → the push needs a fresh Vultr snapshot.**
 
 **Gates last run (run 16, on the BLOCKER+HIGH set):** `pnpm build` 11/11; full api
 suite **2177 pass**; `pnpm lint:cold` **9/9, Cached: 0**. The api gate is the strict
@@ -234,39 +237,44 @@ Each verified against the repo first; several were stale or actually features.
   already-marked channels skipped on retry (attempts:3). Test with spy
   dispatchers + real test Redis.
 
-**Owner decisions from the 2026-08-25 Q&A:**
-- **MED2 — DECIDED: platform-level audit.** Build a new no-`org_id` audit table
-  (operator + action + target + reason + ts) and wire every `mac.*` mutation to
-  it. Migration-bearing → next batch needs a snapshot. QUEUED, not yet built.
-- **MED6 — awaiting owner inputs.** Needs: (1) build rent-declaration capture?
-  (2) metro classification source (city field vs per-employee flag). Then the
-  §10(13A) min-of-three is straightforward (basic is already available).
-- **LOW2 — clarified + stays parked.** Impersonation is a SUPPORT tool, unrelated
-  to signup/billing. Owner's real concern may be paywall/subscription
-  enforcement — no billing module seen in any audit so far; investigate separately
-  if asked.
-- **MED12 — pending owner call** (enum+migration vs leave; inventory the live
-  status vocabulary first to size migration risk).
+**Owner decisions from the 2026-08-25 Q&A — resolved:**
+- **MED2 — DONE (`db2b993`).** Platform-level audit via `auditMacOperation`
+  middleware on `macProcedure` → `super_admin_audit_logs` (org_id made nullable,
+  migration 0103). Covers all current + future mac mutations. Tested.
+- **MED12 — DONE (`7665e71` + `278cf82`).** Owner leaned "close it"; done the
+  low-risk way — app-layer zod enum on the write (matches the UI vocabulary), no
+  DB enum migration. Web caller aligned (cold-lint caught it).
+- **MED6 — engine DONE (`393008f`), capture surface REMAINING.** §10(13A)
+  computation built + unit-tested and wired into the aggregator via an optional
+  rent declaration (metro = explicit boolean). Inert until the capture surface
+  exists: `employee_rent_declarations` table + input flow + loading it into the
+  Form 16 path. Deliberately not rushed onto a statutory document EOD.
+- **LOW2 — stays parked (owner: not a bug).** Impersonation is a support tool,
+  fails safe; enabling it is a security decision. Real concern may be
+  paywall/subscription enforcement — no billing module found in any audit;
+  investigate separately if asked.
+- **Velocity Trajectory chart (`a5f6d41`)** — surfaced by the owner from a
+  screenshot; H8 follow-up (co-plotted mixed units). Fixed + browser-verified.
+  Lesson logged: H8 verified "renders" not "reads right".
 
-**PARKED with rationale (needs a decision or is a feature — NOT hidden):**
-- MED2 — MAC super-admin mutations unaudited. Needs an audit target: MAC is
-  platform-level; org-scoped `audit_logs` may not fit. Owner call.
-- MED6 — Form 16 HRA exemption. `lessHraExempt = 0 // Future: derive from rent
-  declarations`. A tax FEATURE (10(13A) min-of-three + rent-declaration capture),
-  not a bug.
+**STILL PARKED with rationale (feature/decision/stale — NOT hidden):**
+- MED6 (capture surface only — engine done) — `employee_rent_declarations` table
+  + employee/HR input flow + loading into the Form 16 path. A statutory FEATURE,
+  not rushed EOD. Owner to confirm capture UX.
 - MED7 — offboarding "false comment". STALE: `admin.users.delete` does disable +
   session-revoke + audit, so the comment is now accurate (last session's #19/#2).
 - MED11 — GSP fetch timeout. STALE/N-A: no live GSP fetch exists anywhere in the
   india lib (matches the "generate, do not file" rule). Add a timeout when a real
   push is built.
-- MED12 — CSM free-text status vs hardcoded metric filters. Needs an enum +
-  migration + writer audit; the LOW5 logging helps observability meanwhile.
 - LOW2 — MAC impersonation mints an unusable JWT. Fails SAFE (session-based auth
   rejects it, so it grants nothing). Making it work is a security-sensitive
   feature (real impersonation session + audit). Owner call.
 - LOW3 — Temporal `completeRun` updates by PK without org_id. `workflow_runs` has
   NO `org_id` column (the accepted §0g internal-id class); runId is internal, not
   caller-supplied. Nothing to gate on.
+- **Billing/paywall enforcement** — flagged from the LOW2 discussion: no billing
+  module found in any audit; whether signup/usage is gated on payment is
+  uninvestigated. Owner to say whether to dig in.
 
 **Still open:** **Form 16 Part A via TRACES** (roadmap; Part B done). The parked
 items above (owner decisions / features).
