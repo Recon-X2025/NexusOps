@@ -31,23 +31,35 @@ export function CommandCenterTrends({ payload }: { payload: Payload }) {
     }
   }
   const allKeys = Array.from(keyToLabel.keys()).sort();
+
+  // These trends carry DIFFERENT units (e.g. pipeline value in ₹ crore, coverage
+  // as a ~3× ratio, headcount ~140). Plotting them on one linear axis flattened
+  // the small-magnitude series to the bottom — coverage/headcount read as ~0.
+  // Plot each series normalized to its OWN peak (0–100 index) so every
+  // trajectory is visible and comparable in shape; the tooltip shows the real
+  // value via `raw{i}` (valueDataKey), and the shared axis is blanked because a
+  // single number across mixed units is meaningless.
+  const seriesMax = trends.map((t) => t.series.reduce((m, s) => Math.max(m, Math.abs(s.v)), 0));
+
   const chartData = allKeys.map(key => {
     const dataPoint: any = { x: keyToLabel.get(key) };
     trends.forEach((t, i) => {
       const match = t.series.find(s => (s.k ?? s.t) === key);
-      // A genuinely absent bucket is a gap, not a measured zero.
-      dataPoint[`value${i}`] = match ? match.v : null;
+      const raw = match ? match.v : null; // absent bucket = gap, not a measured zero
+      dataPoint[`raw${i}`] = raw;
+      dataPoint[`value${i}`] =
+        raw == null ? null : seriesMax[i]! > 0 ? Math.round((raw / seriesMax[i]!) * 1000) / 10 : 0;
     });
     return dataPoint;
   });
 
   const colors = ["#00BCFF", "#00C971", "#F59E0B"];
-  const areas = trends.map((t, i) => ({ 
-    key: `value${i}`, 
-    label: t.label, 
-    color: colors[i % colors.length], 
-    valueDataKey: `value${i}`, 
-    formatValue: (v: number) => `${v}${t.unit === 'percent' ? '%' : ''}` 
+  const areas = trends.map((t, i) => ({
+    key: `value${i}`,
+    label: t.label,
+    color: colors[i % colors.length],
+    valueDataKey: `raw${i}`, // tooltip shows the REAL value, not the 0–100 index
+    formatValue: (v: number) => (t.unit === "percent" ? `${v}%` : v.toLocaleString()),
   }));
 
   return (
@@ -74,7 +86,9 @@ export function CommandCenterTrends({ payload }: { payload: Payload }) {
             grid={false}
             stacked={false}
             legend={false}
-            yFormatter={(v) => `${v}`}
+            // Axis is a 0–100 index across mixed units — a bare number would
+            // mislead; the tooltip carries the real per-series values.
+            yFormatter={() => ""}
           />
         </div>
       </div>
