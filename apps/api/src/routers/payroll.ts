@@ -40,7 +40,7 @@ import {
   type DbOrTx,
   type PayrollWorkflowMeta,
 } from "@coheronconnect/db";
-import { putObject, buildDocumentKey, enqueueVirusScan } from "../services/storage";
+import { putObject, buildDocumentKey, enqueueVirusScan, isStorageConfigured } from "../services/storage";
 import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { decryptPan } from "../lib/pan";
@@ -1826,6 +1826,17 @@ export const payrollRouter = router({
         fySlips: slips,
         financialYear: input.fy,
       });
+      // Archiving the certificate into the DMS needs object storage. Refuse
+      // cleanly when it isn't provisioned rather than 500 + orphan a document
+      // row. (The on-demand Form 16 PDF download streams separately and is
+      // unaffected.)
+      if (!isStorageConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Document storage is not configured — the Form 16 can be downloaded on demand but not archived.",
+        });
+      }
+
       const buffer = await generateForm16PDF(pdfInput);
 
       const [doc] = await db.insert(documents).values({

@@ -47,6 +47,19 @@ function bucket(): string {
   return b;
 }
 
+/**
+ * Whether object storage is provisioned for this deployment. When false, every
+ * store/fetch/delete would throw ("S3_BUCKET not configured"), so callers should
+ * degrade gracefully — refuse an upload with a clear message rather than 500,
+ * and skip signing/download rather than break the surrounding request. Some
+ * deployments deliberately run without object storage; the DMS/avatars are then
+ * unavailable but the rest of the product (incl. generated PDFs, which stream on
+ * demand) is unaffected.
+ */
+export function isStorageConfigured(): boolean {
+  return Boolean(process.env["S3_BUCKET"]);
+}
+
 export interface PutOptions {
   orgId: string;
   /** Logical key fragment, e.g. "documents/<docId>/v1.pdf". */

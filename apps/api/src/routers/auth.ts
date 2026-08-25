@@ -674,7 +674,10 @@ export const authRouter = router({
         throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Avatar must be 5MB or smaller" });
       }
       const ext = input.mimeType === "image/png" ? "png" : input.mimeType === "image/webp" ? "webp" : "jpg";
-      const { putObject, signedDownloadUrl } = await import("../services/storage.js");
+      const { putObject, signedDownloadUrl, isStorageConfigured } = await import("../services/storage.js");
+      if (!isStorageConfigured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Avatar storage is not configured for this deployment." });
+      }
       const put = await putObject({
         orgId: user!.orgId,
         key: `avatars/${user!.id}.${ext}`,

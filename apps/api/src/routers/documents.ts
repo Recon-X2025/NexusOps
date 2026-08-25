@@ -23,6 +23,7 @@ import {
   signedDownloadUrl,
   buildDocumentKey,
   enqueueVirusScan,
+  isStorageConfigured,
 } from "../services/storage";
 import { checkDbUserPermission } from "../lib/rbac-db";
 
@@ -183,6 +184,16 @@ export const documentsRouter = router({
       }
       const ext = input.name.split(".").pop() ?? "";
 
+      // Refuse BEFORE writing any row when object storage isn't provisioned —
+      // otherwise the row below is created and the putObject throws, leaving an
+      // orphaned document with an empty storageKey.
+      if (!isStorageConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Document storage is not configured for this deployment.",
+        });
+      }
+
       const [doc] = await db
         .insert(documents)
         .values({
@@ -205,12 +216,19 @@ export const documentsRouter = router({
       if (!doc) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create document" });
 
       const key = buildDocumentKey(doc.id, 1, ext);
-      const put = await putObject({
-        orgId: org!.id,
-        key,
-        body,
-        mimeType: input.mimeType,
-      });
+      let put;
+      try {
+        put = await putObject({
+          orgId: org!.id,
+          key,
+          body,
+          mimeType: input.mimeType,
+        });
+      } catch (err) {
+        // A transient store failure must not leave a half-written row behind.
+        await db.delete(documents).where(eq(documents.id, doc.id)).catch(() => {});
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to store the document." });
+      }
 
       await db
         .update(documents)
