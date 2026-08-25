@@ -113,7 +113,15 @@ export default function CSMCaseDetailPage() {
               </select>
               {newStatus && (
                 <button
-                  onClick={() => updateCase.mutate({ id, status: newStatus })}
+                  onClick={() =>
+                    // The <select> only offers canonical statuses and this button
+                    // is rendered only when newStatus is set, so the value is
+                    // always a valid case status here.
+                    updateCase.mutate({
+                      id,
+                      status: newStatus as "new" | "in_progress" | "awaiting_customer" | "pending" | "resolved" | "closed",
+                    })
+                  }
                   disabled={updateCase.isPending}
                   className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50">
                   {updateCase.isPending ? "Saving…" : "Save"}
