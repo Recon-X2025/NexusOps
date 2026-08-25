@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { organizations, users, sessions, eq, desc, count, and, sql } from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
+import { createSession } from "./auth";
 import jwt from "jsonwebtoken";
 
 /**
@@ -401,20 +402,32 @@ export const macRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
-      const [targetUser] = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, input.targetUserId));
+      const [targetUser] = await db
+        .select({ id: users.id, email: users.email, status: users.status })
+        .from(users)
+        .where(eq(users.id, input.targetUserId));
       if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      // Never grant access a non-active (invited/disabled) user does not
+      // themselves have.
+      if (targetUser.status !== "active") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot impersonate a ${targetUser.status} user` });
+      }
 
-      const jwtSecret = process.env["JWT_SECRET"];
-      const macSecret = process.env["MAC_JWT_SECRET"];
-      if (!jwtSecret || !macSecret) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // Mint a REAL, short-lived, impersonation-marked session — the auth layer
+      // is session-based, so a self-signed JWT (the old behaviour) was inert.
+      // The action is recorded in super_admin_audit_logs by the mac audit
+      // middleware (MED2), with the operator, target user and reason.
+      const operatorEmail = (ctx as { macOperatorEmail?: string }).macOperatorEmail ?? "unknown";
+      const session = await createSession(db, input.targetUserId, ctx.ipAddress, ctx.userAgent, false, {
+        ttlMs: input.durationMinutes * 60_000,
+        impersonatedBy: operatorEmail,
+      });
 
-      const expiresAt = new Date(Date.now() + input.durationMinutes * 60_000);
-      const impersonationToken = jwt.sign(
-        { sub: input.targetUserId, impersonated: true, reason: input.reason, exp: Math.floor(expiresAt.getTime() / 1000) },
-        jwtSecret,
-      );
-
-      return { impersonationToken, expiresAt: expiresAt.toISOString(), redirectUrl: `${process.env["WEB_URL"] ?? "http://localhost:3000"}/app?token=${impersonationToken}` };
+      return {
+        impersonationToken: session.token,
+        expiresAt: session.expiresAt.toISOString(),
+        redirectUrl: `${process.env["WEB_URL"] ?? "http://localhost:3000"}/app?token=${session.token}`,
+      };
     }),
 
   // P2 — Search users across all orgs

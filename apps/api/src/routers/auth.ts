@@ -84,12 +84,17 @@ export async function createSession(
   ipAddress?: string | null,
   userAgent?: string | null,
   rememberMe = true,
+  // Optional overrides: a custom TTL (used for short-lived impersonation
+  // sessions) and an impersonation marker. Omitted for a normal login.
+  opts?: { ttlMs?: number; impersonatedBy?: string },
 ) {
   const tokenPlaintext = nanoid(32);
   const tokenHash = hashSessionToken(tokenPlaintext);
-  const ttlMs = rememberMe
-    ? 30 * 24 * 60 * 60 * 1000  // 30 days
-    :  8 * 60 * 60 * 1000;       // 8 hours (session-scoped)
+  const ttlMs =
+    opts?.ttlMs ??
+    (rememberMe
+      ? 30 * 24 * 60 * 60 * 1000  // 30 days
+      : 8 * 60 * 60 * 1000);      // 8 hours (session-scoped)
   const expiresAt = new Date(Date.now() + ttlMs);
 
   await db.insert(sessions).values({
@@ -98,6 +103,7 @@ export async function createSession(
     expiresAt,
     ipAddress,
     userAgent,
+    impersonatedBy: opts?.impersonatedBy ?? null,
   });
 
   return { token: tokenPlaintext, expiresAt };

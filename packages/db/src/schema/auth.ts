@@ -205,6 +205,10 @@ export const sessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    // Set to the MAC operator's email when this is a time-boxed impersonation
+    // session (LOW2); null for a normal login. Lets the app flag impersonation
+    // and the audit tie a session back to the operator who opened it.
+    impersonatedBy: text("impersonated_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
