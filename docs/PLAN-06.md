@@ -46,16 +46,22 @@ _Deploy facts verified 2026-08-25 against the repo (`git log`, `gh run list`). T
 isolation model below was established by experiment on 2026-08-23 and is carried
 forward unchanged; where a line was only read in code, it says so._
 
-**Deployed:** `origin/main` = `be3a9ae` (batch 3: MED2 + MED10 + MED12 + MED6
-engine + Velocity-Trajectory fix). CI run `32821681828` **success** through
-`Deploy to Vultr` (2026-08-25); live `/api/health` = `be3a9ae…`, and the api
-booted so **migration 0103 applied cleanly** (`migrate && start` chain). Three
-deploys shipped 2026-08-25: `9b480bf` (HIGH batch + H3–H8 dashboard), `c02d30e`
-(H7 sibling + 11 MEDIUM/LOW), `be3a9ae` (batch 3). "Live" = the terminal Deploy
-job, not CI success.
+**Deployed:** `origin/main` = `2a4b659` (batch 4: storage-off graceful
+degradation + search health-check fix). CI run `32849481618` **success** through
+`Deploy to Vultr` (2026-08-25). **Prod is now `status: ok` / `ready`** — the
+search health check was reading `MEILISEARCH_HOST` while prod sets
+`MEILISEARCH_URL`, so it falsely reported `search: error` and `not_ready`; fixed,
+live `/health/detailed` now shows `search: ok`. Four deploys shipped 2026-08-25:
+`9b480bf` (HIGH + H3–H8 dashboard), `c02d30e` (H7 sibling + 11 MEDIUM/LOW),
+`be3a9ae` (batch 3: MED2/10/12 + MED6 engine + trend fix, migration 0103),
+`2a4b659` (batch 4). "Live" = the terminal Deploy job.
 
-**Working tree level with origin/main** after batch 3 (bar any post-push docs
-commit).
+**Object storage is deliberately NOT enabled** (owner, 2026-08-25). DMS upload/
+download, avatars, and archive-to-DMS now refuse cleanly instead of 500+orphan;
+generated PDFs (payslip/Form16/invoice/quote) stream on demand and are
+unaffected. Vultr Object Storage research + enablement runbook: see the run log /
+below (S3-compatible Ceph; app already S3-ready; blockers = no SSE-S3 + AWS SDK
+checksum flag; pin an India hub for DPDP; app-side encryption recommended).
 
 **Batch 3 — DEPLOYED (`be3a9ae`).** MED10 idempotency (`427f20d`), MED2 platform
 MAC audit (`db2b993`, migration 0103), MED12 CSM status enum (`7665e71` + web
