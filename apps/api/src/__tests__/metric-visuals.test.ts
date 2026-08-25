@@ -31,6 +31,8 @@ import {
   tickets,
   ticketStatuses,
   securityIncidents,
+  surveys,
+  surveyResponses,
 } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 import { initTestEnvironment, testDb, seedTestOrg, seedUser } from "./helpers";
@@ -138,29 +140,75 @@ describe("financial.ap_aged_60_plus emits aging-bucket categories", () => {
 });
 
 describe("csm.churn_rate_30d computes churn from account archival", () => {
-  it("returns the share of accounts archived within the last 30 days", async () => {
+  it("returns the churn share once the account base clears the sample floor", async () => {
     const db = testDb();
     const { orgId } = await seedTestOrg();
 
-    // 3 active + 1 recently churned + 1 churned long ago (out of window).
+    // 18 active + 2 recently churned = base 20 (the floor); one churned long ago
+    // (out of the 30d window) must not count. rate = 2/20 = 10%.
+    const rows = [];
+    for (let i = 0; i < 18; i++) rows.push({ orgId, name: `Active ${i}`, archived: false });
+    rows.push({ orgId, name: "Churned r1", archived: true, updatedAt: daysAgo(5) });
+    rows.push({ orgId, name: "Churned r2", archived: true, updatedAt: daysAgo(10) });
+    rows.push({ orgId, name: "Churned old", archived: true, updatedAt: daysAgo(120) });
+    await db.insert(crmAccounts).values(rows);
+
+    const v = await getMetric("csm.churn_rate_30d")!.resolve(ctxFor(orgId, orgId));
+
+    expect(v.current).toBe(10);
+    expect(v.state).toBe("stressed");
+  });
+
+  it("suppresses churn below the sample floor (H4: no confident stressed off one row)", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    // 3 active + 1 churned = base 4 → 25% under the old logic (a CEO alert).
+    // Below the 20-account floor this must report no_data, not stressed.
     await db.insert(crmAccounts).values([
       { orgId, name: "Active A", archived: false },
       { orgId, name: "Active B", archived: false },
       { orgId, name: "Active C", archived: false },
       { orgId, name: "Churned recent", archived: true, updatedAt: daysAgo(10) },
-      { orgId, name: "Churned old", archived: true, updatedAt: daysAgo(120) },
     ]);
 
     const v = await getMetric("csm.churn_rate_30d")!.resolve(ctxFor(orgId, orgId));
-
-    // base = 3 active + 1 recent churn = 4; rate = 1/4 = 25%.
-    expect(v.current).toBe(25);
-    expect(v.state).toBe("stressed");
+    expect(v.state).toBe("no_data");
   });
 
   it("reports no_data when there are no accounts", async () => {
     const { orgId } = await seedTestOrg();
     const v = await getMetric("csm.churn_rate_30d")!.resolve(ctxFor(orgId, orgId));
+    expect(v.state).toBe("no_data");
+  });
+});
+
+describe("csm.csat_avg holds a sample-size floor", () => {
+  async function seedCsat(orgId: string, scores: string[]) {
+    const db = testDb();
+    const [survey] = await db
+      .insert(surveys)
+      .values({ orgId, title: "CSAT", type: "csat" })
+      .returning();
+    if (scores.length > 0) {
+      await db
+        .insert(surveyResponses)
+        .values(scores.map((s) => ({ surveyId: survey!.id, score: s })));
+    }
+  }
+
+  it("computes the average once enough responses exist", async () => {
+    const { orgId } = await seedTestOrg();
+    await seedCsat(orgId, ["5", "5", "4", "5", "4"]); // 5 responses, avg 4.6
+    const v = await getMetric("csm.csat_avg")!.resolve(ctxFor(orgId, orgId));
+    expect(v.current).toBe(4.6);
+    expect(v.state).toBe("healthy");
+  });
+
+  it("suppresses the score below the sample floor (H4)", async () => {
+    const { orgId } = await seedTestOrg();
+    // Two low responses would read as a confident "stressed" without a floor.
+    await seedCsat(orgId, ["2", "2"]);
+    const v = await getMetric("csm.csat_avg")!.resolve(ctxFor(orgId, orgId));
     expect(v.state).toBe("no_data");
   });
 });

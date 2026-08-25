@@ -4,6 +4,16 @@ import { stateFromFlowSeries } from "../resolve-helpers";
 import { crmAccounts, surveys, surveyResponses, eq, and, count, avg, gte, sql } from "@coheronconnect/db";
 import { dbOf } from "./_db";
 
+/**
+ * Sample-size floors (H4). A rate or average off a handful of rows is not a
+ * board signal: one archived account on a 4-customer book read as 25% churn →
+ * a high-severity CEO attention item, and a single survey response set CSAT.
+ * Below these floors the metric reports no_data ("insufficient sample") rather
+ * than a confident stressed/watch state.
+ */
+const MIN_CHURN_BASE = 20; // accounts (active + churned) before a churn % is meaningful
+const MIN_CSAT_RESPONSES = 5; // responses before a rolling CSAT average is stable
+
 registerMetric({
   id: "csm.churn_rate_30d",
   label: "Churn rate (30d)",
@@ -39,7 +49,10 @@ registerMetric({
     const active = Number(totalRow?.c ?? 0);
     const churned = Number(churnedRow?.c ?? 0);
     const base = active + churned;
-    if (base === 0) {
+    // Sample-size floor: below MIN_CHURN_BASE accounts, a single archived row
+    // swings the rate past the stressed threshold. Report no_data instead of a
+    // confident alert (covers the base === 0 empty-tenant case too).
+    if (base < MIN_CHURN_BASE) {
       return emptyMetricValue("no_data");
     }
     const rate = Math.round((churned / base) * 1000) / 10; // one decimal place
@@ -73,12 +86,15 @@ registerMetric({
     const db = dbOf(ctx);
     try {
       const [row] = await db
-        .select({ a: avg(surveyResponses.score) })
+        .select({ a: avg(surveyResponses.score), n: count() })
         .from(surveyResponses)
         .innerJoin(surveys, eq(surveyResponses.surveyId, surveys.id))
         .where(and(eq(surveys.orgId, ctx.tenantId), eq(surveys.type, "csat")));
       const v = row?.a != null ? Number(row.a) : NaN;
-      if (Number.isNaN(v) || v === 0) {
+      const n = Number(row?.n ?? 0);
+      // Sample-size floor: a rolling average off fewer than MIN_CSAT_RESPONSES
+      // responses is not stable enough to escalate — one response set the score.
+      if (Number.isNaN(v) || v === 0 || n < MIN_CSAT_RESPONSES) {
         return emptyMetricValue("no_data");
       }
       const state = v >= 4 ? "healthy" : v >= 3 ? "watch" : "stressed";
