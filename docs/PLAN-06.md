@@ -144,24 +144,48 @@ Full report: `reports/audit-dashboard-wiring.md`. Already fixed (run 16): aggreg
 truncation BLOCKER, flow-metric posture (H2), dead drill links (H1). **Open, in impact
 order:**
 
-- **H3** — "this period" health lights that are actually all-time totals (stuck red
-  forever): `tickets.sla_compliance`, `coo.vendor_sla_breaches`,
-  `financial.burn_rate`, `security.incidents_open_total`
-  (`packages/metrics/src/contributions/*`). Window them to the period.
-- **H4** — no sample-size floor: one row lights a confident "stressed" CEO alert
-  (e.g. `csm.churn_rate_30d`). Add a minimum-N gate.
-- **H5** — fabricated operational claims: PMO "status report overdue"
-  (`services/workbench-payloads/pmo.ts`); service-desk on-shift roster = `members[0]`
-  + `endsAt:null` (`service-desk.ts`).
-- **H6** — both devops metrics `appearsIn: []` (`contributions/devops.ts`) → the
-  deploy-failure alert can never fire. Give them an `appearsIn`.
-- **H7** — Command Center serves finance figures (cash runway/burn/margin) to roles
-  with `command_center:read` but no `financial:read` (`routers/command-center.ts` +
-  payload). Owner policy call, then filter finance metrics or trim grants.
-- **H8** — web failure/empty states read as "all clear": disabled query → infinite
-  skeleton; workbench fetch error → "No data yet"; requester sees hub links then
-  AccessDenied (`apps/web/src/app/app/command/page.tsx`,
-  `components/dashboard/hub-command-center-page.tsx`, `components/workbench/**`).
+- **H3 — DONE (`49870ac`, run 18).** Windowed all four all-time lights to the
+  period: `tickets.sla_compliance` (headline scoped to created-in-range),
+  `coo.vendor_sla_breaches` (grn_date window), `financial.burn_rate` (switched
+  from cumulative COA balances to posted expense journal lines dated in-range,
+  like cash_runway; no_data on empty window), `security.incidents_open_total`
+  (series reconstructed open-at-close-of-bucket, reconciles with headline).
+  Tests in `metric-visuals.test.ts`; neighboring cc/flow/workbench suites green.
+- **H4 — DONE (`4872189`, run 18).** Sample-size floors: `csm.churn_rate_30d`
+  needs ≥20 accounts, `csm.csat_avg` needs ≥5 responses, else no_data. Tests in
+  `metric-visuals.test.ts` (churn case rewritten above the floor + below-floor
+  no_data; csat floor cases).
+- **H5 — DONE (`ecd3baf`, run 18).** PMO red-project action restated to "Project
+  health red" (no status-report table exists); service-desk on-shift roster now
+  resolves the real current on-call via `resolveOnShift` (override → daily/weekly
+  rotation from creation anchor → unknown for custom/empty), with a real `endsAt`.
+  Unit tests in `service-desk-onshift.test.ts`.
+- **H6 — DONE (`82db8a7`, run 18).** Gave both devops metrics a CIO `appearsIn`
+  (heatmap/trend/attention/flow), un-inerting the CIO deploy-success attention
+  rule. New `devops-reachability.test.ts` adds two registry invariants (no inert
+  attention rules; no empty `appearsIn`) that guard the whole class.
+- **H7 — DONE (`cf5f3b2`, run 18).** Owner chose FILTER (not trim grants).
+  `buildCommandCenterPayload` takes `canReadFinancial`; finance-function metrics
+  dropped everywhere when false. `getView` computes it + keys the cache on it;
+  `getHubView` requires `financial:read` for the finance hub. Tests in
+  `command-center.test.ts`.
+  - **Sibling still open (queued, not hidden):** `dashboard.getMetrics`
+    (`routers/dashboard.ts:137-156`) sums AP/AR outstanding and returns them on
+    `reports:read` — reachable from every user's sidebar. Distinct omnibus
+    procedure; gate the AP/AR fields on `financial:read`. Lower severity.
+- **H8 — DONE (run 18).** Web failure/empty states no longer read as "all clear":
+  (1) hub "Overview" nav regated to `command_center` so it is not shown then
+  AccessDenied; (2) RBAC-disabled command/hub query now returns AccessDenied
+  instead of an infinite skeleton (`command/page.tsx`,
+  `hub-command-center-page.tsx`); (3) workbench query error now shows an error,
+  not "No data yet." — swept all 11 workbenches (20 secondary panels + 11 action
+  queues) + SecOps + an `error` prop on the shared `ActionQueue`; (4) trend chart
+  aligns on a year-aware bucket key `k` (added to the metrics series type +
+  `alignSeries`) so same-month labels no longer collapse/misorder and a missing
+  bucket is a gap not a fabricated 0; (5) strategy "OKR Velocity" shows "—" on
+  no_data. **Verified by full typecheck build + metrics unit tests; the
+  authenticated/denied/error UI states were NOT browser-verified (app requires
+  login; entering credentials is disallowed).**
 
 Each: verify in source → fix → test (real Postgres **5433**, `pnpm docker:test:up`) →
 `pnpm build` (metrics/`dist` is consumed compiled — rebuild after editing) → commit.
@@ -375,5 +399,29 @@ deploy lines to the verified `bed0c79` reality (PLAN-05's said `dce6ff4`).
 (`fe334fc`) is cleared to SHIP** in the next batch push — recorded in §A.1. No product
 code changed; no build run (docs-only).
 
-**Next:** dashboard wiring §A.2, starting H3 (window the four all-time health lights to
-the period). Then the batch push (§A.1) with the owner's snapshot + go.
+**Dashboard wiring §A.2 — H3–H8 ALL DONE this run.** Owner-set priority; verify→
+fix→test→build→commit each. Six commits after the rollover:
+- `49870ac` H3 — windowed the four all-time health lights to the period
+  (tickets.sla_compliance, coo.vendor_sla_breaches, financial.burn_rate switched
+  to posted journal lines, security.incidents_open_total series reconstructed).
+- `4872189` H4 — sample-size floors (churn ≥20 accounts, csat ≥5 responses).
+- `ecd3baf` H5 — removed fabricated PMO status-report claim; real on-call
+  resolution for the service-desk roster (`resolveOnShift`).
+- `82db8a7` H6 — devops metrics given a CIO `appearsIn`; two registry invariants
+  guard the inert-rule / empty-appearsIn class.
+- `cf5f3b2` H7 — owner chose FILTER: finance metrics stripped for callers without
+  `financial:read`; finance hub gated. Sibling (`dashboard.getMetrics` AP/AR on
+  `reports:read`) queued in §A.2, NOT hidden.
+- `25559ac` H8 — five web failure/empty-state fixes (nav regate, disabled-query
+  AccessDenied, workbench error-vs-empty sweep across all 11 + SecOps, trend
+  year-aware key, strategy "—" on no_data). Build+unit verified; authenticated
+  UI states NOT browser-verified (login required, credentials disallowed).
+
+New/updated tests: `metric-visuals.test.ts` (H3/H4), `service-desk-onshift.test.ts`
+(H5), `devops-reachability.test.ts` (H6), `command-center.test.ts` (H7). All the
+affected api suites ran green in isolation.
+
+**Next:** the batch push (§A.1) — now 15 code + docs commits ahead of origin/main,
+#15 cleared to ship. Needs the owner's Vultr snapshot + go; re-run `pnpm build`
+and `pnpm lint:cold` first. Then the remaining register (§A.4): the H7
+`dashboard.getMetrics` sibling, product-wide MEDIUM/LOW, Form 16 Part A.
