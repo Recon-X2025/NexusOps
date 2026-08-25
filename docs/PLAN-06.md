@@ -56,6 +56,11 @@ live `/health/detailed` now shows `search: ok`. Four deploys shipped 2026-08-25:
 `be3a9ae` (batch 3: MED2/10/12 + MED6 engine + trend fix, migration 0103),
 `2a4b659` (batch 4). "Live" = the terminal Deploy job.
 
+**Batch 5 built + tested, UNPUSHED (3 commits ahead):** MED6 Form 16 HRA
+(`f522de3`) + LOW2 secure impersonation (`636a66b`, migration 0104) + docs. Gates:
+build 11/11, `lint:cold` 9/9, affected suites 26/26. **Carries migration 0104 →
+the push needs a fresh Vultr snapshot.**
+
 **Object storage is deliberately NOT enabled** (owner, 2026-08-25). DMS upload/
 download, avatars, and archive-to-DMS now refuse cleanly instead of 500+orphan;
 generated PDFs (payslip/Form16/invoice/quote) stream on demand and are
@@ -267,18 +272,28 @@ Each verified against the repo first; several were stale or actually features.
   screenshot; H8 follow-up (co-plotted mixed units). Fixed + browser-verified.
   Lesson logged: H8 verified "renders" not "reads right".
 
-**STILL PARKED with rationale (feature/decision/stale — NOT hidden):**
-- MED6 (capture surface only — engine done) — `employee_rent_declarations` table
-  + employee/HR input flow + loading into the Form 16 path. A statutory FEATURE,
-  not rushed EOD. Owner to confirm capture UX.
+**MED6 + LOW2 — DONE (2026-08-25, batch 5, unpushed; carries migration 0104):**
+- **MED6 (`f522de3`)** — Form 16 now applies the §10(13A) HRA exemption from
+  `employees.rentPaidAnnual` + `isMetroCity` (already captured by HR + already
+  used by the payslip). No new column/migration/UI — the inputs existed; Form 16
+  just wasn't reading them, so it over-stated taxable income vs the TDS. Uses the
+  SAME `computeHRAExemption` the payslip uses so they reconcile; removed the
+  duplicate `hra-exemption.ts` the earlier engine commit had added.
+- **LOW2 (`636a66b`, migration 0104)** — impersonation now mints a REAL,
+  time-boxed (5–60 min), impersonation-marked session (`sessions.impersonated_by`)
+  so the token actually authenticates; refuses non-active targets; audited via
+  MED2. Tests prove the token authenticates as the target and a disabled target
+  is refused.
+
+**STILL PARKED with rationale (stale / follow-up — NOT hidden):**
 - MED7 — offboarding "false comment". STALE: `admin.users.delete` does disable +
   session-revoke + audit, so the comment is now accurate (last session's #19/#2).
 - MED11 — GSP fetch timeout. STALE/N-A: no live GSP fetch exists anywhere in the
   india lib (matches the "generate, do not file" rule). Add a timeout when a real
   push is built.
-- LOW2 — MAC impersonation mints an unusable JWT. Fails SAFE (session-based auth
-  rejects it, so it grants nothing). Making it work is a security-sensitive
-  feature (real impersonation session + audit). Owner call.
+- LOW2 follow-up — the impersonation token is still delivered in a redirect
+  `?token=` query string (pre-existing); short TTL limits exposure, but move it
+  out of the URL separately.
 - LOW3 — Temporal `completeRun` updates by PK without org_id. `workflow_runs` has
   NO `org_id` column (the accepted §0g internal-id class); runId is internal, not
   caller-supplied. Nothing to gate on.
