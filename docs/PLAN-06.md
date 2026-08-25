@@ -209,12 +209,51 @@ Batch-push at the end with the owner's go.
   `apps/api/src/__tests__/concurrency-cluster.test.ts` (copy its `gateReadThenWrite`
   helper).
 
-### A.4 — Remaining register (after the dashboard tier)
+### A.4 — Remaining register — WORKED (run 18, unpushed batch)
 
-- Product-wide: **12 MEDIUM + 6 LOW** — `reports/audit-product-wide.md`.
-- **Form 16 Part A via TRACES** (roadmap). Part B (employer computation) is done and
-  correct; Part A is the TRACES download flow (`tdsChallanRecords`), still unbuilt.
-  Code flags it P2 (`services/form16-pdf.ts`).
+Product-wide 12 MEDIUM + 6 LOW (`reports/audit-product-wide.md`) + the H7 sibling.
+Each verified against the repo first; several were stale or actually features.
+
+**FIXED + committed locally (11):**
+- H7 sibling `ae45909` — `dashboard.getMetrics` AP/AR gated on `financial:read` (test).
+- MED1 `adc0807` — internal-endpoint fallback: raw socket peer, RFC1918 only (was
+  req.ip / all-172.*, spoofable under trustProxy).
+- MED3 `adc0807` — `auditMutation` logs append failures (was silent).
+- LOW1 `adc0807` — `journal.create` validates each line account belongs to the org.
+- MED4 `373fbe2` — `purchaseOrders.receive` rejects over-receipt + off-PO line ids (test).
+- MED5 `373fbe2` — GRN added to `COUNTER_SPECS` (startup-sync duplicate-GRN risk).
+- MED8 `373fbe2` — offboarding 3-table write wrapped in a transaction.
+- MED9 `373fbe2` — retention purge + audit made atomic.
+- LOW4 `624a08e` — expiry sweeps ordered soonest-first (was bare LIMIT).
+- LOW5 `624a08e` — CSM silent catches now log (behaviour unchanged).
+- LOW6 `624a08e` — invoice "(rate-wise above)" → "(multiple rates)" when the table
+  was dropped.
+
+**PARKED with rationale (needs a decision or is a feature — NOT hidden):**
+- MED2 — MAC super-admin mutations unaudited. Needs an audit target: MAC is
+  platform-level; org-scoped `audit_logs` may not fit. Owner call.
+- MED6 — Form 16 HRA exemption. `lessHraExempt = 0 // Future: derive from rent
+  declarations`. A tax FEATURE (10(13A) min-of-three + rent-declaration capture),
+  not a bug.
+- MED7 — offboarding "false comment". STALE: `admin.users.delete` does disable +
+  session-revoke + audit, so the comment is now accurate (last session's #19/#2).
+- MED10 — notification retry re-delivers channels. Needs per-channel idempotency;
+  only bites if job retries AND a channel throws mid-loop (channels are
+  best-effort). Verify retry policy first.
+- MED11 — GSP fetch timeout. STALE/N-A: no live GSP fetch exists anywhere in the
+  india lib (matches the "generate, do not file" rule). Add a timeout when a real
+  push is built.
+- MED12 — CSM free-text status vs hardcoded metric filters. Needs an enum +
+  migration + writer audit; the LOW5 logging helps observability meanwhile.
+- LOW2 — MAC impersonation mints an unusable JWT. Fails SAFE (session-based auth
+  rejects it, so it grants nothing). Making it work is a security-sensitive
+  feature (real impersonation session + audit). Owner call.
+- LOW3 — Temporal `completeRun` updates by PK without org_id. `workflow_runs` has
+  NO `org_id` column (the accepted §0g internal-id class); runId is internal, not
+  caller-supplied. Nothing to gate on.
+
+**Still open:** **Form 16 Part A via TRACES** (roadmap; Part B done). The parked
+items above (owner decisions / features).
 
 ## §B — STANDING BACKLOG (carried from PLAN-05, behind §A)
 
