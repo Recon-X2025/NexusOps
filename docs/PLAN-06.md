@@ -183,9 +183,15 @@ order:**
   aligns on a year-aware bucket key `k` (added to the metrics series type +
   `alignSeries`) so same-month labels no longer collapse/misorder and a missing
   bucket is a gap not a fabricated 0; (5) strategy "OKR Velocity" shows "—" on
-  no_data. **Verified by full typecheck build + metrics unit tests; the
-  authenticated/denied/error UI states were NOT browser-verified (app requires
-  login; entering credentials is disallowed).**
+  no_data. **Verified:** full typecheck build + `lint:cold` 9/9 (`Cached: 0`,
+  after a follow-up adding `k?` to the payload `TrendMetric.series` type that
+  cold-lint caught) + metrics unit tests; HAPPY PATH browser-verified once the
+  owner logged in — command center, service-desk workbench and IT-Services hub
+  Overview all render with zero console errors. NOT verified: the RBAC-denied /
+  query-error branches (not reproducible without specific denied logins) and the
+  metrics-level H3–H8 behavior at runtime (the shared dev server still runs the
+  stale metrics `dist` — the label read "EXPENSE RUN RATE (COA)", pre-H3 — and I
+  did not restart another session's server).
 
 Each: verify in source → fix → test (real Postgres **5433**, `pnpm docker:test:up`) →
 `pnpm build` (metrics/`dist` is consumed compiled — rebuild after editing) → commit.
