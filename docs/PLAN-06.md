@@ -228,6 +228,24 @@ Each verified against the repo first; several were stale or actually features.
 - LOW5 `624a08e` — CSM silent catches now log (behaviour unchanged).
 - LOW6 `624a08e` — invoice "(rate-wise above)" → "(multiple rates)" when the table
   was dropped.
+- MED10 `427f20d` — notification fan-out per-channel idempotency (owner: DO IT).
+  Redis marker per (BullMQ job id, channel), set after each channel settles;
+  already-marked channels skipped on retry (attempts:3). Test with spy
+  dispatchers + real test Redis.
+
+**Owner decisions from the 2026-08-25 Q&A:**
+- **MED2 — DECIDED: platform-level audit.** Build a new no-`org_id` audit table
+  (operator + action + target + reason + ts) and wire every `mac.*` mutation to
+  it. Migration-bearing → next batch needs a snapshot. QUEUED, not yet built.
+- **MED6 — awaiting owner inputs.** Needs: (1) build rent-declaration capture?
+  (2) metro classification source (city field vs per-employee flag). Then the
+  §10(13A) min-of-three is straightforward (basic is already available).
+- **LOW2 — clarified + stays parked.** Impersonation is a SUPPORT tool, unrelated
+  to signup/billing. Owner's real concern may be paywall/subscription
+  enforcement — no billing module seen in any audit so far; investigate separately
+  if asked.
+- **MED12 — pending owner call** (enum+migration vs leave; inventory the live
+  status vocabulary first to size migration risk).
 
 **PARKED with rationale (needs a decision or is a feature — NOT hidden):**
 - MED2 — MAC super-admin mutations unaudited. Needs an audit target: MAC is
@@ -237,9 +255,6 @@ Each verified against the repo first; several were stale or actually features.
   not a bug.
 - MED7 — offboarding "false comment". STALE: `admin.users.delete` does disable +
   session-revoke + audit, so the comment is now accurate (last session's #19/#2).
-- MED10 — notification retry re-delivers channels. Needs per-channel idempotency;
-  only bites if job retries AND a channel throws mid-loop (channels are
-  best-effort). Verify retry policy first.
 - MED11 — GSP fetch timeout. STALE/N-A: no live GSP fetch exists anywhere in the
   india lib (matches the "generate, do not file" rule). Add a timeout when a real
   push is built.
