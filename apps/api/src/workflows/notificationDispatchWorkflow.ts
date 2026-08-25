@@ -24,6 +24,7 @@ import {
 } from "@coheronconnect/db";
 import { decryptIntegrationConfigEnvelope } from "../services/encryption";
 import { getIntegrationAdapter } from "../services/integrations/registry";
+import { getRedis } from "../lib/redis";
 import type { SlackConfig, SlackMessage } from "../services/integrations/slack";
 import type { SmsMessage } from "../services/integrations/sms-msg91";
 
@@ -145,22 +146,47 @@ async function dispatchSms(db: Db, data: NotificationDispatchJobData): Promise<v
   await adapter.send(config, message as never);
 }
 
+type ChannelDispatcher = (db: Db, data: NotificationDispatchJobData) => Promise<void>;
+const DEFAULT_DISPATCHERS: Record<NotificationDispatchChannel, ChannelDispatcher> = {
+  slack: dispatchSlack,
+  sms: dispatchSms,
+};
+
+/** How long a per-channel delivery marker lives — longer than any retry window. */
+const DELIVERED_TTL_SEC = 3600;
+
 /**
  * Fan a single dispatch payload out to its requested channels. Extracted from
  * the worker so it can be driven directly (without Redis) — each channel is
  * best-effort: an unconnected integration or a missing SMS payload is a no-op,
  * not a failure.
+ *
+ * MED10 — per-channel idempotency. This queue runs with `attempts: 3`, so a
+ * mid-loop failure (e.g. Slack sends, then the SMS transport throws) fails the
+ * whole job and BullMQ re-runs it — re-delivering the channel that already went
+ * out. When an `idempotencyKey` is supplied (the stable BullMQ job id, reused
+ * across retries), each channel is marked delivered in Redis AFTER it settles,
+ * and an already-marked channel is skipped on the retry. A throw leaves the
+ * failing channel un-marked, so only it is retried. The direct-call path (no
+ * key, no retries) keeps the original behaviour.
  */
 export async function runNotificationDispatch(
   db: Db,
   data: NotificationDispatchJobData,
+  opts?: { idempotencyKey?: string; dispatchers?: Record<NotificationDispatchChannel, ChannelDispatcher> },
 ): Promise<void> {
+  const dispatchers = opts?.dispatchers ?? DEFAULT_DISPATCHERS;
+  const key = opts?.idempotencyKey;
+  const redis = key ? getRedis() : null;
+
   for (const channel of data.channels) {
-    if (channel === "slack") {
-      await dispatchSlack(db, data);
-    } else if (channel === "sms") {
-      await dispatchSms(db, data);
-    }
+    const marker = key ? `notify:sent:${key}:${channel}` : null;
+    if (redis && marker && (await redis.get(marker))) continue; // already delivered on a prior attempt
+    const dispatch = dispatchers[channel];
+    if (!dispatch) continue;
+    await dispatch(db, data);
+    // Mark only after the channel settles without throwing.
+    if (redis && marker) await redis.set(marker, "1", "EX", DELIVERED_TTL_SEC);
   }
 }
 
@@ -169,7 +195,8 @@ export function startNotificationDispatchWorker(db: Db): Worker<NotificationDisp
   return new Worker<NotificationDispatchJobData>(
     NOTIFICATION_DISPATCH_QUEUE_NAME,
     async (job: Job<NotificationDispatchJobData>) => {
-      await runNotificationDispatch(db, job.data);
+      // job.id is stable across retries of the same job → the idempotency key.
+      await runNotificationDispatch(db, job.data, { idempotencyKey: job.id });
     },
     {
       connection: redisConnection(),
