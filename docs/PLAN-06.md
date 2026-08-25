@@ -46,15 +46,14 @@ _Deploy facts verified 2026-08-25 against the repo (`git log`, `gh run list`). T
 isolation model below was established by experiment on 2026-08-23 and is carried
 forward unchanged; where a line was only read in code, it says so._
 
-**Deployed:** `origin/main` = `bed0c79` (`fix(auth): updateUserRole must enforce
-role hierarchy and block self-targeting`). The last `main` CI run `32732795785`
-completed **success** through `Deploy to Vultr` (2026-08-24, 48m). "Live" means the
-terminal Deploy job, not CI success. Confirm with
-`gh run view <id> --json jobs` before trusting any newer claim.
+**Deployed:** `origin/main` = `9b480bf` (run 18's batch). CI run `32805314113`
+completed **success** through `Deploy to Vultr` (2026-08-25); live
+`/api/health` returns `version: 9b480bf6…`, matching HEAD. "Live" means the terminal
+Deploy job, not CI success. Confirm with `gh run view <id> --json jobs`.
 
-**Ten commits are local and unpushed** — 7 HIGH product fixes + 3 docs. They are the
-next batch push; **the owner has cleared #15 to ship** (see QUEUE §A.1). A push to
-`main` deploys and needs a Vultr snapshot first (Claude cannot take one).
+**Working tree is level with origin/main after the push** (aside from any post-push
+docs commit). The run-18 batch — the 7 queued HIGH fixes (incl. #15) + the H3–H8
+dashboard campaign — is LIVE.
 
 **Gates last run (run 16, on the BLOCKER+HIGH set):** `pnpm build` 11/11; full api
 suite **2177 pass**; `pnpm lint:cold` **9/9, Cached: 0**. The api gate is the strict
@@ -110,9 +109,14 @@ Registers: `reports/audit-product-wide.md` (6 BLOCKER, 17 HIGH, 38 ranked) and
 14 HIGH are fixed + tested.** What remains is the push, the dashboard tier, test
 debt, and the MEDIUM/LOW register.
 
-### A.1 — The pending batch push (owner cleared #15 to SHIP)
+### A.1 — Batch push — DONE (deployed `9b480bf`, run 32805314113, 2026-08-25)
 
-Ten unpushed commits on local `main` (oldest→newest):
+**SHIPPED.** Owner took the Vultr snapshot and cleared #15; pushed `bed0c79→9b480bf`
+(20 commits). All five CI jobs green including Deploy to Vultr; `/api/health` version
+matches. The batch below is live. Gates before push: build 11/11, `lint:cold` 9/9
+`Cached: 0`, dashboard api tests 54/54.
+
+The batch that shipped (oldest→newest):
 
 ```
 1d0c323 fix(tax): professional tax OLD-regime only (#7)
@@ -427,7 +431,18 @@ New/updated tests: `metric-visuals.test.ts` (H3/H4), `service-desk-onshift.test.
 (H5), `devops-reachability.test.ts` (H6), `command-center.test.ts` (H7). All the
 affected api suites ran green in isolation.
 
-**Next:** the batch push (§A.1) — now 15 code + docs commits ahead of origin/main,
-#15 cleared to ship. Needs the owner's Vultr snapshot + go; re-run `pnpm build`
-and `pnpm lint:cold` first. Then the remaining register (§A.4): the H7
-`dashboard.getMetrics` sibling, product-wide MEDIUM/LOW, Form 16 Part A.
+**Batch push — DONE.** Owner took the snapshot and cleared #15; pushed
+`bed0c79→9b480bf` (20 commits). CI run `32805314113` green through Deploy to Vultr;
+live `/api/health` = `9b480bf6…`. Migrations auto-applied clean.
+
+**End-to-end verification (this session, api restarted onto the new dist):** H3 and
+H5 confirmed reflecting correctly in the LIVE dashboard — H3 label flipped
+"(COA)"→"(period)" and value ₹10.23L→₹3.76L (period-windowed journal figure), SLA
+compliance re-scoped; H5 roster resolves distinct people per schedule + honest "—".
+H4/H6/H7 NOT visually confirmed — their states (tiny tenant, CIO view, non-finance
+login) aren't reachable in the single-admin dev org; covered by unit tests. Verify
+those on prod with the right role/tenant logins when convenient.
+
+**Next:** §A.4 remaining register — the H7 `dashboard.getMetrics` sibling (AP/AR on
+`reports:read`), product-wide 12 MEDIUM + 6 LOW, Form 16 Part A. Nothing is pushed
+between now and the next batch (a lone docs push would re-trigger a deploy).
