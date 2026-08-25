@@ -36,6 +36,7 @@ import {
   eq,
   and,
   or,
+  asc,
   isNull,
   isNotNull,
   sql,
@@ -173,6 +174,9 @@ export async function sweepContractExpiries(db: Db): Promise<ExpirySweepResult> 
         or(isNotNull(contracts.internalOwnerId), isNotNull(contracts.legalOwnerId)),
       ),
     )
+    // Deterministic order (soonest-expiring first) so a capped batch always
+    // processes the same, most-urgent rows rather than an arbitrary 500.
+    .orderBy(asc(contracts.endDate), asc(contracts.id))
     .limit(EXPIRY_SWEEP_BATCH_LIMIT);
 
   for (const c of rows) {
@@ -231,6 +235,8 @@ export async function sweepWarrantyExpiries(db: Db): Promise<ExpirySweepResult> 
         sql`${assets.warrantyExpiry} <= NOW() + (${WARRANTY_HORIZON_DAYS} || ' days')::interval`,
       ),
     )
+    // Deterministic order (soonest-expiring first) — see the contracts sweep.
+    .orderBy(asc(assets.warrantyExpiry), asc(assets.id))
     .limit(EXPIRY_SWEEP_BATCH_LIMIT);
 
   for (const a of rows) {

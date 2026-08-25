@@ -11,6 +11,7 @@ import {
   sql,
 } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
+import { logError } from "../lib/logger";
 
 export const csmRouter = router({
   cases: router({
@@ -35,7 +36,10 @@ export const csmRouter = router({
           `);
           const items = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
           return { items: items as Record<string, unknown>[], nextCursor: null };
-        } catch {
+        } catch (err) {
+          // Don't return an empty queue SILENTLY — a failed query then reads as
+          // "no cases". Log it (still degrade gracefully) so the gap is visible.
+          logError("csm.cases_list_failed", err, { orgId: org?.id });
           return { items: [], nextCursor: null };
         }
       }),
@@ -183,8 +187,8 @@ export const csmRouter = router({
       const r = (rows as unknown as { total: string; open_cnt: string }[])[0];
       totalCases = Number(r?.total ?? 0);
       openCases = Number(r?.open_cnt ?? 0);
-    } catch {
-      /* table missing in some envs */
+    } catch (err) {
+      logError("csm.cases_count_failed", err, { orgId: org?.id });
     }
     return {
       totalCases,
@@ -221,8 +225,8 @@ export const csmRouter = router({
       totalCases = Number(r?.total ?? 0);
       openCases = Number(r?.open_cnt ?? 0);
       resolvedToday = Number(r?.resolved_today ?? 0);
-    } catch {
-      /* csm_cases */
+    } catch (err) {
+      logError("csm.dashboard_cases_failed", err, { orgId: org?.id });
     }
 
     // Average CSAT from submitted CSAT survey responses (null when none exist —
@@ -241,8 +245,8 @@ export const csmRouter = router({
       if (cr && Number(cr.n) > 0 && cr.avg_score != null) {
         avgCsat = Math.round(Number(cr.avg_score) * 100) / 100;
       }
-    } catch {
-      /* survey_responses */
+    } catch (err) {
+      logError("csm.dashboard_csat_failed", err, { orgId: org?.id });
     }
 
     return {

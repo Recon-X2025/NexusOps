@@ -293,7 +293,10 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
       { taxableValue: input.totals.taxableValue, taxTotal: input.totals.taxTotal },
       input.isInterstate,
     );
-    if (!input.chargesNoTax && groups && groups.length > 0) {
+    // Whether the rate-wise breakup table is actually printed. The suffix below
+    // ("rate-wise above") must not point at a table that reconciliation dropped.
+    const rateTableShown = !input.chargesNoTax && !!groups && groups.length > 0;
+    if (rateTableShown) {
       doc.fontSize(7).font("Helvetica-Bold").fillColor("#666666").text("TAX SUMMARY (RATE-WISE)", PAGE_LEFT, y);
       y = doc.y + 4;
       doc.fontSize(7).font("Helvetica-Bold").fillColor("#333333");
@@ -336,8 +339,12 @@ export async function generateInvoicePDF(input: InvoicePdfInput): Promise<Buffer
 
     // Never a single "Tax" figure: the split is named, with its rate.
     const rates = [...new Set(input.lines.filter((l) => l.taxableValue > 0).map((l) => l.gstRate))];
-    const halfSuffix = rates.length === 1 ? ` @ ${pctLabel(rates[0]! / 2)}` : " (rate-wise above)";
-    const fullSuffix = rates.length === 1 ? ` @ ${pctLabel(rates[0]!)}` : " (rate-wise above)";
+    // Only claim "rate-wise above" when that table was actually printed; if
+    // reconciliation dropped it, say "(multiple rates)" instead of pointing at
+    // a table that isn't there.
+    const multiSuffix = rateTableShown ? " (rate-wise above)" : " (multiple rates)";
+    const halfSuffix = rates.length === 1 ? ` @ ${pctLabel(rates[0]! / 2)}` : multiSuffix;
+    const fullSuffix = rates.length === 1 ? ` @ ${pctLabel(rates[0]!)}` : multiSuffix;
     if (input.chargesNoTax) {
       // Nothing to split — the customer owes the taxable value alone.
     } else if (input.isInterstate) {
