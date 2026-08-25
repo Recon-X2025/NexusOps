@@ -444,8 +444,11 @@ const auditMutation = t.middleware(async (opts) => {
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });
-  } catch {
-    /* non-fatal — never block the actual mutation */
+  } catch (err) {
+    // Non-fatal — never block the actual mutation. But a tamper-evident chain
+    // whose appends fail SILENTLY is worse than none: a gap then reads as "no
+    // activity". Log it so the gap is detectable in aggregated logs.
+    logError("audit.append_failed", err, { route: path ?? "mutation", orgId: ctx.org.id });
   }
   return result;
 });

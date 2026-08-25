@@ -643,6 +643,17 @@ async function bootstrap() {
   // Require X-Internal-Token header matching INTERNAL_API_TOKEN env var.
   // If INTERNAL_API_TOKEN is not set, fall back to allowing localhost only.
   const INTERNAL_API_TOKEN = process.env["INTERNAL_API_TOKEN"];
+  // True private-network ranges only. The previous check matched all of `172.*`
+  // (public 172.x included) and `10.*`; this restricts 172. to the RFC1918
+  // /12 (172.16–172.31) and adds 192.168/16.
+  const isPrivateIp = (raw: string): boolean => {
+    const ip = raw.replace(/^::ffff:/, ""); // unwrap IPv4-mapped IPv6
+    if (ip === "127.0.0.1" || ip === "::1") return true;
+    if (/^10\./.test(ip)) return true;
+    if (/^192\.168\./.test(ip)) return true;
+    const m = /^172\.(\d{1,3})\./.exec(ip);
+    return m ? Number(m[1]) >= 16 && Number(m[1]) <= 31 : false;
+  };
   fastify.addHook("preHandler", async (req, reply) => {
     if (!req.url?.startsWith("/internal/")) return;
     const token = req.headers["x-internal-token"];
@@ -651,10 +662,12 @@ async function bootstrap() {
         return reply.status(401).send({ error: "Unauthorized", message: "Valid X-Internal-Token header required" });
       }
     } else {
-      // No token configured — only allow requests from localhost/Docker network
-      const ip = req.ip ?? (req.socket?.remoteAddress ?? "");
-      const isLocal = ip === "127.0.0.1" || ip === "::1" || ip.startsWith("172.") || ip.startsWith("10.");
-      if (!isLocal) {
+      // No token configured — allow only the local Docker/host network. Decide on
+      // the raw TCP peer (socket.remoteAddress), NOT req.ip: trustProxy is on, so
+      // req.ip honours X-Forwarded-For and an external caller could spoof a
+      // private address to reach these endpoints. The socket peer cannot be forged.
+      const ip = req.socket?.remoteAddress ?? "";
+      if (!isPrivateIp(ip)) {
         return reply.status(401).send({ error: "Unauthorized", message: "Internal endpoint — set INTERNAL_API_TOKEN env var for remote access" });
       }
     }

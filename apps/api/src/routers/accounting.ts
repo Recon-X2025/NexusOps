@@ -330,7 +330,7 @@ export const accountingRouter = router({
       })).min(2),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines } = await import("@coheronconnect/db");
+      const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, inArray: dbIn } = await import("@coheronconnect/db");
 
       // Validate balanced entry
       const totalDebit  = input.lines.reduce((s, l) => s + l.debitAmount, 0);
@@ -344,6 +344,19 @@ export const accountingRouter = router({
       // Header + lines are one entry; do them in a transaction so a line-insert
       // failure can't leave a header with no (or partial) line items.
       return await db.transaction(async (tx) => {
+        // Every line's account must belong to THIS org — a caller-supplied
+        // accountId could otherwise reference another tenant's chart-of-accounts
+        // row (the line is stamped with our org_id, but the FK only checks the
+        // account exists, not that it is ours).
+        const accountIds = [...new Set(input.lines.map((l) => l.accountId))];
+        const ownedAccounts = await tx
+          .select({ id: chartOfAccounts.id })
+          .from(chartOfAccounts)
+          .where(dbAnd(dbEq(chartOfAccounts.orgId, org!.id), dbIn(chartOfAccounts.id, accountIds)));
+        if (ownedAccounts.length !== accountIds.length) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "One or more journal line accounts do not belong to this organization" });
+        }
+
         // The JE number is minted by the atomic per-(org, "JE-<year>") counter, not
         // count()+1: two concurrent creates therefore receive distinct consecutive
         // numbers with no unique-violation/retry. Format is unchanged — JE-YYYY-00001
