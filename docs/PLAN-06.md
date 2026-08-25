@@ -46,18 +46,22 @@ _Deploy facts verified 2026-08-25 against the repo (`git log`, `gh run list`). T
 isolation model below was established by experiment on 2026-08-23 and is carried
 forward unchanged; where a line was only read in code, it says so._
 
-**Deployed:** `origin/main` = `c02d30e` (H7 sibling + 11 MEDIUM/LOW register fixes).
-CI run `32810806639` completed **success** through `Deploy to Vultr` (2026-08-25);
-live `/api/health` returns `version: c02d30e…`, matching HEAD. Earlier the same day:
-`9b480bf` (run `32805314113`) shipped the HIGH batch + H3–H8 dashboard campaign.
-"Live" means the terminal Deploy job, not CI success.
+**Deployed:** `origin/main` = `be3a9ae` (batch 3: MED2 + MED10 + MED12 + MED6
+engine + Velocity-Trajectory fix). CI run `32821681828` **success** through
+`Deploy to Vultr` (2026-08-25); live `/api/health` = `be3a9ae…`, and the api
+booted so **migration 0103 applied cleanly** (`migrate && start` chain). Three
+deploys shipped 2026-08-25: `9b480bf` (HIGH batch + H3–H8 dashboard), `c02d30e`
+(H7 sibling + 11 MEDIUM/LOW), `be3a9ae` (batch 3). "Live" = the terminal Deploy
+job, not CI success.
 
-**Batch 3 built + tested, UNPUSHED (8 commits ahead of origin/main):** MED10
-notification idempotency (`427f20d`), MED2 platform MAC audit (`db2b993`, migration
-0103), MED12 CSM status enum (`7665e71` + web caller `278cf82`), Velocity-Trajectory
-mixed-units fix (`a5f6d41`), MED6 HRA-exemption engine (`393008f`), + plan docs.
-Gates: build 11/11, `lint:cold` 9/9 `Cached: 0`, affected api tests 39/39.
-**This batch carries migration 0103 → the push needs a fresh Vultr snapshot.**
+**Working tree level with origin/main** after batch 3 (bar any post-push docs
+commit).
+
+**Batch 3 — DEPLOYED (`be3a9ae`).** MED10 idempotency (`427f20d`), MED2 platform
+MAC audit (`db2b993`, migration 0103), MED12 CSM status enum (`7665e71` + web
+caller `278cf82`), Velocity-Trajectory mixed-units fix (`a5f6d41`), MED6
+HRA-exemption engine (`393008f`). Gates were build 11/11, `lint:cold` 9/9, tests
+39/39; snapshot taken, migration 0103 applied on boot.
 
 **Gates last run (run 16, on the BLOCKER+HIGH set):** `pnpm build` 11/11; full api
 suite **2177 pass**; `pnpm lint:cold` **9/9, Cached: 0**. The api gate is the strict
