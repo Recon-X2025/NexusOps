@@ -37,8 +37,20 @@ function getClient(): S3Client {
       accessKeyId && secretAccessKey
         ? { accessKeyId, secretAccessKey }
         : undefined,
+    // S3-compatible stores on Ceph/RGW (Vultr, some MinIO/R2 builds) reject the
+    // AWS SDK v3 default flexible request checksums (CRC32), erroring on ops like
+    // DeleteObject/PutObject. Send checksums only WHEN_REQUIRED for a custom
+    // endpoint; AWS S3 (no custom endpoint) keeps the SDK defaults.
+    ...(usesCustomEndpoint()
+      ? { requestChecksumCalculation: "WHEN_REQUIRED" as const, responseChecksumValidation: "WHEN_REQUIRED" as const }
+      : {}),
   });
   return _client;
+}
+
+/** True when pointed at a non-AWS S3-compatible endpoint (MinIO, Vultr, R2, …). */
+function usesCustomEndpoint(): boolean {
+  return Boolean(process.env["S3_ENDPOINT"]);
 }
 
 function bucket(): string {
@@ -80,13 +92,21 @@ export interface PutResult {
 export async function putObject(opts: PutOptions): Promise<PutResult> {
   const sha256 = crypto.createHash("sha256").update(opts.body).digest("hex");
   const fullKey = `${opts.orgId}/${opts.key.replace(/^\/+/, "")}`;
+  const custom = usesCustomEndpoint();
+  // SSE-S3 (AES256) is the default on AWS. Vultr Object Storage does NOT support
+  // SSE-S3 (only SSE-C), so sending it would fail every upload — omit it for a
+  // custom endpoint unless the caller explicitly asked for encryption. (At-rest
+  // encryption on such providers is a separate app-side/SSE-C decision.)
+  const serverSideEncryption = opts.serverSideEncryption ?? (custom ? undefined : "AES256");
   const putCmd = new PutObjectCommand({
     Bucket: bucket(),
     Key: fullKey,
     Body: opts.body,
     ContentType: opts.mimeType,
-    ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64"),
-    ServerSideEncryption: opts.serverSideEncryption ?? "AES256",
+    // The app records its own sha256 (below); the redundant server checksum
+    // header trips older Ceph RGW builds, so skip it for custom endpoints.
+    ...(custom ? {} : { ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64") }),
+    ...(serverSideEncryption ? { ServerSideEncryption: serverSideEncryption } : {}),
     ...(opts.kmsKeyId ? { SSEKMSKeyId: opts.kmsKeyId } : {}),
   });
 
