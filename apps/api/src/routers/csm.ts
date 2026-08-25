@@ -13,6 +13,23 @@ import {
 import { getNextNumber } from "../lib/auto-number";
 import { logError } from "../lib/logger";
 
+/**
+ * Canonical CSM case statuses (MED12). The column is free text in the DB, but
+ * the write path accepted any string, so a non-canonical status (e.g. "Done")
+ * would be counted as open by the metric filters (which key on 'resolved'/
+ * 'closed'). Constrain the write to the set the UI actually offers — new +
+ * the case-detail dropdown — so new writes can't drift. (No DB enum migration:
+ * that would risk failing on any legacy value already stored.)
+ */
+const CSM_CASE_STATUSES = [
+  "new",
+  "in_progress",
+  "awaiting_customer",
+  "pending",
+  "resolved",
+  "closed",
+] as const;
+
 export const csmRouter = router({
   cases: router({
     list: permissionProcedure("csm", "read")
@@ -81,7 +98,7 @@ export const csmRouter = router({
     update: permissionProcedure("csm", "write")
       .input(z.object({
         id: z.string().uuid(),
-        status: z.string().optional(),
+        status: z.enum(CSM_CASE_STATUSES).optional(),
         priority: z.string().optional(),
         assigneeId: z.string().uuid().optional(),
         resolution: z.string().optional(),

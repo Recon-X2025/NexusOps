@@ -37,4 +37,18 @@ describe("CSM router RBAC (Seq 14 C6)", () => {
     const c = (await caller.csm.cases.create({ title: "RBAC ok", priority: "medium" })) as { id: string };
     expect(c.id).toBeDefined();
   });
+
+  it("MED12: cases.update rejects a non-canonical status and accepts a canonical one", async () => {
+    const caller = await authedCaller(adminToken);
+    const c = (await caller.csm.cases.create({ title: "status guard", priority: "low" })) as { id: string };
+
+    // Arbitrary free-text status is now rejected at the input boundary.
+    await expect(
+      // @ts-expect-error — "Done" is not a member of the status enum
+      caller.csm.cases.update({ id: c.id, status: "Done" }),
+    ).rejects.toThrow();
+
+    // A canonical status still works.
+    await expect(caller.csm.cases.update({ id: c.id, status: "resolved" })).resolves.toBeDefined();
+  });
 });
