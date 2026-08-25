@@ -14,8 +14,7 @@
  */
 import type { employees, payslips, organizations } from "@coheronconnect/db";
 import type { Form16PDFInput } from "../../services/form16-pdf";
-import { computeTax, type EmployeeTaxProfile } from "../india-tax-engine";
-import { computeHraExemption } from "./hra-exemption";
+import { computeTax, computeHRAExemption, type EmployeeTaxProfile } from "../india-tax-engine";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -44,11 +43,6 @@ export interface AggregateInput {
   financialYear: string;
   /** Optional Chapter VI-A breakup (defaults to zero per row). */
   chapterVIA?: Array<{ section: string; label: string; amount: number }>;
-  /**
-   * Optional employee rent declaration for the FY, driving the §10(13A) HRA
-   * exemption. Absent → exemption is 0 (Form 16 never over-states it).
-   */
-  rentDeclaration?: { annualRentPaid: number; isMetro: boolean };
   /** Display-only — who signs the certificate. Defaults to "Authorized Signatory". */
   signedBy?: string;
   signedDesignation?: string;
@@ -60,21 +54,22 @@ export function buildForm16Input(args: AggregateInput): Form16PDFInput {
   const grossSalary = fySlips.reduce((s, p) => s + Number(p.grossEarnings || 0), 0);
 
   const taxRegime = (employee.taxRegime ?? "new") as "old" | "new";
-  // §10(13A) HRA exemption — the least of actual HRA, rent−10% of (Basic+DA),
-  // and 50%/40% of (Basic+DA). Needs the employee's rent declaration (rent paid
-  // + metro); absent, it degrades to 0 so the certificate never over-states it.
-  // Only the OLD regime grants it (the helper enforces this too).
+  // §10(13A) HRA exemption. MED6: Form 16 hardcoded this to 0, while the PAYSLIP
+  // engine already applied it from employee.rentPaidAnnual + isMetroCity — so the
+  // certificate OVER-stated taxable income vs the TDS actually deducted. Use the
+  // SAME computeHRAExemption the payslip uses (basic-annual basis, OLD-regime
+  // only) so Form 16 reconciles exactly with the payslip.
   const hraReceivedAnnual = fySlips.reduce((s, p) => s + Number(p.hra || 0), 0);
-  const basicDaAnnual = fySlips.reduce((s, p) => s + Number(p.basic || 0) + Number(p.da || 0), 0);
-  const lessHraExempt = args.rentDeclaration
-    ? computeHraExemption({
-        hraReceived: hraReceivedAnnual,
-        salaryBasicDa: basicDaAnnual,
-        rentPaid: args.rentDeclaration.annualRentPaid,
-        isMetro: args.rentDeclaration.isMetro,
-        regime: taxRegime,
-      })
-    : 0;
+  const basicAnnualForHra = fySlips.reduce((s, p) => s + Number(p.basic || 0), 0);
+  const lessHraExempt =
+    taxRegime === "old"
+      ? computeHRAExemption(
+          basicAnnualForHra,
+          hraReceivedAnnual,
+          Number(employee.rentPaidAnnual ?? 0),
+          Boolean(employee.isMetroCity),
+        )
+      : 0;
   const lessLtaExempt = fySlips.reduce((s, p) => s + Number(p.lta || 0), 0);
   const lessOtherExempt = 0;
   const netSalary = Math.max(0, grossSalary - lessHraExempt - lessLtaExempt - lessOtherExempt);
