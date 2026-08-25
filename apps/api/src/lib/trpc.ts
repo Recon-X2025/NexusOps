@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { z, ZodError } from "zod";
 import { sql } from "drizzle-orm";
 import type { Module, RbacAction } from "@coheronconnect/types";
-import { users, organizations, type Db } from "@coheronconnect/db";
+import { users, organizations, superAdminAuditLogs, type Db } from "@coheronconnect/db";
 import { checkDbUserPermission } from "./rbac-db";
 import { isRetryableTrpcResult, retryDelay, MAX_ATTEMPTS, extractPgCode } from "./db-retry";
 import {
@@ -372,15 +372,55 @@ const enforceMacOperator = t.middleware(({ ctx, path, next }) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not a MAC operator" });
   }
 
-  return next({ ctx });
+  // Propagate the operator identity so the audit middleware (and handlers) can
+  // attribute the action to a person.
+  const macOperatorEmail = typeof payload === "object" ? String(payload["email"] ?? "unknown") : "unknown";
+  return next({ ctx: { ...ctx, macOperatorEmail } });
+});
+
+/**
+ * Audit every MAC super-admin MUTATION to `super_admin_audit_logs` (MED2). The
+ * mac.* tRPC surface previously wrote no audit trail at all, unlike the HTTP
+ * super-admin surface. Applied as middleware so all current AND future mac
+ * mutations are covered — a new mac.* mutation cannot ship unaudited. Queries
+ * are not recorded. Best-effort like the tenant audit: a failed append is
+ * logged, never blocks the operation. org_id is derived from the input/result
+ * when there is a target org, else null (platform-level action).
+ */
+const auditMacOperation = t.middleware(async (opts) => {
+  const rawInputValue = await opts.getRawInput().catch(() => null);
+  const result = await opts.next();
+  if (opts.type !== "mutation") return result;
+  const { ctx, path } = opts;
+  try {
+    const input = rawInputValue as Record<string, unknown> | null | undefined;
+    const output = (result as { ok: boolean; data?: unknown }).data as Record<string, unknown> | null | undefined;
+    // Target org, when the action names one (createOrganization returns the new
+    // org's id; most others take orgId/id in input). Null = platform-level.
+    const targetOrgId =
+      (typeof input?.orgId === "string" ? input.orgId : null) ??
+      (typeof input?.id === "string" ? input.id : null) ??
+      (typeof output?.orgId === "string" ? output.orgId : null) ??
+      (typeof output?.id === "string" ? output.id : null) ??
+      null;
+    await ctx.db.insert(superAdminAuditLogs).values({
+      actorEmail: (ctx as { macOperatorEmail?: string }).macOperatorEmail ?? "unknown",
+      orgId: targetOrgId,
+      action: path ?? "mac.mutation",
+      afterJson: (input ? sanitizeForAudit(input) : undefined) as Record<string, unknown> | undefined,
+    });
+  } catch (err) {
+    logError("mac_audit.append_failed", err, { route: path ?? "mac.mutation" });
+  }
+  return result;
 });
 
 /**
  * Procedure for the platform super-admin (MAC) surface. Requires a valid
  * `MAC_JWT_SECRET`-signed operator token. Use for every `mac.*` procedure
- * except `mac.login`.
+ * except `mac.login`. Every mutation is recorded to `super_admin_audit_logs`.
  */
-export const macProcedure = publicProcedure.use(enforceMacOperator);
+export const macProcedure = publicProcedure.use(enforceMacOperator).use(auditMacOperation);
 
 const enforceAuth = t.middleware(({ ctx, path, next }) => {
   if (!ctx.user || !ctx.org) {

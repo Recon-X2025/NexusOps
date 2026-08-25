@@ -6,9 +6,9 @@ export const superAdminAuditLogs = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     actorEmail: text("actor_email").notNull(),
-    orgId: uuid("org_id")
-      .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Nullable: some platform-level super-admin actions (e.g. operator
+    // impersonation, cross-org analytics) target no single org.
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
     action: text("action").notNull(),
     // Before/after snapshots capture arbitrary row shape — a deliberately open blob.
     beforeJson: jsonb("before_json").$type<Record<string, unknown>>(),
