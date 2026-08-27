@@ -58,6 +58,10 @@ live `/health/detailed` now shows `search: ok`. Four deploys shipped 2026-08-25:
 `be3a9ae` (batch 3: MED2/10/12 + MED6 engine + trend fix, migration 0103),
 `2a4b659` (batch 4). "Live" = the terminal Deploy job.
 
+**Pilot-readiness backlog (strategic roadmap) lives in `docs/PILOT-READINESS.md`**
+— the P0/P1/P2 gap plan with effort estimates + pre/post-pilot timing, agreed
+2026-08-27. This PLAN file stays the tactical per-run queue.
+
 **Batch 5 — DEPLOYED (`e240da0`, run 32866256526, migration 0104 applied).** MED6
 Form 16 HRA (`f522de3`) + LOW2 secure impersonation (`636a66b`). Five deploys
 shipped 2026-08-25: `9b480bf`, `c02d30e`, `be3a9ae`, `2a4b659`, `e240da0`. Prod is
