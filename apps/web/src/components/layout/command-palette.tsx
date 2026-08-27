@@ -48,7 +48,7 @@ interface CommandItem {
   keywords?: string[];
 }
 
-const COMMAND_ITEMS: CommandItem[] = [
+export const COMMAND_ITEMS: CommandItem[] = [
   // Platform
   { id: "dashboard",   label: "Command Center",      group: "Platform",            href: "/app/command",          icon: LayoutDashboard },
   { id: "admin",       label: "Administration",           group: "Platform",            href: "/app/admin",              icon: SlidersHorizontal },
@@ -73,6 +73,7 @@ const COMMAND_ITEMS: CommandItem[] = [
 
   // People & Workplace
   { id: "hr",          label: "HR Service Delivery",      group: "People & Workplace",  href: "/app/hr",                 icon: UserCheck,      keywords: ["hr", "human resources", "cases"] },
+  { id: "payroll",     label: "Payroll",                  group: "People & Workplace",  href: "/app/payroll",            icon: UserCheck,      keywords: ["payroll", "salary", "payslip", "form 16", "salary structure", "compensation", "tds", "epf", "esi"] },
   { id: "recruitment", label: "Recruitment & ATS",        group: "People & Workplace",  href: "/app/recruitment",        icon: Users,          keywords: ["hiring", "ats", "candidates", "jobs"] },
   { id: "performance", label: "Performance Management",   group: "People & Workplace",  href: "/app/performance",        icon: Target,         keywords: ["performance", "goals", "okr", "review", "360"] },
   { id: "people-analytics", label: "People Analytics",   group: "People & Workplace",  href: "/app/people-analytics",   icon: BarChart3,      keywords: ["workforce", "analytics", "headcount"] },

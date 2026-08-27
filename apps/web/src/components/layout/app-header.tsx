@@ -12,6 +12,7 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { COMMAND_ITEMS } from "@/components/layout/command-palette";
 import { SIDEBAR_GROUPS } from "@/lib/sidebar-config";
 
 /**
@@ -508,8 +509,25 @@ export function AppHeader() {
   // @ts-ignore - search router created in parallel
   const searchResults = trpc.search.global.useQuery({ query: debouncedQuery, limit: 20 }, mergeTrpcQueryOpts("search.global", { enabled: isAuthenticated && debouncedQuery.length > 1 },));
 
-  const results: Array<{ id: string; type: string; title: string; description?: string; href: string }> =
-    searchResults.data ?? [];
+  // Module/navigation matches from the command palette, so typing a MODULE name
+  // (e.g. "Payroll") jumps there — independent of the record search index (which
+  // is Meili-backed and may be empty). Records still come from search.global.
+  const q = debouncedQuery.trim().toLowerCase();
+  const moduleResults =
+    q.length > 1
+      ? COMMAND_ITEMS.filter(
+          (it) =>
+            it.label.toLowerCase().includes(q) ||
+            (it.keywords?.some((k) => k.toLowerCase().includes(q)) ?? false),
+        )
+          .slice(0, 6)
+          .map((it) => ({ id: `mod:${it.id}`, type: "Modules", title: it.label, description: it.group, href: it.href }))
+      : [];
+
+  const results: Array<{ id: string; type: string; title: string; description?: string; href: string }> = [
+    ...moduleResults,
+    ...(searchResults.data ?? []),
+  ];
 
   const groupedResults = results.reduce<Record<string, typeof results>>((acc, item) => {
     const key = item.type;
