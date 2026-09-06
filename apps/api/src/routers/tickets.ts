@@ -1002,6 +1002,10 @@ export const ticketsRouter = router({
     // afterward — even in a separate try/catch — will fail until the
     // transaction is rolled back.  Moving this call outside the transaction
     // ensures failures are isolated and non-fatal.
+    // Cross-tenant: a caller-supplied assignee must belong to this org. The
+    // auto-assignment path below (resolveAssignment) is already org-scoped, so we
+    // only need to guard the explicit input.assigneeId. tickets.assigneeId -> users.
+    await assertSameOrgIfPresent(db, users, input.assigneeId, org!.id, "Assignee");
     let resolvedAssigneeId = input.assigneeId;
     let resolvedTeamId = input.teamId;
     if (!resolvedAssigneeId) {
@@ -1362,6 +1366,8 @@ export const ticketsRouter = router({
         }
       }
       if (input.data.assigneeId !== undefined) {
+        // Cross-tenant: assignee must be in this org (null clears the assignee).
+        await assertSameOrgIfPresent(db, users, input.data.assigneeId, org!.id, "Assignee");
         changes["assigneeId"] = { from: existing.assigneeId, to: input.data.assigneeId };
         updateData.assigneeId = input.data.assigneeId;
       }
@@ -2050,6 +2056,8 @@ export const ticketsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
 
+      // Cross-tenant: a bulk re-assign must not point tickets at a foreign user.
+      await assertSameOrgIfPresent(db, users, input.data.assigneeId, org!.id, "Assignee");
       const updateData: Partial<typeof tickets.$inferInsert> = { updatedAt: new Date() };
       if (input.data.statusId) updateData.statusId = input.data.statusId;
       if (input.data.assigneeId !== undefined) updateData.assigneeId = input.data.assigneeId;

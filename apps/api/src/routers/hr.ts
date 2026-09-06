@@ -489,6 +489,13 @@ export const hrRouter = router({
           }
         }
 
+        // Cross-tenant: manager_id / dotted_line_manager_id are bare uuid columns
+        // (no FK constraint), so neither RLS nor the FK scan can see a foreign id
+        // written here. Validate both against this org, same helper as everywhere
+        // else. Both target another EMPLOYEE (the org chart), not a user.
+        await assertSameOrgIfPresent(db, employees, input.managerId, org!.id, "Manager");
+        await assertSameOrgIfPresent(db, employees, input.dottedLineManagerId, org!.id, "Dotted-line manager");
+
         const [employee] = await db
           .insert(employees)
           .values({
@@ -655,6 +662,11 @@ export const hrRouter = router({
             });
           }
         }
+        // Cross-tenant: manager_id / dotted_line_manager_id spread in via `...rest`
+        // and are bare uuid columns (no FK), so a foreign id would land silently.
+        // Validate before the write — null clears the manager and is allowed.
+        await assertSameOrgIfPresent(db, employees, input.managerId, org!.id, "Manager");
+        await assertSameOrgIfPresent(db, employees, input.dottedLineManagerId, org!.id, "Dotted-line manager");
         // Decimal columns take string values in Drizzle; convert only when supplied so an
         // omitted field is left untouched (spread would otherwise pass a number).
         const data = {

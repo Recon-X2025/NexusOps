@@ -90,6 +90,21 @@ try {
   // ── direct: both sides carry org_id ────────────────────────────────────────
   const direct = fks.filter((f) => orgTables.has(f.child) && orgTables.has(f.parent));
 
+  // ── refless: org-scoped references that carry NO FK constraint ─────────────
+  // A catalog-driven scan is blind to a bare uuid column — no pg_constraint row
+  // exists to introspect. These self-referential org-chart columns are exactly
+  // that shape (employees.manager_id -> employees.id, no FK), so they are checked
+  // EXPLICITLY here, with the same <>/= control. Any entry that later gains a real
+  // FK is dropped (it is then covered by `direct`, and we must not double-count).
+  const fkKeys = new Set(fks.map((f) => `${f.child}.${f.col}`));
+  const refless = [
+    { child: "employees", col: "manager_id", parent: "employees" },
+    { child: "employees", col: "dotted_line_manager_id", parent: "employees" },
+  ].filter(
+    (r) => orgTables.has(r.child) && orgTables.has(r.parent) && !fkKeys.has(`${r.child}.${r.col}`),
+  );
+  const directAll = [...direct, ...refless];
+
   // ── bridge: child has no org_id and ≥2 parents that resolve to an org ──────
   const noOrgChildren = new Map();
   for (const f of fks) {
@@ -104,6 +119,7 @@ try {
   console.log(
     `\nFK constraints considered: ${fks.length}` +
     `\n  direct checks   ${direct.length} constraints (both sides carry org_id)` +
+    `\n  refless checks  ${refless.length} bare-uuid references with no FK (checked explicitly)` +
     `\n  bridge tables   ${bridges.length} tables with >=2 org-resolved parents` +
     `\n  skipped         ${singleParent.length} tables — no org_id and a single parent,` +
     ` so no cross-tenant row is expressible on the row itself\n`,
@@ -112,7 +128,7 @@ try {
   const findings = [];
   let controlTotal = 0;
 
-  for (const f of direct) {
+  for (const f of directAll) {
     const where = `c.org_id IS NOT NULL AND p.org_id IS NOT NULL AND c.${q(f.col)} IS NOT NULL`;
     const join = `FROM ${q(f.child)} c JOIN ${q(f.parent)} p ON c.${q(f.col)} = p.id WHERE ${where}`;
     const [{ n }] = await sql.unsafe(`SELECT count(*)::int n ${join} AND c.org_id <> p.org_id`);
