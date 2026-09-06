@@ -16,18 +16,26 @@ duties. Around that sit HR service delivery, an ITSM ticket/change/problem engin
 accounting with GST, procurement, CRM, IT-asset management, secretarial/legal, and a DPDP
 privacy layer.
 
-**Scale, counted from the system on 2026-08-20** (not from any prior document — a handover
-once claimed 47 screens when the real figure was 134): **134 route files** (122 under
-`/app`), **79 navigation entries**, **238 database tables**, **100 migrations**. A previous
+**Scale, counted from the system on 2026-08-27** (not from any prior document — a handover
+once claimed 47 screens when the real figure was 134): **136 route files** (124 under
+`/app`), **57 API routers**, **239 database tables**, **105 migrations**. A previous
 handover also listed ITSM and Legal as out of scope; both are present and populated.
 
-The platform is **near its first production milestone**: a pilot cohort of paying customers
-onboarding for their first real payroll and GST cycle (see **[Roadmap](#roadmap--where-it-is-headed)**).
-The engineering reality across the breadth is uneven — some clusters are production-grade and
-reachable end-to-end, others carry an excellent engine behind a partial or missing UI. The honest,
-`file:line`-cited, per-module breakdown (with reachability-weighted completion percentages) lives
-in **[`docs/audits/module-completion-reachability_2026-08-15.md`](docs/audits/module-completion-reachability_2026-08-15.md)** —
-read it before making a capability claim.
+The platform is **live in production and onboarding its first pilot cohort** (`connect.coheron.tech`,
+serving the latest `main` deploy). The engineering reality across the breadth is uneven — some clusters
+are production-grade and reachable end-to-end, others carry an excellent engine behind a partial or
+missing UI. The honest, prioritized view of what is missing or under-built — with effort estimates
+and pre/post-pilot timing — is the **[pilot-readiness backlog](docs/PILOT-READINESS.md)**; the tactical
+per-run state is in the latest **`docs/PLAN-*.md`**. The older `file:line`-cited, reachability-weighted
+per-module audit is **[`docs/audits/module-completion-reachability_2026-08-15.md`](docs/audits/module-completion-reachability_2026-08-15.md)**
+(dated 2026-08-15 — several verdicts have since moved; verify before making a capability claim).
+
+> **Latest (2026-08-25 → 27), all live in prod:** the command-center/dashboard wiring campaign
+> (period-windowed health metrics, sample-size floors, honest empty/error states, cross-role finance
+> filtering); Form 16 now applies the §10(13A) HRA exemption (reconciled with the payslip);
+> platform-level audit of all MAC super-admin mutations + secure, time-boxed operator impersonation;
+> S3 client made Vultr/Ceph-compatible; and the header search now finds **modules** (record search is
+> still index-gapped — see Command Center / Search note below). Full run log in `docs/PLAN-06.md`.
 
 ## Architecture
 
@@ -100,7 +108,7 @@ percentages are in **[`docs/audits/module-completion-reachability_2026-08-15.md`
 | GRC / Compliance / DPDP | PARTIAL | Security incidents + CVSS→SLA escalation loop real; DPDP **DSR / consent / breach / RoPA** registers with a firing sweep. **Scope limits:** DSR erasure ships dry-run (`DPDP_ERASURE_ENABLED` off); breach notices go to the tenant's own DPO only — **never the regulator or data principals**; GRC scoring is likelihood×impact only. |
 | Legal / Secretarial | PARTIAL | Matters/requests/investigations, board & directors (resolutions with vote records, DIN+KYC), share capital (PAN encrypted). **Gaps:** related-party/RoPA/real MCA21 filing are backend-only; MCA/ROC tab is a manual tracker; ESOP is a grants register with no vesting computation; "Statutory Registers" is an empty shell. |
 | Self-Service Portal (consumer) | PARTIAL | Genuine self-scoped receive-only surfaces (payslips, Form 16, own leave/reviews). **Gap:** no role grants *exactly* the consumer experience. (The `requester` over-grant of HR / procurement write was narrowed in Round 4, and the facilities module has since been removed entirely, so that part of this gap is closed.) |
-| Command Center / Dashboards | PARTIAL | Metric payloads resolve against the real DB (empty orgs return `null`, never fabricated). Role/persona switching is disabled; failed resolvers are silently omitted. |
+| Command Center / Dashboards | PARTIAL | Metric payloads resolve against the real DB (empty orgs return `null`, never fabricated). **Reworked 2026-08-25:** health metrics are period-windowed (no more stuck-red all-time lights), rates carry a sample-size floor (one row can't fire a "stressed" alert), empty/error states read honestly (no "all clear" over a failed query), finance figures are filtered from roles without `financial:read`, devops metrics are reachable, and the trend chart normalizes mixed-unit series. **Gap:** global **record search never populates its index** (`indexDocument` is defined but called nowhere), so the header search finds *modules* but not records (tickets/employees); needs write-time indexing + a backfill. |
 | ESG Reporting | STUB | 100% hardcoded, fabricated numbers, no backend — do not represent as functional. |
 | AI Layer | PARTIAL | Classification, NL search, RAG copilot + deterministic dashboard narratives (Anthropic Claude API) — alpha, not production-hardened. |
 | Self-Hosted Deploy / Coheron-Managed | REAL | Docker Compose + Helm + CLI; Terraform IaC for AWS/GCP/Azure. |
@@ -117,19 +125,17 @@ Direction is set by three verified, market-split roadmap docs, each grounded in 
 audit: **[`docs/INDIA_ROADMAP.md`](docs/INDIA_ROADMAP.md)**, **[`docs/US_ROADMAP.md`](docs/US_ROADMAP.md)**,
 and **[`docs/AI_ROADMAP.md`](docs/AI_ROADMAP.md)**.
 
-### Near term — India go-live (the current gate)
-A pilot cohort of paying customers is onboarding for their first real cycle:
-
-- **~25 August** — seven pilot customers onboard (30–80 employees each).
-- **End August / early September** — the first real payroll run.
-- **11 October** — first live GSTR-1 filing target.
-
-The go-live work is reachability, not new engines: **downloadable statutory-filing artifacts**
-(ECR / ESI / PT / Form 24Q — today they are records, not files), a **leave-policy configuration
-UI** (today API-only), a **Post control on the sidebar journal** so entries reach the ledger, and
-the five security items (DPDP, vulnerability-SLA, MFA, KMS, Postgres RLS — already largely shipped).
-For the first cycle, the [`docs/MANUAL_SET.md`](docs/MANUAL_SET.md) items (statutory filing, a handful
-of professional-tax states, LTA/bonus) are handled outside the system by design.
+### Near term — pilot readiness (the current gate)
+The platform is live and onboarding its first pilot cohort. What still gates a pilot is tracked,
+prioritized, and effort-estimated in the **[pilot-readiness backlog](docs/PILOT-READINESS.md)** — the
+authoritative near-term plan. The pre-pilot cut (≈12–19 dev-days) is: **object storage (Vultr — the
+one definite go)**, **global record search** (populate the index), **admin/configuration surfaces**
+(SLA policies, ticket categories/priorities, PT slabs, leave-exit rules — today API/default-only), the
+**named critical workflows** (procure-to-pay, leave, payroll→statutory, lead-to-cash), and the
+**compliance-matrix truth-fix** (stop asserting `implemented` over unbuilt tables). Approvals-consolidation,
+ACL enforcement, and billing/paywall are pre-pilot *only if the pilot exercises them*. Statutory-filing
+artifacts and a handful of `docs/MANUAL_SET.md` items remain handled outside the system for the first
+cycle by design.
 
 ### Mid term — close the "engine exists, no UI" gaps
 The platform's dominant gap class is a correct engine behind a missing screen. The mid-term push

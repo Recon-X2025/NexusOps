@@ -3,6 +3,27 @@
 _Survey only. No source or doc files were changed to produce this. Written 2026-08-02
 on branch `fixes/phase-2`._
 
+> **Update 2026-09-06 — the (c) files below have since been remediated; this survey body
+> is retained as the 2026-08-02 snapshot.** Every file this survey classed **(c) stale &
+> misleading** now either carries a prominent staleness banner pointing to source or has
+> been corrected in place:
+> - `README.md` — the "Next.js 15" error is fixed (now correctly **Next.js 16**, `^16.2.2`);
+>   counts refreshed to **239 tables / 105 migrations / 57 routers**; the hardcoded prod SHA
+>   was generalized to "the latest `main` deploy".
+> - `NexusOps_API_Specification.md` — carries a "⚠️ STALE SNAPSHOT" banner; source of truth
+>   is `apps/api/src/routers/*`.
+> - `NexusOps_Entity_Relationship_Diagram.md` — re-reconciled to **239 tables / 48 schema
+>   files** at head `0104_greedy_rocket_racer` (v2.3).
+> - `NexusOps_Test_Accounts.md` — banner re-verified; the 9 core accounts still seed via
+>   `packages/db/src/seed.ts:56-64`; the dead Faker note is called out.
+> - `docs/SPRINT_3_4_PLAN_2026-07-04.md` — carries a "SHIPPED, do not rebuild" banner (both
+>   workflow files confirmed live).
+>
+> **Current ground truth (verified 2026-09-06):** Next.js **16.2.2** · migration head
+> **`0104_greedy_rocket_racer`** (105 files) · **239** `pgTable` definitions · **57** tRPC
+> routers. Canonical current-state docs are `README.md`, `docs/PRD.md`, `docs/TRD.md`,
+> `docs/PILOT-READINESS.md`, and the newest `docs/PLAN-*.md`.
+
 ## What this is
 
 Every tracked `.md` file in the repo (122 of them; none untracked), with:

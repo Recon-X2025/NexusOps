@@ -1,20 +1,20 @@
 # CoheronConnect — Entity Relationship Diagram
 
-**Version:** 2.2
-**Date:** 2026-07-30 (rev; v2.1 orig April 4, 2026)
+**Version:** 2.3
+**Date:** 2026-09-06 (rev; v2.1 orig April 4, 2026)
 **Status:** Active
 **Author:** Platform Engineering Team
-**Source:** `packages/db/src/schema/` (**236 tables** across 46 schema files, Drizzle
+**Source:** `packages/db/src/schema/` (**239 tables** across 48 schema files, Drizzle
 ORM / PostgreSQL 16). For the live migration head read
 `packages/db/drizzle/meta/_journal.json`; do not trust a head number quoted in prose.
 
-> **Reconciliation note (table count re-verified 2026-08-02).** The count is **236 base
-> tables** — 236 `pgTable` definitions across `packages/db/src/schema/*.ts`, still exact
-> after migrations `0060`/`0061` (which add a column and RLS policies, not tables). The
-> older changelog rows below (v1.x/2.0/2.1, April 2026) quote intermediate counts (~85,
-> 121, 132) that pre-date later migrations; the per-domain diagrams further down have
-> **not** all been regenerated to the current schema and may lag. Treat the 236 count as
-> ground truth; the domain diagrams are indicative, not exhaustive.
+> **Reconciliation note (table count re-verified 2026-09-06).** The count is **239 base
+> tables** — 239 `pgTable` definitions across `packages/db/src/schema/*.ts`, at migration
+> head `0104_greedy_rocket_racer` (105 migrations). The older changelog rows below
+> (v1.x/2.0/2.1, April 2026) quote intermediate counts (~85, 121, 132) that pre-date later
+> migrations; the per-domain diagrams further down have **not** all been regenerated to the
+> current schema and may lag. Treat the 239 count as ground truth; the domain diagrams are
+> indicative, not exhaustive.
 
 ---
 
@@ -22,6 +22,7 @@ ORM / PostgreSQL 16). For the live migration head read
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **2.3** | 2026-09-06 | **Re-reconciled to migration head `0104_greedy_rocket_racer` (105 migrations). Verified total: 239 tables across 48 schema files** (was 236 at v2.2). The +3 tables landed in migrations `0062`–`0104`; per-domain Mermaid diagrams below are unchanged and remain indicative, not exhaustive. |
 | **2.2** | 2026-07-30 | **Reconciled to migration head `0059_volatile_midnight` (60 migrations). Verified total: 236 tables across 48 schema files** (was 132 at v2.1). Interim migrations `0005`–`0059` (India compliance G1–G17, DPDP, security/RLS/KMS, ESI/Labour-Codes, SLA, shift schedules, super-admin, etc.) are not individually itemised here — see `packages/db/drizzle/` and `BUILD.md`. Per-domain Mermaid diagrams below are not yet regenerated to 236 and should be treated as indicative. |
 | **2.1** | 2026-04-04 | **Phase 3 — 11 new tables. Total: 132 tables (121 + 11).** **Recruitment:** `job_requisitions`, `candidates`, `candidate_applications` (UNIQUE `(candidate_id, job_id)`), `interviews`, `job_offers` — plus enums `job_status`, `job_type`, `job_level`, `candidate_stage`, `interview_type`, `interview_status`, `offer_status`, `candidate_source`. **Secretarial:** `board_meetings`, `board_resolutions`, `secretarial_filings`, `share_capital`, `esop_grants`, `company_directors` — plus enums `board_meeting_type`, `board_meeting_status`, `board_resolution_type`, `board_resolution_status`, `secretarial_filing_status`, `share_class`, `esop_event`. DDL: `0004_recruitment_secretarial.sql`; Drizzle: `recruitment.ts`, `secretarial.ts`. |
 
@@ -87,8 +88,8 @@ The schema is organised into **26 bounded domains**. Each domain section contain
 
 Following the domain diagrams is a **complete table reference** listing every column for every table, and a **PostgreSQL enum reference**.
 
-**Statistics** (verified 2026-07-30 at migration head `0059_volatile_midnight`):
-- Total tables: **236**
+**Statistics** (table/file counts re-verified 2026-09-06 at head `0104_greedy_rocket_racer`; enum count from 2026-07-30 at head `0059`, not re-checked):
+- Total tables: **239**
 - Total enum types: **169**
 - Total schema files: **48**
 - Central anchor table: `organizations` (nearly every table has `org_id` FK)
