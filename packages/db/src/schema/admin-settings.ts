@@ -7,6 +7,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
@@ -108,3 +109,43 @@ export const notificationRulesRelations = relations(notificationRules, ({ one })
   org: one(organizations, { fields: [notificationRules.orgId], references: [organizations.id] }),
   creator: one(users, { fields: [notificationRules.createdBy], references: [users.id] }),
 }));
+
+// ── Super-Admin Console Operators & Staff ────────────────────────────────────
+// Staff and operator accounts for managing the CoheronConnect MAC console.
+export const superAdminUsers = pgTable(
+  "super_admin_users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    role: text("role").notNull().default("operations_staff"), // super_admin | operations_staff | support_staff | auditor
+    status: text("status").notNull().default("active"), // active | disabled
+    phone: text("phone"),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    emailIdx: uniqueIndex("super_admin_users_email_idx").on(t.email),
+    roleIdx: index("super_admin_users_role_idx").on(t.role),
+    statusIdx: index("super_admin_users_status_idx").on(t.status),
+  }),
+);
+
+// ── Super-Admin Roles & Permission Matrices ──────────────────────────────────
+// Granular capability profiles for Super-Admin console operators.
+export const superAdminRoles = pgTable(
+  "super_admin_roles",
+  {
+    id: text("id").primaryKey(), // e.g. super_admin, operations_staff, support_staff, auditor, custom_role...
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    badgeCls: text("badge_cls").notNull().default("bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-700/50 dark:text-slate-300"),
+    isSystem: boolean("is_system").notNull().default(false),
+    capabilities: jsonb("capabilities").notNull().$type<Record<string, boolean>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
+

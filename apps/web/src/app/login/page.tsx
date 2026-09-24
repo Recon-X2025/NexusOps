@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Eye, EyeOff, Loader2, Zap } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, Zap } from "lucide-react";
 import { LoginSchema } from "@coheronconnect/types";
 import type { z } from "zod";
 import { trpc } from "@/lib/trpc";
@@ -20,6 +20,18 @@ export default function LoginPage() {
   const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [useBackupCode, setUseBackupCode] = useState(false);
+  const [suspendedError, setSuspendedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const notice = sessionStorage.getItem("auth_suspended_notice");
+      if (notice) {
+        setSuspendedError(notice);
+        toast.error(notice);
+        sessionStorage.removeItem("auth_suspended_notice");
+      }
+    }
+  }, []);
   const apiBase = process.env.NEXT_PUBLIC_API_URL ??
     (typeof window !== "undefined"
       ? `${window.location.protocol}//${window.location.hostname}:3001`
@@ -72,15 +84,19 @@ export default function LoginPage() {
     onError: (err) => {
       const code = err.data?.code;
       if (code === "UNAUTHORIZED") {
+        setSuspendedError(null);
         toast.error(
           "That email and password do not match any account on this server. If you have not registered yet, use Sign up free below.",
         );
         return;
       }
       if (code === "FORBIDDEN") {
-        toast.error("This account is disabled. Contact your workspace administrator.");
+        const msg = err.message || "This account is disabled. Contact your workspace administrator.";
+        setSuspendedError(msg);
+        toast.error(msg);
         return;
       }
+      setSuspendedError(null);
       toast.error(err.message ?? "Login failed");
     },
   });
@@ -88,7 +104,9 @@ export default function LoginPage() {
   const verifyMfa = trpc.auth.verifyMfa.useMutation({
     onSuccess: (data) => completeLogin(data.sessionId),
     onError: (err) => {
-      toast.error(err.message ?? "Verification failed");
+      const msg = err.message ?? "Verification failed";
+      setSuspendedError(msg);
+      toast.error(msg);
     },
   });
 
@@ -125,6 +143,16 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-sm">
+          {suspendedError && (
+            <div className="mb-6 rounded-lg border border-red-500/40 bg-red-950/50 p-4 text-body-sm text-red-200 flex items-start gap-3 shadow-lg" data-testid="suspended-alert">
+              <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-semibold text-red-300">Access Restricted</strong>
+                <span>{suspendedError}</span>
+              </div>
+            </div>
+          )}
+
           {mfaChallenge ? (
             <>
               <h2 className="mb-1 text-h4 font-semibold text-white">Two-factor authentication</h2>

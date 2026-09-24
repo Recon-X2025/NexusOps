@@ -142,6 +142,27 @@ export default function AdminConsolePage() {
   });
   // @ts-ignore
   const rolesQuery = trpc.admin.roles.list.useQuery(undefined, mergeTrpcQueryOpts("admin.roles.list", undefined));
+
+  const roleNameTrimmed = customRoleForm.name.trim().toLowerCase();
+  const duplicateRoleError = useMemo(() => {
+    if (!roleNameTrimmed) return null;
+    const isSystem = SYSTEM_ROLES_CATALOG.some(
+      (sr) =>
+        sr.displayName.toLowerCase() === roleNameTrimmed ||
+        sr.role.toLowerCase() === roleNameTrimmed
+    );
+    if (isSystem) {
+      return `"${customRoleForm.name.trim()}" is a built-in system role. Role names must be unique.`;
+    }
+    const isCustom = (rolesQuery.data as any[])?.some(
+      (cr) => cr.id !== customRoleForm.id && cr.name.trim().toLowerCase() === roleNameTrimmed
+    );
+    if (isCustom) {
+      return `A custom role with the name "${customRoleForm.name.trim()}" already exists. Role names must be unique.`;
+    }
+    return null;
+  }, [roleNameTrimmed, customRoleForm.id, customRoleForm.name, rolesQuery.data]);
+
   const updateUserMutation = trpc.admin.users.update.useMutation({
     onSuccess: () => {
       usersQuery.refetch();
@@ -184,6 +205,11 @@ export default function AdminConsolePage() {
   const archiveRoleMutation = trpc.admin.roles.archive.useMutation({
     onSuccess: (_r: any, vars: any) => { rolesQuery.refetch(); toast.success(`Role ${vars.archive ? "archived" : "unarchived"}`); },
     onError: (e: any) => toast.error(e.message || "Failed to update role status"),
+  });
+  // @ts-ignore
+  const deleteRoleMutation = trpc.admin.roles.delete.useMutation({
+    onSuccess: () => { rolesQuery.refetch(); toast.success("Custom role deleted successfully"); },
+    onError: (e: any) => toast.error(e.message || "Failed to delete role"),
   });
 
   // @ts-ignore
@@ -493,8 +519,13 @@ export default function AdminConsolePage() {
                   value={customRoleForm.name}
                   onChange={(e) => setCustomRoleForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="e.g. Regional IT Lead"
-                  className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                  className={`w-full px-3 py-2 text-body-sm bg-muted/20 border ${duplicateRoleError ? "border-red-500 focus:border-red-500" : "border-border focus:border-primary"} rounded-xl outline-none`}
                 />
+                {duplicateRoleError && (
+                  <p className="text-[11px] text-red-600 font-medium">
+                    ⚠️ {duplicateRoleError}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Description</label>
@@ -552,10 +583,11 @@ export default function AdminConsolePage() {
             <div className="flex justify-end gap-3 pt-2 flex-shrink-0 border-t border-border mt-2">
               <button onClick={() => setShowCustomRoleForm(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button
-                disabled={!customRoleForm.name.trim() || createRoleMutation.isPending || updateRoleMutation.isPending}
+                disabled={!customRoleForm.name.trim() || !!duplicateRoleError || createRoleMutation.isPending || updateRoleMutation.isPending}
                 onClick={() => {
-                  if (customRoleForm.id) updateRoleMutation.mutate({ id: customRoleForm.id, name: customRoleForm.name, description: customRoleForm.description, permissions: customRoleForm.permissions });
-                  else createRoleMutation.mutate({ name: customRoleForm.name, description: customRoleForm.description, permissions: customRoleForm.permissions });
+                  if (duplicateRoleError) return;
+                  if (customRoleForm.id) updateRoleMutation.mutate({ id: customRoleForm.id, name: customRoleForm.name.trim(), description: customRoleForm.description, permissions: customRoleForm.permissions });
+                  else createRoleMutation.mutate({ name: customRoleForm.name.trim(), description: customRoleForm.description, permissions: customRoleForm.permissions });
                 }}
                 className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
               >
@@ -754,11 +786,23 @@ export default function AdminConsolePage() {
                           <td className="text-muted-foreground text-[11px]">{user.department || "—"}</td>
                           <td>
                             <div className="flex flex-wrap gap-0.5">
-                              {userRoles.map((r) => (
-                                <span key={r} className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${r === "admin" ? "bg-red-100 text-red-700 font-bold" : "bg-purple-100 text-purple-700"}`}>
-                                  {r}
-                                </span>
-                              ))}
+                              {userRoles.map((r) => {
+                                const customMatch = (rolesQuery.data as any[])?.find((cr: any) => cr.id === r);
+                                return (
+                                  <span
+                                    key={r}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                                      r === "admin"
+                                        ? "bg-red-100 text-red-700 font-bold"
+                                        : customMatch
+                                          ? "bg-blue-100 text-blue-700 font-medium"
+                                          : "bg-purple-100 text-purple-700"
+                                    }`}
+                                  >
+                                    {customMatch ? customMatch.name : r}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </td>
                           <td>
@@ -862,14 +906,27 @@ export default function AdminConsolePage() {
                                     setShowCustomRoleForm(true);
                                   }}
                                   className="p-1 text-muted-foreground hover:text-primary"
+                                  title="Edit Custom Role"
                                 >
                                   <Edit2 className="w-3 h-3" />
                                 </button>
                                 <button
                                   onClick={() => archiveRoleMutation.mutate({ id: r.id, archive: !r.isArchived })}
                                   className={`p-1 ${r.isArchived ? "text-orange-600" : "text-muted-foreground hover:text-orange-600"}`}
+                                  title={r.isArchived ? "Unarchive Role" : "Archive Role"}
                                 >
                                   <Archive className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Permanently delete custom role "${r.name}"? This action cannot be undone.`)) {
+                                      deleteRoleMutation.mutate({ id: r.id });
+                                    }
+                                  }}
+                                  className="p-1 text-muted-foreground hover:text-red-600"
+                                  title="Delete Custom Role"
+                                >
+                                  <Trash2 className="w-3 h-3" />
                                 </button>
                               </div>
                             </td>
@@ -938,11 +995,12 @@ export default function AdminConsolePage() {
                                           if (isRoleAction(act)) existingPerms.push({ resource: res, action: act });
                                         });
                                       });
-                                      setCustomRoleForm({ name: r.displayName, description: r.description, permissions: existingPerms });
+                                      setCustomRoleForm({ name: `${r.displayName} (Custom)`, description: r.description, permissions: existingPerms });
                                       setShowCustomRoleForm(true);
                                     }}
                                     className="text-[11px] text-primary hover:underline font-medium"
-                                  >Edit / Customize</button>
+                                    title="Create a custom role based on this system role"
+                                  >Clone as Custom Role</button>
                                 </td>
                               </tr>
                             );
@@ -959,7 +1017,16 @@ export default function AdminConsolePage() {
             {tab === "rbac" && (
               <div className="p-4 overflow-x-auto">
                 <p className="text-[11px] text-muted-foreground mb-3">
-                  Full permission matrix — rows = roles, columns = modules. Actions: <span className="font-mono bg-muted px-1">R</span>ead, <span className="font-mono bg-muted px-1">W</span>rite, <span className="font-mono bg-muted px-1">D</span>elete, <span className="font-mono bg-muted px-1">A</span>dmin, <span className="font-mono bg-muted px-1">P</span>rove, <span className="font-mono bg-muted px-1">S</span>ign (Assign), <span className="font-mono bg-muted px-1">C</span>lose
+                  Full permission matrix — rows = roles, columns = modules. Actions:{" "}
+                  <span className="font-mono bg-muted px-1">R</span>ead,{" "}
+                  <span className="font-mono bg-muted px-1">W</span>rite / <span className="font-mono bg-muted px-1">U</span>pdate,{" "}
+                  <span className="font-mono bg-muted px-1">C</span>reate,{" "}
+                  <span className="font-mono bg-muted px-1">D</span>elete,{" "}
+                  <span className="font-mono bg-muted px-1">M</span>anage,{" "}
+                  <span className="font-mono bg-muted px-1">A</span>dmin,{" "}
+                  <span className="font-mono bg-muted px-1">P</span>rove,{" "}
+                  <span className="font-mono bg-muted px-1">S</span>ign (Assign),{" "}
+                  <span className="font-mono bg-muted px-1">Cl</span>ose
                 </p>
                 <div className="overflow-x-auto">
                   <table className="text-[10px] border-collapse">
@@ -976,6 +1043,133 @@ export default function AdminConsolePage() {
                       </tr>
                     </thead>
                     <tbody>
+                      {/* Custom Roles Section */}
+                      <tr className="bg-muted/70">
+                        <td
+                          colSpan={ALL_MODULES.length + 1}
+                          className="px-3 py-1.5 border border-slate-200 text-[11px] font-bold text-foreground"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="uppercase text-[10px] tracking-wider text-muted-foreground font-semibold">
+                              Custom Roles ({(rolesQuery.data as any[])?.length ?? 0})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomRoleForm({ name: "", description: "", permissions: [] });
+                                setShowCustomRoleForm(true);
+                              }}
+                              className="text-primary hover:underline text-[11px] font-medium"
+                            >
+                              + Create Custom Role
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {(!rolesQuery.data || (rolesQuery.data as any[]).length === 0) ? (
+                        <tr>
+                          <td
+                            colSpan={ALL_MODULES.length + 1}
+                            className="px-3 py-2 text-center text-[11px] text-muted-foreground italic border border-slate-200"
+                          >
+                            No custom roles created yet. Define custom roles in the Role Library tab.
+                          </td>
+                        </tr>
+                      ) : (
+                        (rolesQuery.data as any[]).map((customRole: any) => (
+                          <tr
+                            key={customRole.id}
+                            className={`hover:bg-blue-50/30 ${customRole.isArchived ? "opacity-50" : ""}`}
+                          >
+                            <td className="px-2 py-1 border border-slate-200 bg-card sticky left-0 z-10">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="font-mono text-[10px] text-foreground font-semibold">
+                                  {customRole.name}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold uppercase">
+                                    Custom
+                                  </span>
+                                  {customRole.isArchived && (
+                                    <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                                      Archived
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCustomRoleForm({
+                                        id: customRole.id,
+                                        name: customRole.name,
+                                        description: customRole.description || "",
+                                        permissions: customRole.permissions,
+                                      });
+                                      setShowCustomRoleForm(true);
+                                    }}
+                                    className="p-0.5 text-muted-foreground hover:text-primary"
+                                    title="Edit Custom Role"
+                                  >
+                                    <Edit2 className="w-2.5 h-2.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Permanently delete custom role "${customRole.name}"? This action cannot be undone.`)) {
+                                        deleteRoleMutation.mutate({ id: customRole.id });
+                                      }
+                                    }}
+                                    className="p-0.5 text-muted-foreground hover:text-red-600"
+                                    title="Delete Custom Role"
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                            {ALL_MODULES.map((mod) => {
+                              const actions = ((customRole.permissions ?? []) as Array<{ resource: string; action: string }>)
+                                .filter((p) => p.resource === mod)
+                                .map((p) => p.action);
+                              const hasAny = actions.length > 0;
+                              const actionStr = actions.map((a) => {
+                                const map: Record<string, string> = {
+                                  read: "R",
+                                  write: "W",
+                                  update: "U",
+                                  create: "C",
+                                  delete: "D",
+                                  manage: "M",
+                                  admin: "A",
+                                  approve: "P",
+                                  assign: "S",
+                                  close: "Cl",
+                                };
+                                return map[a] ?? a.charAt(0).toUpperCase();
+                              }).join("");
+                              return (
+                                <td
+                                  key={mod}
+                                  className={`border border-slate-200 text-center py-1 px-0.5 text-[9px] font-mono font-bold
+                                  ${hasAny ? "bg-blue-50 text-blue-700" : "bg-card text-slate-200"}`}
+                                >
+                                  {hasAny ? actionStr : "—"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))
+                      )}
+
+                      {/* System Roles Section */}
+                      <tr className="bg-muted/70">
+                        <td
+                          colSpan={ALL_MODULES.length + 1}
+                          className="px-3 py-1.5 border border-slate-200 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider"
+                        >
+                          System Roles ({SYSTEM_ROLES_CATALOG.length})
+                        </td>
+                      </tr>
                       {SYSTEM_ROLES_CATALOG.map((roleDef) => {
                         const perms =
                           ROLE_PERMISSIONS[roleDef.role as keyof typeof ROLE_PERMISSIONS] ?? {};

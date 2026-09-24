@@ -761,6 +761,86 @@ async function bootstrap() {
   const { superAdminRoutes } = await import("./http/super-admin.js");
   fastify.register(superAdminRoutes, { prefix: "/super-admin" });
 
+  // ── Database File Serving & Upload (Zero Disk Dependency) ────────────────
+  const fileStreamHandler = async (req: any, reply: any) => {
+    const rawKey = (req.params as any)["*"];
+    if (!rawKey) return reply.status(400).send({ error: "Missing file key" });
+    const { getStoredFile } = await import("./services/storage.js");
+    const file = await getStoredFile(decodeURIComponent(rawKey));
+    if (!file) return reply.status(404).send({ error: "File not found" });
+
+    reply.header("Content-Type", file.mimeType);
+    reply.header("Content-Length", file.sizeBytes);
+    reply.header("Cache-Control", "public, max-age=86400, immutable");
+    return reply.send(file.data);
+  };
+
+  // HTTP routes for DB-backed file streaming:
+  // - /files/*: hit when Caddy handle_path strips /api from /api/files/*
+  // - /api/files/*: hit directly during local development or unstripped proxies
+  // - /uploads/*: legacy URL alias only (serves from DB, no disk folder)
+  fastify.get("/files/*", fileStreamHandler);
+  fastify.get("/api/files/*", fileStreamHandler);
+  fastify.get("/uploads/*", fileStreamHandler);
+
+  // Allow multipart/form-data requests to pass through to Multer on req.raw
+  fastify.addContentTypeParser(
+    "multipart/form-data",
+    (_req: any, _payload: any, done: any) => {
+      done(null);
+    },
+  );
+
+  const uploadHandler = async (req: any, reply: any) => {
+    const { multerUpload, putObject } = await import("./services/storage.js");
+    return new Promise((resolve) => {
+      // multer memoryStorage keeps the file in RAM (req.file.buffer) without touching disk
+      multerUpload.single("file")(req.raw as any, reply.raw as any, async (err: any) => {
+        if (err) {
+          reply.status(400).send({ error: err.message });
+          return resolve(undefined);
+        }
+        const file = (req.raw as any).file;
+        if (!file || !file.buffer) {
+          reply.status(400).send({ error: "No file uploaded" });
+          return resolve(undefined);
+        }
+        const orgId = (req.headers["x-org-id"] as string) || "public";
+        const ext = (file.originalname || "").split(".").pop() || "bin";
+        // Logical database key (not a filesystem directory)
+        const key = `uploads/${Date.now()}-${randomUUID()}.${ext}`;
+
+        try {
+          // Persist directly into PostgreSQL BYTEA via putObject
+          const put = await putObject({
+            orgId,
+            key,
+            body: file.buffer,
+            mimeType: file.mimetype || "application/octet-stream",
+          });
+
+          reply.send({
+            ok: true,
+            storageKey: put.key,
+            sha256: put.sha256,
+            mimeType: file.mimetype,
+            sizeBytes: put.sizeBytes,
+            url: `/api/files/${encodeURIComponent(put.key)}`,
+          });
+        } catch (e: any) {
+          reply.status(500).send({ error: e.message || "Failed to store file in database" });
+        }
+        resolve(undefined);
+      });
+    });
+  };
+
+  // HTTP routes for DB-backed upload:
+  // - /upload: hit when Caddy handle_path strips /api from /api/upload
+  // - /api/upload: hit directly during local development or unstripped proxies
+  fastify.post("/upload", uploadHandler);
+  fastify.post("/api/upload", uploadHandler);
+
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {
     fastify.log.info(`Received ${signal}, shutting down...`);

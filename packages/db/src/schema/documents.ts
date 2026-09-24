@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -194,3 +195,40 @@ export const documentAclsRelations = relations(documentAcls, ({ one }) => ({
     references: [documents.id],
   }),
 }));
+
+// ── In-Database Binary Storage (PostgreSQL BYTEA) ──────────────────────────
+export const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+  toDriver(value: Buffer) {
+    return value;
+  },
+  fromDriver(value: unknown) {
+    if (Buffer.isBuffer(value)) return value;
+    if (typeof value === "string") {
+      if (value.startsWith("\\x")) {
+        return Buffer.from(value.slice(2), "hex");
+      }
+      return Buffer.from(value);
+    }
+    return Buffer.from(value as any);
+  },
+});
+
+export const storedFiles = pgTable(
+  "stored_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storageKey: text("storage_key").notNull(),
+    data: bytea("data").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    sha256: text("sha256").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    keyIdx: uniqueIndex("stored_files_key_idx").on(t.storageKey),
+  }),
+);

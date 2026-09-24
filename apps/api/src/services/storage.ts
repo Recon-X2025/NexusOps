@@ -1,75 +1,16 @@
 import crypto from "node:crypto";
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-  CreateBucketCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import multer from "multer";
+import { getDb, storedFiles, eq } from "@coheronconnect/db";
 
 /**
- * S3-compatible storage service. Works with AWS S3, Cloudflare R2, MinIO,
- * DigitalOcean Spaces — env-configurable.
- *
- * Production tenants on AWS get S3 + KMS-managed encryption. Dev / sandbox
- * runs against MinIO.
+ * In-Database file storage service powered by PostgreSQL and Multer.
+ * Stores binary files directly in the `stored_files` table (BYTEA) via Drizzle,
+ * eliminating local directory dependencies completely so files persist across
+ * code deployments and container restarts.
  */
 
-let _client: S3Client | null = null;
-
-function getClient(): S3Client {
-  if (_client) return _client;
-  // Accept both the AWS-SDK-style names (S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY)
-  // and the shorter names used across the env templates (S3_ACCESS_KEY / S3_SECRET_KEY).
-  const accessKeyId = process.env["S3_ACCESS_KEY_ID"] ?? process.env["S3_ACCESS_KEY"];
-  const secretAccessKey = process.env["S3_SECRET_ACCESS_KEY"] ?? process.env["S3_SECRET_KEY"];
-  // MinIO and other S3-compatible providers require path-style addressing; default it
-  // on automatically whenever a custom endpoint is set, unless explicitly disabled.
-  const forcePathStyle = process.env["S3_FORCE_PATH_STYLE"]
-    ? process.env["S3_FORCE_PATH_STYLE"] === "true"
-    : Boolean(process.env["S3_ENDPOINT"]);
-  _client = new S3Client({
-    region: process.env["S3_REGION"] ?? "ap-south-1",
-    endpoint: process.env["S3_ENDPOINT"], // optional — for non-AWS providers
-    forcePathStyle,
-    credentials:
-      accessKeyId && secretAccessKey
-        ? { accessKeyId, secretAccessKey }
-        : undefined,
-    // S3-compatible stores on Ceph/RGW (Vultr, some MinIO/R2 builds) reject the
-    // AWS SDK v3 default flexible request checksums (CRC32), erroring on ops like
-    // DeleteObject/PutObject. Send checksums only WHEN_REQUIRED for a custom
-    // endpoint; AWS S3 (no custom endpoint) keeps the SDK defaults.
-    ...(usesCustomEndpoint()
-      ? { requestChecksumCalculation: "WHEN_REQUIRED" as const, responseChecksumValidation: "WHEN_REQUIRED" as const }
-      : {}),
-  });
-  return _client;
-}
-
-/** True when pointed at a non-AWS S3-compatible endpoint (MinIO, Vultr, R2, …). */
-function usesCustomEndpoint(): boolean {
-  return Boolean(process.env["S3_ENDPOINT"]);
-}
-
-function bucket(): string {
-  const b = process.env["S3_BUCKET"];
-  if (!b) throw new Error("S3_BUCKET not configured");
-  return b;
-}
-
-/**
- * Whether object storage is provisioned for this deployment. When false, every
- * store/fetch/delete would throw ("S3_BUCKET not configured"), so callers should
- * degrade gracefully — refuse an upload with a clear message rather than 500,
- * and skip signing/download rather than break the surrounding request. Some
- * deployments deliberately run without object storage; the DMS/avatars are then
- * unavailable but the rest of the product (incl. generated PDFs, which stream on
- * demand) is unaffected.
- */
 export function isStorageConfigured(): boolean {
-  return Boolean(process.env["S3_BUCKET"]);
+  return process.env["STORAGE_DISABLED"] !== "true";
 }
 
 export interface PutOptions {
@@ -78,7 +19,6 @@ export interface PutOptions {
   key: string;
   body: Buffer;
   mimeType: string;
-  /** SSE-S3 by default; flip to KMS for prod. */
   serverSideEncryption?: "AES256" | "aws:kms";
   kmsKeyId?: string;
 }
@@ -89,60 +29,103 @@ export interface PutResult {
   sizeBytes: number;
 }
 
+export interface StoredFileRecord {
+  storageKey: string;
+  data: Buffer;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+/**
+ * Writes file binary buffer directly into the PostgreSQL `stored_files` table.
+ * Returns metadata (key, sha256, sizeBytes) saved in documents/versions/users tables.
+ */
 export async function putObject(opts: PutOptions): Promise<PutResult> {
   const sha256 = crypto.createHash("sha256").update(opts.body).digest("hex");
   const fullKey = `${opts.orgId}/${opts.key.replace(/^\/+/, "")}`;
-  const custom = usesCustomEndpoint();
-  // SSE-S3 (AES256) is the default on AWS. Vultr Object Storage does NOT support
-  // SSE-S3 (only SSE-C), so sending it would fail every upload — omit it for a
-  // custom endpoint unless the caller explicitly asked for encryption. (At-rest
-  // encryption on such providers is a separate app-side/SSE-C decision.)
-  const serverSideEncryption = opts.serverSideEncryption ?? (custom ? undefined : "AES256");
-  const putCmd = new PutObjectCommand({
-    Bucket: bucket(),
-    Key: fullKey,
-    Body: opts.body,
-    ContentType: opts.mimeType,
-    // The app records its own sha256 (below); the redundant server checksum
-    // header trips older Ceph RGW builds, so skip it for custom endpoints.
-    ...(custom ? {} : { ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64") }),
-    ...(serverSideEncryption ? { ServerSideEncryption: serverSideEncryption } : {}),
-    ...(opts.kmsKeyId ? { SSEKMSKeyId: opts.kmsKeyId } : {}),
-  });
+  const db = getDb();
 
-  try {
-    await getClient().send(putCmd);
-  } catch (err: any) {
-    if (err.name === "NoSuchBucket") {
-      // Auto-create bucket for local dev (MinIO)
-      await getClient().send(new CreateBucketCommand({ Bucket: bucket() }));
-      await getClient().send(putCmd);
-    } else {
-      throw err;
-    }
-  }
+  await db
+    .insert(storedFiles)
+    .values({
+      storageKey: fullKey,
+      data: opts.body,
+      mimeType: opts.mimeType,
+      sizeBytes: opts.body.length,
+      sha256,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: storedFiles.storageKey,
+      set: {
+        data: opts.body,
+        mimeType: opts.mimeType,
+        sizeBytes: opts.body.length,
+        sha256,
+        updatedAt: new Date(),
+      },
+    });
 
   return { key: fullKey, sha256, sizeBytes: opts.body.length };
 }
 
-export async function signedDownloadUrl(key: string, ttlSeconds = 300): Promise<string> {
-  const cmd = new GetObjectCommand({ Bucket: bucket(), Key: key });
-  return getSignedUrl(getClient(), cmd, { expiresIn: ttlSeconds });
-}
-
-export async function deleteObject(key: string): Promise<void> {
-  await getClient().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+/**
+ * Fetch file binary directly from PostgreSQL as a Buffer.
+ * Used by virus scanning workflow and internal processors.
+ */
+export async function getObject(key: string): Promise<Buffer> {
+  const file = await getStoredFile(key);
+  if (!file) {
+    throw new Error(`Stored file not found: ${key}`);
+  }
+  return file.data;
 }
 
 /**
- * Enqueue a document for virus scanning. The actual scan runs in the
- * BullMQ "coheronconnect-doc-virusscan" queue (see workflows/virusScanWorkflow.ts)
- * which talks to a clamd sidecar over the INSTREAM protocol and writes
- * the result back to `documents.scanStatus` + `scanResult`.
- *
- * If the queue isn't booted (e.g. in unit tests where the workflow service
- * isn't initialised) this is a no-op so callers don't have to defensively
- * gate uploads. The actual queue producer lives in workflows/virusScanWorkflow.ts.
+ * Retrieve the full file record with binary data and MIME type from PostgreSQL.
+ */
+export async function getStoredFile(key: string): Promise<StoredFileRecord | null> {
+  const cleanKey = key.replace(/^\/+/, "");
+  const db = getDb();
+
+  const [row] = await db
+    .select({
+      storageKey: storedFiles.storageKey,
+      data: storedFiles.data,
+      mimeType: storedFiles.mimeType,
+      sizeBytes: storedFiles.sizeBytes,
+      sha256: storedFiles.sha256,
+    })
+    .from(storedFiles)
+    .where(eq(storedFiles.storageKey, cleanKey))
+    .limit(1);
+
+  if (!row) return null;
+  return row as StoredFileRecord;
+}
+
+/**
+ * Generates API download URL referencing the database-backed file.
+ */
+export async function signedDownloadUrl(key: string, _ttlSeconds = 300): Promise<string> {
+  const cleanKey = key.replace(/^\/+/, "");
+  const apiBase = process.env["API_URL"] ?? "";
+  return `${apiBase}/api/files/${encodeURIComponent(cleanKey)}`;
+}
+
+/**
+ * Delete a file directly from PostgreSQL stored_files table.
+ * Used by the document retention sweeper during hard-delete.
+ */
+export async function deleteObject(key: string): Promise<void> {
+  const cleanKey = key.replace(/^\/+/, "");
+  const db = getDb();
+  await db.delete(storedFiles).where(eq(storedFiles.storageKey, cleanKey));
+}
+
+/**
+ * Enqueue a document for virus scanning.
  */
 export async function enqueueVirusScan(documentId: string): Promise<void> {
   if (process.env["VIRUS_SCAN_DISABLED"] === "true") return;
@@ -160,6 +143,20 @@ export async function enqueueVirusScan(documentId: string): Promise<void> {
  * Build the canonical key for a versioned document.
  */
 export function buildDocumentKey(documentId: string, version: number, ext: string): string {
-  const safeExt = ext.replace(/[^a-z0-9.]/gi, "");
+  const cleanExt = ext.replace(/^\.+/, "");
+  const safeExt = cleanExt.replace(/[^a-z0-9.]/gi, "");
   return `documents/${documentId}/v${version}${safeExt ? "." + safeExt : ""}`;
 }
+
+// ── Multer Configuration (In-Memory Buffer Storage) ───────────────────────
+
+/**
+ * Memory storage keeps incoming files in RAM buffer (file.buffer),
+ * avoiding any writing to ephemeral local disk.
+ */
+export const multerStorage = multer.memoryStorage();
+
+export const multerUpload = multer({
+  storage: multerStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
+});

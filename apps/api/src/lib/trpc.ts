@@ -372,10 +372,40 @@ const enforceMacOperator = t.middleware(({ ctx, path, next }) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not a MAC operator" });
   }
 
-  // Propagate the operator identity so the audit middleware (and handlers) can
-  // attribute the action to a person.
+  // Propagate the operator identity and role so the audit middleware (and handlers) can
+  // attribute the action to a person and enforce fine-grained RBAC.
   const macOperatorEmail = typeof payload === "object" ? String(payload["email"] ?? "unknown") : "unknown";
-  return next({ ctx: { ...ctx, macOperatorEmail } });
+  const macOperatorRole = typeof payload === "object" ? String(payload["operatorRole"] ?? "super_admin") : "super_admin";
+  return next({ ctx: { ...ctx, macOperatorEmail, macOperatorRole } });
+});
+
+/**
+ * RBAC Guard: Rejects operators without cross-tenant user inspection privileges (support_staff).
+ */
+const enforceMacUsersView = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role === "support_staff") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: usersView permission required",
+    });
+  }
+  return next();
+});
+
+/**
+ * RBAC Guard: Rejects operators without user management privileges (auditor, support_staff).
+ * Only super_admin and operations_staff can perform sensitive user mutations.
+ */
+const enforceMacUsersManage = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role === "auditor" || role === "support_staff") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: usersManage permission required",
+    });
+  }
+  return next();
 });
 
 /**
@@ -422,6 +452,100 @@ const auditMacOperation = t.middleware(async (opts) => {
  */
 export const macProcedure = publicProcedure.use(enforceMacOperator).use(auditMacOperation);
 
+/**
+ * RBAC Guard: Rejects operators without finance view privileges (support_staff).
+ */
+const enforceMacFinanceView = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role === "support_staff") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: financeView permission required",
+    });
+  }
+  return next();
+});
+
+/**
+ * RBAC Guard: Rejects operators without finance manage privileges (only super_admin allowed).
+ */
+const enforceMacFinanceManage = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role !== "super_admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: financeManage permission required",
+    });
+  }
+  return next();
+});
+
+/** Procedure for read-only user inspection (rejects support_staff) */
+export const macUsersViewProcedure = macProcedure.use(enforceMacUsersView);
+
+/** Procedure for sensitive user mutations (rejects auditor & support_staff) */
+export const macUsersManageProcedure = macProcedure.use(enforceMacUsersManage);
+
+/** Procedure for finance overview and inspection (rejects support_staff) */
+export const macFinanceViewProcedure = macProcedure.use(enforceMacFinanceView);
+
+/** Procedure for finance & subscription management (super_admin only) */
+export const macFinanceManageProcedure = macProcedure.use(enforceMacFinanceManage);
+
+/**
+ * RBAC Guard: Rejects operators without tenant management privileges (auditor, support_staff).
+ * Only super_admin and operations_staff can mutate tenant profiles, entitlements, and feature flags.
+ */
+const enforceMacTenantsManage = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role === "auditor" || role === "support_staff") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: tenantsManage permission required",
+    });
+  }
+  return next();
+});
+
+/** Procedure for tenant profile, entitlements, and feature flag management (super_admin & operations_staff only) */
+export const macTenantsManageProcedure = macProcedure.use(enforceMacTenantsManage);
+
+/**
+ * RBAC Guard: Rejects operators without audit export privileges (support_staff).
+ * Allowed: super_admin, operations_staff, auditor.
+ */
+const enforceMacAuditExport = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role === "support_staff") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: auditExport permission required",
+    });
+  }
+  return next();
+});
+
+/**
+ * RBAC Guard: Rejects non-super_admin operators from platform security governance & emergency controls.
+ * Only super_admin allowed.
+ */
+const enforceMacSuperAdminOnly = t.middleware(async ({ ctx, path, next }) => {
+  const role = (ctx as { macOperatorRole?: string }).macOperatorRole;
+  if (role !== "super_admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access restricted: super_admin role required",
+    });
+  }
+  return next();
+});
+
+/** Procedure for audit log export (super_admin, operations_staff, auditor only) */
+export const macAuditExportProcedure = macProcedure.use(enforceMacAuditExport);
+
+/** Procedure for critical platform governance & emergency actions (super_admin only) */
+export const macSuperAdminOnlyProcedure = macProcedure.use(enforceMacSuperAdminOnly);
+
 const enforceAuth = t.middleware(({ ctx, path, next }) => {
   if (!ctx.user || !ctx.org) {
     logAuthFail({
@@ -435,6 +559,21 @@ const enforceAuth = t.middleware(({ ctx, path, next }) => {
       reason:     "no_user_or_org",
     });
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+  }
+  if ((ctx.org.settings as any)?.suspended) {
+    logAuthFail({
+      requestId:  ctx.requestId ?? null,
+      userId:     ctx.user.id ?? null,
+      orgId:      ctx.org.id ?? null,
+      route:      path,
+      ip:         ctx.ipAddress,
+      sessionRef: shortRef(ctx.sessionId),
+      reason:     "org_suspended",
+    });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Your organization has been suspended. Please contact support.",
+    });
   }
   return next({
     ctx: {
@@ -624,6 +763,13 @@ export function permissionProcedure(module: Module, action: RbacAction) {
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "Not authenticated",
+      });
+    }
+
+    if ((ctx.org.settings as any)?.suspended) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Your organization has been suspended. Please contact support.",
       });
     }
 

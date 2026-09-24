@@ -22,7 +22,9 @@ import {
   lte,
   count,
   inArray,
+  ilike,
 } from "@coheronconnect/db";
+import { SYSTEM_ROLES_CATALOG } from "@coheronconnect/types";
 import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 import { parseOrgSettings } from "../lib/org-settings";
 import { sanitizeForAudit } from "../lib/audit-sanitize";
@@ -1177,10 +1179,37 @@ export const adminRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        const trimmedName = input.name.trim();
+
+        // Enforce uniqueness against built-in System Roles
+        const isSystemDuplicate = SYSTEM_ROLES_CATALOG.some(
+          (sr) =>
+            sr.displayName.toLowerCase() === trimmedName.toLowerCase() ||
+            sr.role.toLowerCase() === trimmedName.toLowerCase()
+        );
+        if (isSystemDuplicate) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `A built-in system role with the name "${trimmedName}" already exists. Role names must be unique.`,
+          });
+        }
+
+        // Enforce uniqueness against existing Custom Roles in this org
+        const existingCustom = await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(and(eq(roles.orgId, org!.id), ilike(roles.name, trimmedName)));
+        if (existingCustom.length > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `A custom role with the name "${trimmedName}" already exists. Role names must be unique.`,
+          });
+        }
+
         return db.transaction(async (tx) => {
           const [newRole] = await tx
             .insert(roles)
-            .values({ orgId: org!.id, name: input.name, description: input.description, isSystem: false })
+            .values({ orgId: org!.id, name: trimmedName, description: input.description, isSystem: false })
             .returning();
 
           if (!newRole) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1219,10 +1248,37 @@ export const adminRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        const trimmedName = input.name.trim();
+
+        // Enforce uniqueness against built-in System Roles
+        const isSystemDuplicate = SYSTEM_ROLES_CATALOG.some(
+          (sr) =>
+            sr.displayName.toLowerCase() === trimmedName.toLowerCase() ||
+            sr.role.toLowerCase() === trimmedName.toLowerCase()
+        );
+        if (isSystemDuplicate) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `A built-in system role with the name "${trimmedName}" already exists. Role names must be unique.`,
+          });
+        }
+
+        // Enforce uniqueness against existing Custom Roles in this org (excluding current)
+        const existingCustom = await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(and(eq(roles.orgId, org!.id), ilike(roles.name, trimmedName)));
+        if (existingCustom.some((r) => r.id !== input.id)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `A custom role with the name "${trimmedName}" already exists. Role names must be unique.`,
+          });
+        }
+
         return db.transaction(async (tx) => {
           const [updated] = await tx
             .update(roles)
-            .set({ name: input.name, description: input.description })
+            .set({ name: trimmedName, description: input.description })
             .where(and(eq(roles.id, input.id), eq(roles.orgId, org!.id)))
             .returning();
             
@@ -1285,6 +1341,29 @@ export const adminRouter = router({
           
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
         return updated;
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [userCount] = await db
+          .select({ count: count() })
+          .from(users)
+          .where(and(eq(users.matrixRole, input.id), eq(users.orgId, org!.id)));
+        if (userCount && userCount.count > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Cannot delete a role that is assigned to users. Reassign the users first.",
+          });
+        }
+        await db.delete(rolePermissions).where(eq(rolePermissions.roleId, input.id));
+        const [deleted] = await db
+          .delete(roles)
+          .where(and(eq(roles.id, input.id), eq(roles.orgId, org!.id)))
+          .returning();
+        if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+        return deleted;
       }),
   }),
 });

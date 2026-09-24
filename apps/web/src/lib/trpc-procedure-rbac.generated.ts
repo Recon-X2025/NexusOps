@@ -52,6 +52,7 @@ export const TRPC_PROCEDURE_RBAC: Record<string, TrpcProcedureRbacRule> = {
   "admin.payrollPolicy.update": { kind: "adminRole" },
   "admin.roles.archive": { kind: "adminRole" },
   "admin.roles.create": { kind: "adminRole" },
+  "admin.roles.delete": { kind: "adminRole" },
   "admin.roles.list": { kind: "adminRole" },
   "admin.roles.update": { kind: "adminRole" },
   "admin.scheduledJobs.list": { kind: "adminRole" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { trpc, getTRPCClient } from "@/lib/trpc";
 
 /**
@@ -21,10 +21,36 @@ export const STALE_TIME = {
   REFERENCE: 60 * 1000,
 } as const;
 
+function handleAuthError(error: unknown) {
+  if (typeof window === "undefined") return;
+  const err = error as { message?: string; data?: { code?: string; message?: string } };
+  const message = err?.message || err?.data?.message || "";
+  const isSuspended = message.toLowerCase().includes("suspended");
+  const isUnauthorized = err?.data?.code === "UNAUTHORIZED";
+
+  if (isSuspended || (isUnauthorized && !window.location.pathname.startsWith("/login"))) {
+    localStorage.removeItem("coheronconnect_session");
+    document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
+    if (isSuspended) {
+      sessionStorage.setItem("auth_suspended_notice", message || "Your organization has been suspended. Please contact support.");
+    }
+    const current = window.location.pathname;
+    if (!current.startsWith("/login")) {
+      window.location.href = `/login?redirect=${encodeURIComponent(current)}`;
+    }
+  }
+}
+
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        queryCache: new QueryCache({
+          onError: (error) => handleAuthError(error),
+        }),
+        mutationCache: new MutationCache({
+          onError: (error) => handleAuthError(error),
+        }),
         defaultOptions: {
           queries: {
             // 10 s standard window: fresh enough for transactional pages, low

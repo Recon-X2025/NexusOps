@@ -1073,7 +1073,7 @@ export const ticketsRouter = router({
               customFields: input.customFields,
               configurationItemId: input.configurationItemId ?? null,
               knownErrorId: input.knownErrorId ?? null,
-              isMajorIncident: input.isMajorIncident ?? false,
+              isMajorIncident: input.type === "incident" ? (input.isMajorIncident ?? false) : false,
               parentTicketId: input.parentTicketId ?? null,
               intakeChannel: input.intakeChannel ?? "portal",
               requiredSkill: input.requiredSkill ?? null,
@@ -1404,8 +1404,15 @@ export const ticketsRouter = router({
         updateData.knownErrorId = nextKe;
       }
       if (input.data.isMajorIncident !== undefined && input.data.isMajorIncident !== existing.isMajorIncident) {
-        changes["isMajorIncident"] = { from: existing.isMajorIncident, to: input.data.isMajorIncident };
-        updateData.isMajorIncident = input.data.isMajorIncident;
+        const effectiveType = input.data.type ?? existing.type;
+        const targetIsMajor = effectiveType === "incident" ? input.data.isMajorIncident : false;
+        if (targetIsMajor !== existing.isMajorIncident) {
+          changes["isMajorIncident"] = { from: existing.isMajorIncident, to: targetIsMajor };
+          updateData.isMajorIncident = targetIsMajor;
+        }
+      } else if (input.data.type !== undefined && input.data.type !== "incident" && existing.isMajorIncident) {
+        changes["isMajorIncident"] = { from: true, to: false };
+        updateData.isMajorIncident = false;
       }
       if (input.data.intakeChannel !== undefined && input.data.intakeChannel !== existing.intakeChannel) {
         changes["intakeChannel"] = { from: existing.intakeChannel, to: input.data.intakeChannel };
@@ -1953,32 +1960,45 @@ export const ticketsRouter = router({
     .input(
       z.object({
         ticketId: z.string().uuid(),
-        targetTicketId: z.string().uuid(),
+        targetTicketId: z.string().min(1),
         type: z.enum(["blocks", "blocked_by", "duplicate", "related"]),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      if (input.ticketId === input.targetTicketId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot relate a ticket to itself" });
-      }
+      const cleanTarget = input.targetTicketId.trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanTarget);
+
       const [src] = await db
         .select({ id: tickets.id })
         .from(tickets)
         .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+
       const [tgt] = await db
         .select({ id: tickets.id })
         .from(tickets)
-        .where(and(eq(tickets.id, input.targetTicketId), eq(tickets.orgId, org!.id)));
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            isUuid
+              ? eq(tickets.id, cleanTarget)
+              : ilike(tickets.number, cleanTarget),
+          ),
+        );
+
       if (!src || !tgt) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      if (src.id === tgt.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot relate a ticket to itself" });
+      }
 
       const [dup] = await db
         .select({ id: ticketRelations.id })
         .from(ticketRelations)
         .where(
           and(
-            eq(ticketRelations.sourceId, input.ticketId),
-            eq(ticketRelations.targetId, input.targetTicketId),
+            eq(ticketRelations.sourceId, src.id),
+            eq(ticketRelations.targetId, tgt.id),
             eq(ticketRelations.type, input.type),
           ),
         )
@@ -1990,17 +2010,17 @@ export const ticketsRouter = router({
       const [row] = await db
         .insert(ticketRelations)
         .values({
-          sourceId: input.ticketId,
-          targetId: input.targetTicketId,
+          sourceId: src.id,
+          targetId: tgt.id,
           type: input.type,
         })
         .returning();
 
       await db.insert(ticketActivityLogs).values({
-        ticketId: input.ticketId,
+        ticketId: src.id,
         userId: user!.id,
         action: "relation_added",
-        changes: { relation: { from: null, to: { targetId: input.targetTicketId, type: input.type } } },
+        changes: { relation: { from: null, to: { targetId: tgt.id, type: input.type } } },
       });
 
       return row;

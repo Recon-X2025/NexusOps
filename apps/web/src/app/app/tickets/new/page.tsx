@@ -180,6 +180,20 @@ export default function NewTicketPage() {
     return () => { if (classifyDebounceRef.current) clearTimeout(classifyDebounceRef.current); };
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlType = params.get("type");
+      if (urlType && ["incident", "request", "problem", "change"].includes(urlType)) {
+        setForm((f) => ({
+          ...f,
+          type: urlType,
+          isMajorIncident: urlType === "incident" ? f.isMajorIncident : false,
+        }));
+      }
+    }
+  }, []);
+
   // Stable per-form-session idempotency key: generated once when the form
   // mounts and reused on every submit attempt.  This guarantees that even if
   // the user clicks "Submit" multiple times in quick succession (race between
@@ -253,7 +267,7 @@ export default function NewTicketPage() {
       urgency: urgencyForApi,
       impactGrade,
       urgencyGrade,
-      isMajorIncident: form.isMajorIncident,
+      isMajorIncident: form.type === "incident" ? form.isMajorIncident : false,
       customFields: {
         impact: form.impact,
         urgency: form.urgency,
@@ -325,7 +339,12 @@ export default function NewTicketPage() {
                   <button
                     key={t.value}
                     type="button"
-                    onClick={() => set("type", t.value)}
+                    onClick={() => {
+                      set("type", t.value);
+                      if (t.value !== "incident") {
+                        set("isMajorIncident", false);
+                      }
+                    }}
                     className={`text-left p-3 rounded border transition-all
                       ${form.type === t.value
                         ? "border-primary bg-primary/5"
@@ -581,28 +600,30 @@ export default function NewTicketPage() {
 
           {/* Right panel — Priority & Assignment */}
           <div className="w-64 flex-shrink-0 space-y-3">
-            {/* Major Incident Toggle */}
-            <div className="bg-red-50/50 border border-red-200 rounded">
-              <div className="px-3 py-2 border-b border-red-200 bg-red-100/50">
-                <span className="text-[10px] font-semibold text-red-800 uppercase tracking-wider flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> Major Incident
-                </span>
+            {/* Major Incident Toggle — Only applicable for Incidents (CHR-002) */}
+            {form.type === "incident" && (
+              <div className="bg-red-50/50 border border-red-200 rounded">
+                <div className="px-3 py-2 border-b border-red-200 bg-red-100/50">
+                  <span className="text-[10px] font-semibold text-red-800 uppercase tracking-wider flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Major Incident
+                  </span>
+                </div>
+                <div className="px-3 py-3">
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-red-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.isMajorIncident}
+                      onChange={(e) => set("isMajorIncident", e.target.checked)}
+                      className="accent-red-600 w-4 h-4"
+                    />
+                    Flag as Major Incident
+                  </label>
+                  <p className="text-[10px] text-red-700/80 mt-1.5 leading-relaxed">
+                    Checking this will escalate the ticket and immediately show it on the Major Incidents dashboard.
+                  </p>
+                </div>
               </div>
-              <div className="px-3 py-3">
-                <label className="flex items-center gap-2 text-[12px] font-medium text-red-900 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.isMajorIncident}
-                    onChange={(e) => set("isMajorIncident", e.target.checked)}
-                    className="accent-red-600 w-4 h-4"
-                  />
-                  Flag as Major Incident
-                </label>
-                <p className="text-[10px] text-red-700/80 mt-1.5 leading-relaxed">
-                  Checking this will escalate the ticket and immediately show it on the Major Incidents dashboard.
-                </p>
-              </div>
-            </div>
+            )}
 
             {/* Priority calculator */}
             <div className="bg-card border border-border rounded">

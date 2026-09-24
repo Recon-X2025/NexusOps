@@ -455,8 +455,36 @@ function PerformanceContent() {
 
 // ── Create Cycle Dialog ────────────────────────────────────────────────────
 function CreateCycleDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [name, setName] = useState("");
+  const currentYear = new Date().getFullYear();
+  const ANNUAL_YEARS = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
+
+  const [year, setYear] = useState<string>(String(currentYear));
   const [type, setType] = useState("annual");
+  const [name, setName] = useState(`FY${currentYear} Annual Review`);
+
+  const handleYearChange = (selectedYear: string) => {
+    setYear(selectedYear);
+    if (selectedYear) {
+      const typeLabel =
+        type === "annual" ? "Annual Review"
+        : type === "mid_year" ? "Mid-Year Review"
+        : type === "quarterly" ? "Quarterly Review"
+        : "Probation Review";
+      setName(`FY${selectedYear} ${typeLabel}`);
+    }
+  };
+
+  const handleTypeChange = (selectedType: string) => {
+    setType(selectedType);
+    const typeLabel =
+      selectedType === "annual" ? "Annual Review"
+      : selectedType === "mid_year" ? "Mid-Year Review"
+      : selectedType === "quarterly" ? "Quarterly Review"
+      : "Probation Review";
+    if (year) {
+      setName(`FY${year} ${typeLabel}`);
+    }
+  };
 
   const create = trpc.performance.createCycle.useMutation({
     onSuccess: () => { toast.success("Review cycle created"); onCreated(); },
@@ -469,20 +497,11 @@ function CreateCycleDialog({ onClose, onCreated }: { onClose: () => void; onCrea
         <h2 className="text-body-sm font-semibold mb-4">New Review Cycle</h2>
         <div className="space-y-3">
           <div>
-            <label className="text-caption font-medium text-muted-foreground block mb-1">Cycle Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. FY2026 Annual Review"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
-            />
-          </div>
-          <div>
             <label className="text-caption font-medium text-muted-foreground block mb-1">Cycle Type</label>
             <select
+              data-testid="review-cycle-type"
               value={type}
-              onChange={(e) => setType(e.target.value)}
+              onChange={(e) => handleTypeChange(e.target.value)}
               className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             >
               <option value="annual">Annual</option>
@@ -491,13 +510,46 @@ function CreateCycleDialog({ onClose, onCreated }: { onClose: () => void; onCrea
               <option value="probation">Probation</option>
             </select>
           </div>
+          <div>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Annual Year *</label>
+            <select
+              data-testid="review-cycle-year"
+              value={year}
+              onChange={(e) => handleYearChange(e.target.value)}
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
+            >
+              <option value="">Select Annual Year...</option>
+              {ANNUAL_YEARS.map((y) => (
+                <option key={y} value={String(y)}>
+                  FY{y} ({y})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Cycle Name *</label>
+            <input
+              data-testid="review-cycle-name"
+              type="text"
+              placeholder="e.g. FY2026 Annual Review"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
+            />
+          </div>
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-caption hover:bg-muted">Cancel</button>
           <button
             onClick={() => {
               if (!name.trim()) { toast.error("Name is required"); return; }
-              create.mutate({ name: name.trim(), type: type as any });
+              const parsedYear = Number(year) || currentYear;
+              create.mutate({
+                name: name.trim(),
+                type: type as any,
+                startDate: new Date(`${parsedYear}-01-01T00:00:00.000Z`).toISOString(),
+                endDate: new Date(`${parsedYear}-12-31T23:59:59.000Z`).toISOString(),
+              });
             }}
             disabled={create.isPending}
             className="px-3 py-1.5 rounded bg-primary text-white text-caption hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"

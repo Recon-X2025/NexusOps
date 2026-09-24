@@ -93,7 +93,9 @@ export default function TicketDetailPage() {
 
   const ticketQuery = trpc.tickets.get.useQuery({ id }, mergeTrpcQueryOpts("tickets.get", undefined));
 
-  const isMajorIncidentTicket = !!(ticketQuery.data?.ticket as { isMajorIncident?: boolean } | undefined)?.isMajorIncident;
+  const isMajorIncidentTicket =
+    ticketQuery.data?.ticket?.type === "incident" &&
+    !!(ticketQuery.data?.ticket as { isMajorIncident?: boolean } | undefined)?.isMajorIncident;
   const commsListQuery = trpc.tickets.majorIncidentComms.list.useQuery(
     { ticketId: id },
     mergeTrpcQueryOpts("tickets.majorIncidentComms.list", {
@@ -562,7 +564,7 @@ export default function TicketDetailPage() {
                         <div className="flex gap-3 mb-6">
                           <input
                             data-testid="ticket-relation-target-id"
-                            placeholder="Enter ticket UUID to link..."
+                            placeholder="Enter ticket number (e.g. COHE-0001) or UUID..."
                             value={relationTargetId}
                             onChange={(e) => setRelationTargetId(e.target.value)}
                             className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-caption outline-none focus:border-primary"

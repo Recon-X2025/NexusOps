@@ -10,6 +10,7 @@ import {
   organizations,
   eq,
   and,
+  inArray,
   sql,
 } from "@coheronconnect/db";
 import type { Context, ContextUser, ContextOrg } from "../lib/trpc";
@@ -75,7 +76,13 @@ setInterval(() => {
 /** Returns the L1 entry if still valid, otherwise null. */
 function getL1(tokenHash: string): SessionCacheEntry | null {
   const entry = sessionCache.get(tokenHash);
-  if (entry && entry.expiresAt > Date.now()) return entry;
+  if (entry && entry.expiresAt > Date.now()) {
+    if ((entry.org?.settings as any)?.suspended) {
+      sessionCache.delete(tokenHash);
+      return null;
+    }
+    return entry;
+  }
   return null;
 }
 
@@ -178,6 +185,32 @@ export async function revokeUserSessions(
   return rows.length;
 }
 
+/**
+ * Revoke EVERY session for all users in an organization.
+ * Used when an organization is suspended so that all active logins stop working immediately.
+ */
+export async function revokeOrgSessions(
+  db: ReturnType<typeof getDb>,
+  orgId: string,
+): Promise<number> {
+  const orgUsers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.orgId, orgId));
+  if (orgUsers.length === 0) return 0;
+
+  const userIds = orgUsers.map((u) => u.id);
+  const rows = await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(inArray(sessions.userId, userIds));
+  if (rows.length === 0) return 0;
+
+  await db.delete(sessions).where(inArray(sessions.userId, userIds));
+  await Promise.all(rows.map((r) => invalidateSessionCache(r.id)));
+  return rows.length;
+}
+
 // ── L1½: Request coalescing ───────────────────────────────────────────────────
 //
 // Problem: at 10 K concurrent sessions, hundreds of requests for the same
@@ -229,6 +262,10 @@ async function fetchSession(
   // L2: Redis
   const redisEntry = await getRedisSession(tokenHash);
   if (redisEntry) {
+    if ((redisEntry.org?.settings as any)?.suspended) {
+      invalidateSessionCache(tokenHash).catch(() => {});
+      return { user: null, org: null, sessionExpiresAt: null };
+    }
     if (new Date(redisEntry.sessionExpiresAt) > new Date()) {
       return {
         user: redisEntry.user,
@@ -278,6 +315,11 @@ async function fetchSession(
       .where(eq(organizations.id, user.orgId))
       .limit(1);
     org = rawOrg ?? null;
+
+    if (!org || (org.settings as any)?.suspended) {
+      invalidateSessionCache(tokenHash).catch(() => {});
+      return { user: null, org: null, sessionExpiresAt: null };
+    }
 
     // Resolve custom permissions if matrixRole is a UUID
     if (user.matrixRole && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(user.matrixRole)) {

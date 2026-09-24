@@ -67,7 +67,11 @@ const nextConfig: NextConfig = {
     root: monorepoRoot,
   },
   async rewrites() {
-    return [{ source: "/favicon.ico", destination: "/icon.svg" }];
+    const apiBase = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001";
+    return [
+      { source: "/favicon.ico", destination: "/icon.svg" },
+      { source: "/uploads/:path*", destination: `${apiBase}/uploads/:path*` },
+    ];
   },
   images: {
     remotePatterns: [

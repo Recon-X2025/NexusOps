@@ -30,6 +30,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3001:3001"
+    volumes:
+      - uploads-data:/data/uploads
     env_file: .env.production
     environment:
       # KMS envelope encryption (G15). The API refuses to boot in production
@@ -129,21 +131,6 @@ services:
       api:
         condition: service_healthy
 
-  minio:
-    image: minio/minio:latest
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-
   # ── Traefik reverse proxy ───────────────────────────────────────────────────
   traefik:
     image: traefik:v3
@@ -168,5 +155,5 @@ volumes:
   postgres-data:
   redis-data:
   meilisearch-data:
-  minio-data:
+  uploads-data:
   letsencrypt-data:

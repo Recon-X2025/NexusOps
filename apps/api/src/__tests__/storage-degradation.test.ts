@@ -13,19 +13,21 @@ import { initTestEnvironment, seedFullOrg, authedCaller, createSession, cleanupO
 describe("storage-off graceful degradation", () => {
   let orgCtx: Awaited<ReturnType<typeof seedFullOrg>>;
   let adminToken: string;
-  const savedBucket = process.env["S3_BUCKET"];
+  const savedDisabled = process.env["STORAGE_DISABLED"];
 
   beforeAll(async () => {
     await initTestEnvironment();
-    delete process.env["S3_BUCKET"]; // force the "no object storage" state
+    process.env["STORAGE_DISABLED"] = "true"; // force the "no storage" state
     orgCtx = await seedFullOrg();
     adminToken = await createSession(orgCtx.adminId);
   });
 
   afterAll(async () => {
-    if (savedBucket === undefined) delete process.env["S3_BUCKET"];
-    else process.env["S3_BUCKET"] = savedBucket;
-    await cleanupOrg(orgCtx.orgId);
+    if (savedDisabled === undefined) delete process.env["STORAGE_DISABLED"];
+    else process.env["STORAGE_DISABLED"] = savedDisabled;
+    if (orgCtx?.orgId) {
+      await cleanupOrg(orgCtx.orgId);
+    }
   });
 
   it("documents.upload refuses cleanly and writes NO row when storage is unconfigured", async () => {

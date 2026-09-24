@@ -264,6 +264,21 @@ export const authRouter = router({
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
 
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, user.orgId))
+      .limit(1);
+
+    if (!org || (org.settings as any)?.suspended) {
+      await recordFailedLogin(email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", { reason: "org_suspended", user_id: user.id, org_id: user.orgId });
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Your organization has been suspended. Please contact support.",
+      });
+    }
+
     await clearLoginAttempts(email);
 
     // ── MFA gate ─────────────────────────────────────────────────────────────
@@ -300,12 +315,6 @@ export const authRouter = router({
         status: user.status === "invited" ? "active" : user.status
       })
       .where(eq(users.id, user.id));
-
-    const [org] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, user.orgId))
-      .limit(1);
 
     const tTotal = Date.now();
     logInfo("AUTH_LOGIN_SUCCESS", {
@@ -366,6 +375,19 @@ export const authRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
       }
 
+      const [org] = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, user.orgId))
+        .limit(1);
+
+      if (!org || (org.settings as any)?.suspended) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Your organization has been suspended. Please contact support.",
+        });
+      }
+
       const [enrollment] = await db
         .select()
         .from(mfaEnrollments)
@@ -413,12 +435,6 @@ export const authRouter = router({
         .update(users)
         .set({ lastLoginAt: new Date(), status: user.status === "invited" ? "active" : user.status })
         .where(eq(users.id, userId));
-
-      const [org] = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, user.orgId))
-        .limit(1);
 
       logInfo("AUTH_MFA_SUCCESS", { user_id: userId, org_id: user.orgId, backup: input.isBackupCode ?? false });
 

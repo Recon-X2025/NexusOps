@@ -19,10 +19,9 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { eq } from "drizzle-orm";
 import net from "node:net";
-import { Readable } from "node:stream";
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { documents, documentVersions } from "@coheronconnect/db";
 import type { Db } from "@coheronconnect/db";
+import { getObject } from "../services/storage";
 
 function redisConnection() {
   const url = process.env["REDIS_URL"] ?? "redis://localhost:6379";
@@ -129,42 +128,10 @@ async function clamdInstreamScan(buffer: Buffer): Promise<ClamScanResult> {
   });
 }
 
-// ── Object fetch helper (mirrors services/storage.ts but stays isolated) ──
-
-let _s3: S3Client | null = null;
-function s3(): S3Client {
-  if (_s3) return _s3;
-  // Accept both S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY and the shorter
-  // S3_ACCESS_KEY / S3_SECRET_KEY names used in the env templates.
-  const accessKeyId = process.env["S3_ACCESS_KEY_ID"] ?? process.env["S3_ACCESS_KEY"];
-  const secretAccessKey = process.env["S3_SECRET_ACCESS_KEY"] ?? process.env["S3_SECRET_KEY"];
-  const forcePathStyle = process.env["S3_FORCE_PATH_STYLE"]
-    ? process.env["S3_FORCE_PATH_STYLE"] === "true"
-    : Boolean(process.env["S3_ENDPOINT"]);
-  _s3 = new S3Client({
-    region: process.env["S3_REGION"] ?? "ap-south-1",
-    endpoint: process.env["S3_ENDPOINT"],
-    forcePathStyle,
-    credentials:
-      accessKeyId && secretAccessKey
-        ? { accessKeyId, secretAccessKey }
-        : undefined,
-  });
-  return _s3;
-}
+// ── Object fetch helper (reads object buffer from local storage) ──
 
 async function fetchObject(key: string): Promise<Buffer> {
-  const bucket = process.env["S3_BUCKET"];
-  if (!bucket) throw new Error("S3_BUCKET not configured");
-  const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
-  const res = await s3().send(cmd);
-  const stream = res.Body as Readable | undefined;
-  if (!stream) throw new Error("S3 object body missing");
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk as Buffer);
-  }
-  return Buffer.concat(chunks);
+  return getObject(key);
 }
 
 // ── Worker ────────────────────────────────────────────────────────────────
