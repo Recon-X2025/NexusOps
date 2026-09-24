@@ -254,6 +254,10 @@ async function runTests() {
     })
     .returning();
 
+  if (!createdTestOp) {
+    throw new Error("Failed to create isolated test operator for verification");
+  }
+
   console.log(`  [SETUP] Created isolated test operator: ${testOpEmail} (${createdTestOp.id})`);
 
   try {

@@ -160,11 +160,17 @@ export const macRouter = router({
 
       const { db } = ctx;
       // 1. Check database super_admin_users
-      const [dbUser] = await db
-        .select()
-        .from(superAdminUsers)
-        .where(eq(superAdminUsers.email, input.email.toLowerCase()))
-        .limit(1);
+      let dbUser: typeof superAdminUsers.$inferSelect | undefined;
+      try {
+        const [found] = await db
+          .select()
+          .from(superAdminUsers)
+          .where(eq(superAdminUsers.email, input.email.toLowerCase()))
+          .limit(1);
+        dbUser = found;
+      } catch {
+        // Table may not exist yet or query failed; fall through to env fallback
+      }
 
       if (dbUser) {
         if (dbUser.status === "disabled") {
@@ -175,7 +181,11 @@ export const macRouter = router({
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
         }
         // Update last login
-        await db.update(superAdminUsers).set({ lastLoginAt: new Date() }).where(eq(superAdminUsers.id, dbUser.id));
+        try {
+          await db.update(superAdminUsers).set({ lastLoginAt: new Date() }).where(eq(superAdminUsers.id, dbUser.id));
+        } catch {
+          // Non-critical timestamp update failure
+        }
 
         const token = jwt.sign(
           {

@@ -270,7 +270,7 @@ export const authRouter = router({
       .where(eq(organizations.id, user.orgId))
       .limit(1);
 
-    if (!org || (org.settings as any)?.suspended) {
+    if (!org || org.settings?.suspended) {
       await recordFailedLogin(email, ctx.ipAddress);
       logWarn("AUTH_LOGIN_FAIL", { reason: "org_suspended", user_id: user.id, org_id: user.orgId });
       throw new TRPCError({
@@ -381,7 +381,7 @@ export const authRouter = router({
         .where(eq(organizations.id, user.orgId))
         .limit(1);
 
-      if (!org || (org.settings as any)?.suspended) {
+      if (!org || org.settings?.suspended) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Your organization has been suspended. Please contact support.",
